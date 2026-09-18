@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRM — CallMed Proteção Patrimonial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+  :root{
+    --bg:#f5f6fa; --surface:#ffffff; --surface-2:#fafbfc;
+    --border:#e3e6ee; --border-soft:#edeff5;
+    --ink:#12141f; --ink-soft:#565c6e; --ink-faint:#8990a3;
+    --brand:#0018fc; --brand-hover:#000fc2; --brand-soft:#eef0ff;
+    --teal:#38e3bf; --teal-deep:#0e9e82; --teal-soft:#e3faf3;
+    --amber:#c8790b; --amber-ink:#8a5406; --amber-soft:#fdf1de; --amber-line:#f0d3a3;
+    --red:#c23636; --red-soft:#fbe9e9; --red-line:#f0c2c2;
+    --green:#149c6b; --green-soft:#e2f7ee;
+    --radius-sm:8px; --radius-md:11px; --radius-lg:16px;
+    --shadow-xs: 0 1px 2px rgba(15,18,30,.05);
+    --shadow-sm: 0 1px 2px rgba(15,18,30,.04), 0 4px 12px -6px rgba(15,18,30,.08);
+    --shadow-md: 0 2px 4px rgba(15,18,30,.04), 0 12px 28px -10px rgba(15,18,30,.14);
+  }
+  *{box-sizing:border-box;}
+  html,body{ height:100%; margin:0; }
+  body{ background:var(--bg); color:var(--ink); font-family:'Inter',-apple-system,system-ui,sans-serif; font-size:14px; line-height:1.5; -webkit-font-smoothing:antialiased;}
+  h1,h2,h3,h4{ font-family:'Poppins',sans-serif; font-weight:700; margin:0; color:var(--ink); letter-spacing:-.01em;}
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  input,select,textarea,button{ font-family:inherit; font-size:inherit; }
+  button{ cursor:pointer; }
+  ::selection{ background:var(--brand-soft); color:var(--brand); }
+  *:focus-visible{ outline:2px solid var(--brand); outline-offset:1px; }
+
+  /* ---------- login / reset ---------- */
+  #login-screen, #reset-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:radial-gradient(circle at 20% 15%, #eef0ff 0%, var(--bg) 45%);}
+  .login-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:38px 34px; width:100%; max-width:380px; box-shadow:var(--shadow-md);}
+  .login-card h1{ font-size:1.5rem; margin-bottom:4px;}
+  .login-card .sub{ color:var(--ink-soft); font-size:13px; margin-bottom:26px;}
+  .field{ margin-bottom:14px; display:flex; flex-direction:column; gap:6px;}
+  .field label{ font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--ink-faint); text-transform:uppercase; letter-spacing:.06em; font-weight:600;}
+  .field input, .field select, .field textarea{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; background:var(--surface); color:var(--ink); transition:border-color .15s,box-shadow .15s;}
+  .field input:focus, .field select:focus, .field textarea:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);}
+  .btn{ border:none; border-radius:var(--radius-sm); padding:10px 16px; font-weight:600; font-size:13.5px; transition:background .15s,transform .05s;}
+  .btn-primary{ background:var(--brand); color:#fff; width:100%; box-shadow:var(--shadow-xs);}
+  .btn-primary:hover{ background:var(--brand-hover);}
+  .btn-primary:active{ transform:scale(.99);}
+  .btn-ghost{ background:transparent; border:none; color:var(--brand); text-decoration:none; font-size:12.5px; padding:8px 0; font-weight:600;}
+  .btn-ghost:hover{ text-decoration:underline;}
+  #login-screen .login-card > .btn-ghost{ display:block; text-align:left;}
+  .err{ color:var(--red); font-size:12.5px; margin-top:10px; min-height:16px; line-height:1.4;}
+
+  /* ---------- app shell ---------- */
+  #app{ display:none; height:100vh; grid-template-columns: 76px 1fr; grid-template-rows: 60px 1fr; }
+  #app.active{ display:grid; }
+  header{ grid-column:1/3; background:var(--surface); color:var(--ink); display:flex; align-items:center; justify-content:space-between; padding:0 22px; z-index:5; border-bottom:1px solid var(--border);}
+  header .brand{ font-family:'Poppins',sans-serif; font-weight:700; font-size:1rem; display:flex; align-items:center; gap:9px; color:var(--ink);}
+  header .brand .dot{ width:7px; height:7px; border-radius:50%; background:var(--teal);}
+  header .brand img{ height:24px; display:block;}
+  .login-card .logo{ height:32px; margin-bottom:20px; display:block;}
+  header .who{ font-size:12.5px; color:var(--ink-faint); display:flex; align-items:center; gap:14px;}
+  header .who button{ background:var(--surface-2); border:1px solid var(--border); color:var(--ink-soft); border-radius:7px; padding:6px 12px; font-size:12px; font-weight:600; transition:all .15s;}
+  header .who button:hover{ border-color:var(--ink-faint); color:var(--ink);}
+
+  /* ---------- nav rail ---------- */
+  #rail{ background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding-top:16px; gap:4px;}
+  #rail button{ background:transparent; border:none; color:var(--ink-faint); width:56px; height:52px; border-radius:var(--radius-md); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; font-size:18px; transition:all .15s;}
+  #rail button span{ font-size:9px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.03em; font-weight:600;}
+  #rail button:hover{ background:var(--surface-2); color:var(--ink);}
+  #rail button.active{ background:var(--brand-soft); color:var(--brand);}
+
+  .view-container{ position:relative; overflow:hidden; background:var(--bg);}
+  .view{ position:absolute; inset:0; display:none; }
+  .view.active{ display:grid; }
+
+  /* ---------- pessoas view ---------- */
+  #view-pessoas.active{ grid-template-columns:300px 1fr; }
+  #sidebar{ border-right:1px solid var(--border); background:var(--surface); display:flex; flex-direction:column; overflow:hidden;}
+  #search-box{ padding:16px; border-bottom:1px solid var(--border-soft);}
+  #search-box input{ width:100%; border:1px solid var(--border); border-radius:var(--radius-sm); padding:9px 12px; background:var(--surface-2); transition:border-color .15s,box-shadow .15s;}
+  #search-box input:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); background:var(--surface);}
+  #person-list{ overflow-y:auto; flex:1;}
+  .person-row{ padding:12px 16px; border-bottom:1px solid var(--border-soft); cursor:pointer; display:flex; flex-direction:column; gap:3px; transition:background .12s;}
+  .person-row:hover{ background:var(--surface-2);}
+  .person-row.active{ background:var(--brand-soft); border-left:3px solid var(--brand); padding-left:13px;}
+  .person-row .nm{ font-weight:600; font-size:13.5px;}
+  .person-row .meta{ font-size:11.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace;}
+  #list-status{ padding:10px 16px; font-size:11.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace;}
+
+  #main{ overflow-y:auto; padding:30px 36px;}
+  #empty-state{ color:var(--ink-faint); font-size:14px; padding-top:80px; text-align:center;}
+
+  .person-header{ display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px; margin-bottom:28px; padding-bottom:22px; border-bottom:1px solid var(--border);}
+  .person-header h2{ font-size:1.5rem;}
+  .person-header .tags{ display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;}
+  .tag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; font-weight:600; padding:4px 10px; border-radius:100px; background:var(--teal-soft); color:var(--teal-deep); letter-spacing:.02em;}
+  .core-fields{ display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px 22px; margin-top:16px; font-size:13px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px 18px;}
+  .core-fields .cf label{ display:block; font-size:10.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.04em; font-weight:600;}
+  .core-fields .cf .v{ color:var(--ink); margin-top:3px; font-weight:500;}
+  .activity-strip{ display:flex; gap:20px; align-items:center; flex-wrap:wrap; margin-top:12px; background:var(--brand-soft); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px 18px;}
+  .activity-strip .astat{ display:flex; flex-direction:column; gap:2px;}
+  .activity-strip .astat .an{ font-family:'Poppins',sans-serif; font-weight:700; font-size:1.15rem; color:var(--brand);}
+  .activity-strip .astat .al{ font-size:10.5px; color:var(--ink-soft); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.03em; font-weight:600;}
+  .activity-strip .astat-note{ margin-left:auto; font-size:11px; color:var(--ink-faint);}
+  .activity-strip.empty{ background:var(--surface-2); color:var(--ink-faint); font-size:12.5px; font-style:italic; padding:12px 18px;}
+
+  .block{ margin-bottom:16px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--surface); overflow:hidden; box-shadow:var(--shadow-xs);}
+  .block-head{ display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:var(--surface); cursor:pointer; transition:background .12s;}
+  .block-head:hover{ background:var(--surface-2);}
+  .block-head h3{ font-size:.92rem; color:var(--ink); font-weight:700;}
+  .block-head .count{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); background:var(--surface-2); border:1px solid var(--border-soft); border-radius:6px; padding:2px 8px; font-weight:600;}
+  .block-body{ padding:16px 18px; display:none; background:var(--surface-2); border-top:1px solid var(--border-soft);}
+  .block-body.open{ display:block;}
+  .rec{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 13px; margin-bottom:8px; font-size:13px; background:var(--surface);}
+  .rec .k{ color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; margin-right:6px; font-weight:600; letter-spacing:.03em;}
+  .no-rec{ color:var(--ink-faint); font-size:12.5px; font-style:italic; margin-bottom:10px;}
+  .add-form{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:9px; margin-top:12px;}
+  .add-form input, .add-form select, .add-form textarea{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; background:var(--surface); font-size:12.5px; width:100%; transition:border-color .15s,box-shadow .15s;}
+  .add-form input:focus, .add-form select:focus, .add-form textarea:focus{ outline:none; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);}
+  .add-form label.full{ grid-column:1/-1; font-size:10px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; margin-top:4px; margin-bottom:-4px; font-weight:600; letter-spacing:.03em;}
+  .add-form button{ grid-column:1/-1; justify-self:start; background:var(--ink); color:#fff; border:none; border-radius:var(--radius-sm); padding:8px 16px; font-size:12.5px; font-weight:600; margin-top:2px; transition:opacity .15s;}
+  .add-form button:hover{ opacity:.85;}
+  .toast{ position:fixed; bottom:22px; right:22px; background:var(--ink); color:#fff; padding:11px 18px; border-radius:var(--radius-sm); font-size:13px; font-weight:500; box-shadow:var(--shadow-md); display:none; z-index:50;}
+
+  /* ---------- agenda view ---------- */
+  #view-agenda.active{ grid-template-columns: 1fr 340px; overflow-y:auto;}
+  #agenda-main{ padding:28px 32px; overflow-y:auto;}
+  #agenda-side{ border-left:1px solid var(--border); background:var(--surface); padding:24px 22px; overflow-y:auto;}
+  .agenda-topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;}
+  .agenda-topbar h2{ font-size:1.3rem;}
+  .agenda-nav{ display:flex; gap:6px; align-items:center;}
+  .agenda-nav button{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); width:30px; height:30px; color:var(--ink-soft); transition:all .15s;}
+  .agenda-nav button:hover{ border-color:var(--ink-faint); color:var(--ink);}
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden;}
+  .cal-dow{ background:var(--surface); color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; text-align:center; padding:9px 0; font-weight:600; letter-spacing:.04em;}
+  .cal-cell{ background:var(--surface); min-height:88px; padding:7px 8px; font-size:12px; cursor:pointer; position:relative; transition:background .12s;}
+  .cal-cell:hover{ background:var(--surface-2);}
+  .cal-cell.other-month{ background:var(--surface-2); color:var(--ink-faint);}
+  .cal-cell.today{ box-shadow:inset 0 0 0 2px var(--brand);}
+  .cal-cell.selected{ background:var(--brand-soft);}
+  .cal-cell .dnum{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:12px;}
+  .cal-evt{ margin-top:4px; background:var(--brand); color:#fff; border-radius:5px; padding:2px 6px; font-size:10px; font-weight:500; margin-bottom:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+  .cal-evt.realizado{ background:var(--ink-faint);}
+  .cal-evt.cancelado{ background:var(--red); text-decoration:line-through;}
+  .ics-box{ background:var(--amber-soft); border:1px solid var(--amber-line); border-radius:var(--radius-md); padding:15px 17px; margin-bottom:24px; font-size:12.5px; color:var(--ink-soft);}
+  .ics-box b{ display:block; margin-bottom:6px; color:var(--amber-ink);}
+  .ics-box .url-row{ display:flex; gap:6px; margin-top:9px;}
+  .ics-box input{ flex:1; border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 9px; font-size:11px; background:var(--surface);}
+  .ics-box button{ border:none; background:var(--brand); color:#fff; border-radius:var(--radius-sm); padding:7px 12px; font-size:11.5px; font-weight:600;}
+  .day-events{ margin-top:22px;}
+  .day-events h4{ font-size:.85rem; margin-bottom:12px; color:var(--ink); text-transform:capitalize;}
+  .evt-card{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:11px 13px; margin-bottom:8px; background:var(--surface);}
+  .evt-card .t{ font-weight:600; font-size:12.5px;}
+  .evt-card .m{ font-size:11px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; margin-top:3px;}
+
+  /* ---------- kanban view ---------- */
+  #view-jornada.active, #view-funil.active{ display:block; overflow-x:auto; overflow-y:hidden; padding:26px 26px;}
+  .kanban-head{ margin-bottom:20px;}
+  .kanban-head h2{ font-size:1.3rem;}
+  .kanban-board{ display:flex; gap:14px; height:calc(100vh - 158px); min-height:400px;}
+  .kanban-col{ background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius-md); width:236px; flex:0 0 236px; display:flex; flex-direction:column; overflow:hidden;}
+  .kanban-col-head{ padding:13px 14px; background:var(--surface); border-bottom:1px solid var(--border);}
+  .kanban-col-head .lbl{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; color:var(--ink-soft); font-weight:700; letter-spacing:.03em;}
+  .kanban-col-head .cnt{ font-size:11px; color:var(--ink-faint); margin-top:2px; font-weight:600;}
+  .kanban-col-body{ padding:10px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:8px;}
+  .kanban-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; cursor:pointer; font-size:12.5px; box-shadow:var(--shadow-xs); transition:all .15s;}
+  .kanban-card:hover{ border-color:var(--brand); box-shadow:var(--shadow-sm); transform:translateY(-1px);}
+  .kanban-card .nm{ font-weight:600; margin-bottom:3px; color:var(--ink);}
+  .kanban-card .np{ font-size:11px; color:var(--ink-soft);}
+  .kanban-card .dt{ font-size:10.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; margin-top:5px; font-weight:600;}
+  .kanban-empty{ font-size:11.5px; color:var(--ink-faint); text-align:center; padding:16px 6px; font-style:italic;}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-card">
+    <img class="logo" src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial">
+    <div class="sub" style="margin-top:-10px;">CRM — Acesso restrito — Luiz e Amanda.</div>
+    <div class="field"><label>Email</label><input id="login-email" type="email" autocomplete="username"></div>
+    <div class="field"><label>Senha</label><input id="login-pass" type="password" autocomplete="current-password"></div>
+    <button class="btn btn-primary" id="btn-login">Entrar</button>
+    <button class="btn-ghost" id="btn-toggle-signup" type="button">Primeira vez? Criar conta</button>
+    <button class="btn-ghost" id="btn-forgot" type="button">Esqueci minha senha</button>
+    <div class="err" id="login-err"></div>
+  </div>
+</div>
+
+<div id="reset-screen" style="display:none;">
+  <div class="login-card">
+    <h1>Nova senha</h1>
+    <div class="sub">Defina sua nova senha de acesso.</div>
+    <div class="field"><label>Nova senha</label><input id="reset-pass" type="password" autocomplete="new-password"></div>
+    <button class="btn btn-primary" id="btn-reset-save">Salvar senha</button>
+    <div class="err" id="reset-err"></div>
+  </div>
+</div>
+
+<div id="app">
+  <header>
+    <div class="brand"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><span class="dot"></span></div>
+    <div class="who"><span id="who-email"></span><button id="btn-logout">Sair</button></div>
+  </header>
+
+  <nav id="rail">
+    <button class="nav-btn active" data-view="pessoas">👥<span>Pessoas</span></button>
+    <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
+    <button class="nav-btn" data-view="funil">📶<span>Funil</span></button>
+    <button class="nav-btn" data-view="jornada">🗂️<span>Jornada</span></button>
+    <button class="nav-btn" data-view="hoje">☀️<span>Hoje</span></button>
+    <button class="nav-btn" data-view="apolices">📄<span>Apólices</span></button>
+    <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
+    <button class="nav-btn" data-view="ata">🗒️<span>Ata</span></button>
+  </nav>
+
+  <div class="view-container">
+
+    <div id="view-pessoas" class="view active">
+      <div id="sidebar">
+        <div id="search-box"><input id="search-input" placeholder="Buscar por nome, CPF ou CRM..."></div>
+        <div id="list-status">Carregando...</div>
+        <div id="person-list"></div>
+      </div>
+      <div id="main">
+        <div id="empty-state">Selecione um médico na lista à esquerda.</div>
+        <div id="person-view" style="display:none;"></div>
+      </div>
+    </div>
+
+    <div id="view-agenda" class="view">
+      <div id="agenda-main">
+        <div class="agenda-topbar">
+          <h2 id="cal-title">—</h2>
+          <div class="agenda-nav">
+            <button id="cal-prev">‹</button>
+            <button id="cal-today-btn">Hoje</button>
+            <button id="cal-next">›</button>
+          </div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div id="agenda-side">
+        <div class="ics-box">
+          <b>📡 Assinar no Google Agenda</b>
+          Google Agenda → Outras agendas → "+" → Assinar via URL. Cole o link abaixo. Atualiza sozinho (a cada ~horas, é o padrão do Google).
+          <div class="url-row">
+            <input id="ics-url" readonly value="">
+            <button id="btn-copy-ics">Copiar</button>
+          </div>
+        </div>
+        <h4 style="font-size:.9rem; margin-bottom:10px;">Novo compromisso</h4>
+        <form class="add-form" id="agenda-form" style="grid-template-columns:1fr;">
+          <input name="pessoa_busca" id="agenda-pessoa-busca" placeholder="Buscar médico..." autocomplete="off">
+          <div id="agenda-pessoa-results" style="max-height:120px; overflow-y:auto;"></div>
+          <input type="hidden" name="pessoa_id" id="agenda-pessoa-id">
+          <div id="agenda-pessoa-selected" style="font-size:12px; color:var(--green); font-weight:600;"></div>
+          <input name="titulo" placeholder="Título (ex.: 1ª visita - diagnóstico)" required>
+          <select name="tipo"><option value="reuniao_online">Reunião online</option><option value="ligacao">Ligação</option><option value="visita">Visita presencial</option><option value="outro">Outro</option></select>
+          <label class="full">Início</label>
+          <input name="data_inicio" type="datetime-local" required>
+          <label class="full">Fim</label>
+          <input name="data_fim" type="datetime-local">
+          <input name="local" placeholder="Local / link">
+          <textarea name="notas" placeholder="Notas" rows="2"></textarea>
+          <button type="submit">+ Agendar</button>
+        </form>
+        <div class="day-events" id="day-events"></div>
+      </div>
+    </div>
+
+    <div id="view-funil" class="view">
+      <div class="kanban-head">
+        <h2>Funil comercial</h2>
+        <div style="color:var(--ink-faint); font-size:12.5px; margin-top:4px;">Pipeline semanal de vendas — Contato → Atendimento → Agendamento → Reunião → Diagnóstico → Proposta → Fechamento → Follow-up. Clique num card para abrir o médico.</div>
+      </div>
+      <div class="kanban-board" id="funil-board"></div>
+    </div>
+
+    <div id="view-jornada" class="view">
+      <div class="kanban-head">
+        <h2>Jornada dos médicos</h2>
+        <div style="color:var(--ink-faint); font-size:12.5px; margin-top:4px;">As 8 etapas do Playbook Comercial (ciclo de vida do relacionamento) — clique num card para abrir o médico.</div>
+      </div>
+      <div class="kanban-board" id="kanban-board"></div>
+    </div>
+
+    <div id="view-hoje" class="view" style="overflow-y:auto; padding:26px 32px;">
+      <h2 style="margin-bottom:18px;">☀️ Hoje</h2>
+      <div class="grid-2col">
+        <div>
+          <h3 style="font-size:1rem; margin-bottom:10px;">Tarefas de hoje</h3>
+          <form class="add-form" id="tarefa-form" style="grid-template-columns:1fr; margin-bottom:14px;">
+            <input name="descricao" placeholder="Nova tarefa..." required>
+            <select name="prioridade"><option value="media">Prioridade média</option><option value="alta">Alta</option><option value="baixa">Baixa</option></select>
+            <select name="categoria"><option value="vendas">Vendas</option><option value="pos_venda">Pós-venda</option><option value="administrativo">Administrativo</option><option value="relacionamento">Relacionamento</option><option value="adn">ADN</option></select>
+            <button type="submit">+ Adicionar tarefa</button>
+          </form>
+          <div id="tarefas-list"></div>
+        </div>
+        <div>
+          <h3 style="font-size:1rem; margin-bottom:10px;">Lembretes pendentes</h3>
+          <div id="lembretes-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-apolices" class="view" style="overflow-y:auto; padding:26px 32px;">
+      <h2 style="margin-bottom:6px;">📄 Apólices</h2>
+      <div style="color:var(--ink-faint); font-size:12.5px; margin-bottom:18px;">Ordenado por vencimento mais próximo — priorize renovação.</div>
+      <div id="apolices-list"></div>
+    </div>
+
+    <div id="view-conhecimento" class="view" style="overflow-y:auto; padding:26px 32px;">
+      <h2 style="margin-bottom:18px;">📚 Base de Conhecimento</h2>
+      <form class="add-form" id="conhecimento-form" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:20px; max-width:700px;">
+        <input name="titulo" placeholder="Título" required>
+        <input name="categoria" placeholder="Categoria (ex.: objeção, script)">
+        <textarea name="conteudo" placeholder="Conteúdo" rows="3" style="grid-column:1/-1;"></textarea>
+        <button type="submit">+ Adicionar</button>
+      </form>
+      <div id="conhecimento-list" style="max-width:700px;"></div>
+    </div>
+
+    <div id="view-ata" class="view" style="overflow-y:auto; padding:30px 36px;">
+      <h2 style="margin-bottom:4px;">🗒️ Ata de Entregáveis</h2>
+      <div style="color:var(--ink-faint); font-size:12.5px; margin-bottom:22px;">Histórico contínuo de decisões e entregas — mais recente primeiro.</div>
+      <div id="ata-list" style="max-width:760px;"></div>
+    </div>
+
+  </div>
+</div>
+
+<style>
+  #view-hoje.active, #view-apolices.active, #view-conhecimento.active, #view-ata.active{ display:block !important; }
+  .ata-entry{ border:1px solid var(--border); border-radius:var(--radius-lg); background:var(--surface); box-shadow:var(--shadow-xs); padding:22px 24px; margin-bottom:20px;}
+  .ata-entry .dt{ font-family:'IBM Plex Mono',monospace; font-weight:700; font-size:15px; color:var(--brand);}
+  .ata-entry .dw{ font-size:12px; color:var(--ink-faint); margin:2px 0 12px;}
+  .ata-entry h4{ font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin:14px 0 8px; font-family:'IBM Plex Mono',monospace;}
+  .ata-entry ul{ margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px;}
+  .ata-entry li{ font-size:13px; color:var(--ink-soft); line-height:1.5;}
+  .ata-entry .done-h4{ color:var(--teal-deep);}
+  .ata-entry .open-h4{ color:var(--amber-ink);}
+  .grid-2col{ display:grid; grid-template-columns:1fr 1fr; gap:32px; max-width:1000px;}
+  .today-card{ background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--teal); border-radius:var(--radius-sm); padding:11px 15px; margin-bottom:8px; font-size:13px; display:flex; justify-content:space-between; align-items:center; gap:10px; box-shadow:var(--shadow-xs);}
+  .today-card.done{ opacity:.5; border-left-color:var(--ink-faint);}
+  .today-card .txt{ flex:1;}
+  .today-card .meta{ font-size:11px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace;}
+  .today-card button{ border:1px solid var(--border); background:var(--surface-2); border-radius:6px; padding:5px 10px; font-size:11px; font-weight:600; color:var(--ink-soft);}
+  .apolice-row{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:15px 19px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; box-shadow:var(--shadow-xs);}
+  .apolice-row.venc-30{ border-left:4px solid var(--amber);}
+  .apolice-row.venc-7{ border-left:4px solid var(--red);}
+  .apolice-row .nm{ font-weight:600; font-size:13.5px;}
+  .apolice-row .sub{ font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  .kb-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:15px 17px; margin-bottom:10px; box-shadow:var(--shadow-xs);}
+  .kb-card h4{ font-size:.95rem; margin-bottom:4px;}
+  .kb-card .cat{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--brand); text-transform:uppercase; font-weight:700; letter-spacing:.03em;}
+  .kb-card p{ font-size:12.5px; color:var(--ink-soft); margin:6px 0 0;}
+</style>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://rdkvkvhydcusbhugekeq.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJka3Zrdmh5ZGN1c2JodWdla2VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzODY4NTIsImV4cCI6MjEwMTk2Mjg1Mn0.qzthAQwf5lx9Q5r6Y78OqfplaMz-Xqm_C342kUkJ-0c";
+const ICS_TOKEN = "AjWe0bFNyGC44THvqvD3-EmF5dM7jBuZ";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let isSignupMode = false;
+let currentPersonId = null;
+let searchTimer = null;
+let calMonth = new Date(); calMonth.setDate(1);
+let selectedDay = new Date();
+let agendaPersonSel = null;
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.style.display = 'block';
+  setTimeout(()=> t.style.display='none', 2500);
+}
+function escapeHtml(s){
+  if(s===null || s===undefined) return '';
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmtDate(s){ if(!s) return ''; try{ return new Date(s).toLocaleDateString('pt-BR'); }catch(e){ return s; } }
+function fmtDateTime(s){ if(!s) return ''; try{ return new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return s; } }
+function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+// ---------- AUTH ----------
+document.getElementById('btn-toggle-signup').addEventListener('click', ()=>{
+  isSignupMode = !isSignupMode;
+  document.getElementById('btn-login').textContent = isSignupMode ? 'Criar conta' : 'Entrar';
+  document.getElementById('btn-toggle-signup').textContent = isSignupMode ? 'Já tenho conta' : 'Primeira vez? Criar conta';
+});
+document.getElementById('btn-login').addEventListener('click', async ()=>{
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-err');
+  errEl.style.color = 'var(--red)'; errEl.textContent = '';
+  if(!email || !password){ errEl.textContent = 'Preencha email e senha.'; return; }
+  let res = isSignupMode ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
+  if(res.error){ errEl.textContent = res.error.message; return; }
+  if(isSignupMode && res.data.user && !res.data.session){ errEl.textContent = 'Se for um email novo, verifique sua caixa (e spam). Se já tiver conta, use Entrar.'; return; }
+  boot();
+});
+document.getElementById('btn-forgot').addEventListener('click', async ()=>{
+  const email = document.getElementById('login-email').value.trim();
+  const errEl = document.getElementById('login-err');
+  if(!email){ errEl.textContent = 'Digite seu email no campo acima primeiro.'; return; }
+  errEl.style.color = 'var(--green)'; errEl.textContent = 'Enviando...';
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+  if(error){ errEl.textContent = error.message; return; }
+  errEl.textContent = 'Se essa conta existir, um email de redefinição foi enviado. Confira spam/lixo eletrônico também.';
+});
+sb.auth.onAuthStateChange((event)=>{
+  if(event === 'PASSWORD_RECOVERY'){
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('app').classList.remove('active');
+    document.getElementById('reset-screen').style.display = 'flex';
+  }
+});
+document.getElementById('btn-reset-save').addEventListener('click', async ()=>{
+  const newPass = document.getElementById('reset-pass').value;
+  const errEl = document.getElementById('reset-err');
+  if(!newPass || newPass.length < 6){ errEl.textContent = 'Senha precisa ter pelo menos 6 caracteres.'; return; }
+  const { error } = await sb.auth.updateUser({ password: newPass });
+  if(error){ errEl.textContent = error.message; return; }
+  errEl.style.color = 'var(--green)'; errEl.textContent = 'Senha atualizada! Redirecionando...';
+  setTimeout(()=>{ document.getElementById('reset-screen').style.display='none'; boot(); }, 1200);
+});
+document.getElementById('btn-logout').addEventListener('click', async ()=>{ await sb.auth.signOut(); location.reload(); });
+async function checkSession(){ const { data } = await sb.auth.getSession(); if(data.session){ boot(); } }
+
+function boot(){
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('active');
+  sb.auth.getUser().then(({data})=>{ document.getElementById('who-email').textContent = data.user ? data.user.email : ''; });
+  document.getElementById('ics-url').value = `${SUPABASE_URL}/functions/v1/agenda-ics?token=${ICS_TOKEN}`;
+  loadPeople('');
+  renderCalendar();
+  renderKanban();
+}
+
+// ---------- NAV RAIL ----------
+document.querySelectorAll('.nav-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view === 'funil') renderFunil();
+    if(btn.dataset.view === 'jornada') renderKanban();
+    if(btn.dataset.view === 'agenda') renderCalendar();
+    if(btn.dataset.view === 'hoje') renderHoje();
+    if(btn.dataset.view === 'apolices') renderApolices();
+    if(btn.dataset.view === 'conhecimento') renderConhecimento();
+    if(btn.dataset.view === 'ata') renderAta();
+  });
+});
+function goToPersonView(personId){
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.nav-btn[data-view="pessoas"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-pessoas').classList.add('active');
+  openPerson(personId);
+}
+
+document.getElementById('btn-copy-ics').addEventListener('click', ()=>{
+  const inp = document.getElementById('ics-url');
+  inp.select(); document.execCommand('copy');
+  showToast('Link copiado!');
+});
+
+// ---------- PEOPLE LIST ----------
+async function loadPeople(query){
+  const statusEl = document.getElementById('list-status');
+  const listEl = document.getElementById('person-list');
+  statusEl.textContent = 'Carregando...';
+  let q = sb.from('crm_pessoas').select('id,nome,cpf,crm,especialidade,tipo').order('nome').limit(150);
+  if(query){ q = q.or(`nome.ilike.%${query}%,cpf.ilike.%${query}%,crm.ilike.%${query}%`); }
+  const { data, error } = await q;
+  if(error){ statusEl.textContent = 'Erro: ' + error.message; return; }
+  statusEl.textContent = data.length + (query ? ' resultado(s)' : ' médicos (mostrando primeiros 150 — busque para refinar)');
+  listEl.innerHTML = '';
+  data.forEach(p=>{
+    const row = document.createElement('div');
+    row.className = 'person-row' + (p.id===currentPersonId ? ' active' : '');
+    row.innerHTML = `<div class="nm">${escapeHtml(p.nome)}</div><div class="meta">${p.crm ? 'CRM '+escapeHtml(p.crm) : ''} ${p.especialidade ? '· '+escapeHtml(p.especialidade) : ''}</div>`;
+    row.addEventListener('click', ()=> openPerson(p.id));
+    listEl.appendChild(row);
+  });
+}
+document.getElementById('search-input').addEventListener('input', (e)=>{
+  clearTimeout(searchTimer);
+  const val = e.target.value.trim();
+  searchTimer = setTimeout(()=> loadPeople(val), 300);
+});
+
+// ---------- BLOCKS CONFIG (mapeia os blocos do Playbook + reunião 14/09) ----------
+const BLOCKS = [
+  { table:'crm_redes_sociais', label:'Redes Sociais / Pesquisa', icon:'🔎',
+    fields:[ {name:'rede',label:'Rede',type:'text',placeholder:'Instagram / LinkedIn'},
+             {name:'url',label:'URL',type:'text'},
+             {name:'artigos_publicados',label:'Artigos publicados',type:'text'},
+             {name:'observacoes',label:'Observações',type:'text'} ],
+    render:r=>`<b>${escapeHtml(r.rede||'—')}</b> ${r.url?('— '+escapeHtml(r.url)):''}${r.artigos_publicados?('<br><span class="k">ARTIGOS</span>'+escapeHtml(r.artigos_publicados)):''}${r.observacoes?('<br><span class="k">OBS</span>'+escapeHtml(r.observacoes)):''}` },
+  { table:'crm_relacionamento', label:'Relacionamento', icon:'🤝',
+    fields:[ {name:'data_contato',label:'Data do contato',type:'datetime-local'},
+             {name:'contexto',label:'Contexto',type:'text'},
+             {name:'pessoa_referencia',label:'Pessoa de referência',type:'text'} ],
+    render:r=>`<span class="k">${fmtDate(r.data_contato)}</span>${escapeHtml(r.contexto||'')}${r.pessoa_referencia?('<br><span class="k">REF</span>'+escapeHtml(r.pessoa_referencia)):''}` },
+  { table:'crm_protecao_atual', label:'Proteção Atual', icon:'🛡️',
+    fields:[ {name:'seguradora',label:'Seguradora',type:'text'},
+             {name:'produto',label:'Produto',type:'text'},
+             {name:'cobertura',label:'Cobertura',type:'text'},
+             {name:'status',label:'Status',type:'select',options:['ativa','cancelada','nao_possui','em_analise']},
+             {name:'data_ultima_revisao',label:'Última revisão',type:'date'} ],
+    render:r=>`<b>${escapeHtml(r.seguradora||'—')}</b> · ${escapeHtml(r.produto||'')} <span class="k">${r.status||''}</span>${r.data_ultima_revisao?(' · revisado '+fmtDate(r.data_ultima_revisao)):''}` },
+  { table:'crm_diagnostico', label:'Diagnóstico (ADN completo)', icon:'🩺',
+    fields:[
+      {name:'status',label:'Status da ADN',type:'select',options:['em_aberto','parcial','completo']},
+      {name:'preenchido_por',label:'Preenchido por',type:'text'},
+      // --- Renda ---
+      {name:'renda_fontes',label:'Renda: fontes',type:'text'},
+      {name:'renda_dependencia_atividade_medica',label:'Renda: dependência da atividade médica',type:'text'},
+      {name:'renda_estabilidade',label:'Renda: estabilidade/concentração',type:'text'},
+      {name:'renda_estimada',label:'Renda estimada (R$)',type:'number'},
+      {name:'renda_mensal_faixa',label:'Renda mensal: faixa',type:'text'},
+      {name:'renda_mensal_valor_exato',label:'Renda mensal: valor exato (R$)',type:'number'},
+      // --- Família ---
+      {name:'dependentes',label:'Nº dependentes',type:'number'},
+      {name:'responsabilidades',label:'Família: responsabilidades',type:'text'},
+      {name:'familia_padrao_vida',label:'Família: padrão de vida',type:'text'},
+      {name:'valor_mensal_educacao_filhos',label:'Educação dos filhos (R$/mês)',type:'number'},
+      // --- Patrimônio ---
+      {name:'patrimonio_bens',label:'Patrimônio: bens',type:'text'},
+      {name:'patrimonio_dividas',label:'Patrimônio: dívidas',type:'text'},
+      {name:'patrimonio_projetos',label:'Patrimônio: projetos',type:'text'},
+      {name:'patrimonio_liquidez',label:'Patrimônio: liquidez',type:'text'},
+      {name:'valor_bens_totais',label:'Valor total de bens (R$)',type:'number'},
+      {name:'faz_reserva_financeira',label:'Faz reserva financeira?',type:'boolean'},
+      {name:'tem_investimentos',label:'Tem investimentos?',type:'boolean'},
+      {name:'detalhes_investimentos',label:'Detalhes dos investimentos',type:'text'},
+      // --- Trabalho ---
+      {name:'trabalho_especialidade_detalhe',label:'Trabalho: especialidade/detalhe',type:'text'},
+      {name:'trabalho_plantoes_consultorio',label:'Trabalho: plantões/consultório',type:'text'},
+      {name:'trabalho_riscos',label:'Trabalho: riscos',type:'text'},
+      // --- Proteção atual (percepção) ---
+      {name:'tem_plano_saude',label:'Tem plano de saúde?',type:'boolean'},
+      {name:'tem_seguro_vida',label:'Tem seguro de vida?',type:'text'},
+      {name:'valor_cheque_mensal',label:'Valor de proteção desejado (R$/mês)',type:'number'},
+      {name:'protecao_percebida_adequada',label:'Proteção atual é adequada? (percepção do médico)',type:'text'},
+      // --- Saúde (dado sensível - LGPD categoria especial) ---
+      {name:'peso',label:'Peso (kg)',type:'number'},
+      {name:'altura',label:'Altura (m)',type:'number'},
+      {name:'pratica_esportes',label:'Pratica esportes?',type:'boolean'},
+      {name:'quais_esportes',label:'Quais esportes',type:'text'},
+      {name:'fuma',label:'Fuma?',type:'boolean'},
+      {name:'usa_motocicleta',label:'Usa motocicleta?',type:'text'},
+      {name:'usa_medicamentos_continuos',label:'Usa medicamento contínuo?',type:'boolean'},
+      {name:'quais_medicamentos',label:'Quais medicamentos',type:'text'},
+      {name:'tem_doenca_grave',label:'Tem doença grave?',type:'boolean'},
+      {name:'qual_doenca_grave',label:'Qual doença grave',type:'text'},
+      {name:'ja_ficou_internado',label:'Já ficou internado?',type:'boolean'},
+      {name:'motivo_internacao',label:'Motivo da internação',type:'text'},
+      {name:'realizou_cirurgia',label:'Realizou cirurgia?',type:'boolean'},
+      {name:'motivo_cirurgia',label:'Motivo da cirurgia',type:'text'},
+      {name:'historico_familiar_doencas',label:'Histórico familiar de doenças',type:'text'},
+      // --- Objetivos e preocupações ---
+      {name:'objetivos_educacao',label:'Objetivos: educação',type:'text'},
+      {name:'objetivos_patrimonio',label:'Objetivos: patrimônio',type:'text'},
+      {name:'objetivos_sucessao',label:'Objetivos: sucessão',type:'text'},
+      {name:'objetivos_aposentadoria',label:'Objetivos: aposentadoria',type:'text'},
+      {name:'objetivos_outros',label:'Objetivos: outros',type:'text'},
+      {name:'objetivo_seguro_vida',label:'Objetivo do seguro de vida',type:'text'},
+      {name:'visao_seguro_vida',label:'Visão: proteção ou investimento?',type:'text'},
+      {name:'preocupacoes',label:'Maior preocupação',type:'text'},
+      {name:'observacoes_gerais',label:'Observações gerais',type:'text'},
+    ],
+    render:r=>{
+      let out = `Renda ~<b>R$ ${r.renda_estimada||'?'}</b> · ${r.dependentes||0} dependente(s)`;
+      const bv = v => v===true?'Sim':v===false?'Não':v;
+      const extra = [
+        ['Status ADN', r.status], ['Fontes de renda', r.renda_fontes], ['Dependência ativ. médica', r.renda_dependencia_atividade_medica],
+        ['Estabilidade', r.renda_estabilidade], ['Renda mensal exata', r.renda_mensal_valor_exato], ['Padrão de vida', r.familia_padrao_vida],
+        ['Bens', r.patrimonio_bens], ['Dívidas', r.patrimonio_dividas], ['Projetos patrimoniais', r.patrimonio_projetos],
+        ['Liquidez', r.patrimonio_liquidez], ['Reserva financeira?', bv(r.faz_reserva_financeira)], ['Investimentos?', bv(r.tem_investimentos)],
+        ['Especialidade/detalhe', r.trabalho_especialidade_detalhe],
+        ['Plantões/consultório', r.trabalho_plantoes_consultorio], ['Riscos do trabalho', r.trabalho_riscos],
+        ['Tem plano de saúde?', bv(r.tem_plano_saude)], ['Tem seguro de vida?', r.tem_seguro_vida],
+        ['Proteção percebida', r.protecao_percebida_adequada],
+        ['Peso/Altura', (r.peso||r.altura)?`${r.peso||'?'}kg / ${r.altura||'?'}m`:null],
+        ['Pratica esportes?', bv(r.pratica_esportes)], ['Fuma?', bv(r.fuma)],
+        ['Medicamento contínuo?', bv(r.usa_medicamentos_continuos)], ['Doença grave?', bv(r.tem_doenca_grave)],
+        ['Já internado?', bv(r.ja_ficou_internado)], ['Histórico familiar', r.historico_familiar_doencas],
+        ['Objetivo educação', r.objetivos_educacao],
+        ['Objetivo patrimônio', r.objetivos_patrimonio], ['Objetivo sucessão', r.objetivos_sucessao],
+        ['Objetivo aposentadoria', r.objetivos_aposentadoria], ['Outros objetivos', r.objetivos_outros],
+        ['Preocupações', r.preocupacoes],
+      ];
+      extra.forEach(([k,v])=>{ if(v!==null && v!==undefined && v!=='') out += `<br><span class="k">${k.toUpperCase()}</span>${escapeHtml(String(v))}`; });
+      return out;
+    } },
+  { table:'crm_apolices', label:'Apólices (detalhado)', icon:'📄',
+    fields:[ {name:'numero_apolice',label:'Nº da apólice',type:'text'},
+             {name:'seguradora',label:'Seguradora',type:'text'},
+             {name:'tipo_seguro',label:'Tipo de seguro',type:'text'},
+             {name:'data_emissao',label:'Emissão',type:'date'},
+             {name:'data_vencimento',label:'Vencimento',type:'date'},
+             {name:'valor_premio',label:'Prêmio (R$)',type:'number'},
+             {name:'valor_cobertura',label:'Cobertura (R$)',type:'number'},
+             {name:'status',label:'Status',type:'select',options:['ativa','cancelada','vencida','em_analise']},
+             {name:'observacoes',label:'Observações',type:'text'} ],
+    render:r=>`<b>${escapeHtml(r.seguradora||'—')}</b> · ${escapeHtml(r.tipo_seguro||'')} <span class="k">${r.status||''}</span><br><span class="k">Nº</span>${escapeHtml(r.numero_apolice||'—')} · <span class="k">VENCE</span>${fmtDate(r.data_vencimento)} · <span class="k">COBERTURA</span>R$ ${r.valor_cobertura||'—'}` },
+  { table:'crm_transcricoes', label:'Transcrições', icon:'📝',
+    fields:[ {name:'resumo_ia',label:'Resumo',type:'text'},
+             {name:'texto_transcricao',label:'Texto completo',type:'text'},
+             {name:'duracao_minutos',label:'Duração (min)',type:'number'} ],
+    render:r=>`<span class="k">${fmtDateTime(r.data_hora)}</span>${r.duracao_minutos?(' · '+r.duracao_minutos+'min'):''}${r.resumo_ia?('<br>'+escapeHtml(r.resumo_ia)):(r.texto_transcricao?('<br>'+escapeHtml(r.texto_transcricao.slice(0,180))+'…'):'<br><i>Sem resumo ainda — pipeline de IA não conectado.</i>')}` },
+  { table:'crm_funil', label:'Funil comercial', icon:'📶',
+    fields:[ {name:'etapa',label:'Etapa',type:'select',options:['contato','atendimento','agendamento','reuniao','diagnostico','proposta','fechamento','follow_up']},
+             {name:'origem_contato',label:'Origem do contato',type:'text',placeholder:'Carla, WhatsApp, indicação...'},
+             {name:'proximo_passo',label:'Próximo passo',type:'text'},
+             {name:'data_combinada',label:'Data combinada',type:'date'},
+             {name:'motivo_perda',label:'Motivo (se perdido)',type:'text'} ],
+    render:r=>`<b>${escapeHtml(r.etapa||'—')}</b>${r.origem_contato?(' <span class="k">ORIGEM</span>'+escapeHtml(r.origem_contato)):''}${r.proximo_passo?(' → '+escapeHtml(r.proximo_passo)):''}${r.data_combinada?(' <span class="k">'+fmtDate(r.data_combinada)+'</span>'):''}${r.motivo_perda?('<br><span class="k">MOTIVO PERDA</span>'+escapeHtml(r.motivo_perda)):''}` },
+  { table:'crm_jornada', label:'Jornada', icon:'🧭',
+    fields:[ {name:'etapa',label:'Etapa',type:'select',options:['priorizar','contatar','abordar','construir','fechar','implantar','fidelizar','expandir_indicar']},
+             {name:'proximo_passo',label:'Próximo passo',type:'text'},
+             {name:'data_combinada',label:'Data combinada',type:'date'} ],
+    render:r=>`<b>${escapeHtml(r.etapa||'—')}</b>${r.proximo_passo?(' → '+escapeHtml(r.proximo_passo)):''}${r.data_combinada?(' <span class="k">'+fmtDate(r.data_combinada)+'</span>'):''}` },
+  { table:'crm_comercial', label:'Comercial', icon:'💼',
+    fields:[ {name:'proposta',label:'Proposta',type:'text'},
+             {name:'valor',label:'Valor (R$)',type:'number'},
+             {name:'objecao',label:'Objeção',type:'text'},
+             {name:'decisao',label:'Decisão',type:'select',options:['em_andamento','ganho','perdido']},
+             {name:'motivo_perda',label:'Motivo perda',type:'text'} ],
+    render:r=>`<b>${escapeHtml(r.proposta||'—')}</b> R$ ${r.valor||'—'} <span class="k">${r.decisao||''}</span>${r.objecao?('<br><span class="k">OBJEÇÃO</span>'+escapeHtml(r.objecao)):''}` },
+  { table:'crm_pos_venda', label:'Pós-venda', icon:'✅',
+    fields:[ {name:'implantacao_status',label:'Status implantação',type:'text'},
+             {name:'pendencias',label:'Pendências',type:'text'},
+             {name:'satisfacao',label:'Satisfação',type:'text'} ],
+    render:r=>`${escapeHtml(r.implantacao_status||'—')}${r.satisfacao?(' · satisfação: '+escapeHtml(r.satisfacao)):''}${r.pendencias?('<br><span class="k">PENDÊNCIAS</span>'+escapeHtml(r.pendencias)):''}` },
+  { table:'crm_indicacoes', label:'Indicações', icon:'📣',
+    fields:[ {name:'nome_indicado',label:'Nome do indicado',type:'text'},
+             {name:'origem',label:'Origem',type:'text'},
+             {name:'status',label:'Status',type:'select',options:['novo','contatado','qualificado','convertido','descartado']} ],
+    render:r=>`<b>${escapeHtml(r.nome_indicado||'—')}</b> <span class="k">${r.status||''}</span>${r.origem?(' · '+escapeHtml(r.origem)):''}` },
+  { table:'crm_eventos_vida', label:'Eventos de Vida', icon:'🎉',
+    fields:[ {name:'tipo_evento',label:'Tipo',type:'text',placeholder:'filho, casa nova, maratona...'},
+             {name:'data_evento',label:'Data',type:'date'},
+             {name:'fonte_sinal',label:'Fonte do sinal',type:'text'},
+             {name:'acao_tomada',label:'Ação tomada',type:'text'} ],
+    render:r=>`<b>${escapeHtml(r.tipo_evento||'—')}</b> ${fmtDate(r.data_evento)}${r.acao_tomada?('<br><span class="k">AÇÃO</span>'+escapeHtml(r.acao_tomada)):''}` },
+  { table:'crm_interacoes', label:'Interações / Gravações', icon:'🎙️',
+    fields:[ {name:'tipo',label:'Tipo',type:'select',options:['ligacao','visita','whatsapp','email','outro']},
+             {name:'resumo',label:'Resumo',type:'text'},
+             {name:'gravacao_url',label:'URL da gravação',type:'text'} ],
+    render:r=>`<b>${r.tipo||'—'}</b> <span class="k">${fmtDate(r.data)}</span>${r.resumo?('<br>'+escapeHtml(r.resumo)):''}` },
+];
+
+// ---------- PERSON DETAIL ----------
+async function openPerson(id){
+  currentPersonId = id;
+  document.querySelectorAll('.person-row').forEach(el=>el.classList.remove('active'));
+  document.getElementById('empty-state').style.display = 'none';
+  const viewEl = document.getElementById('person-view');
+  viewEl.style.display = 'block';
+  viewEl.innerHTML = '<div style="padding-top:40px;color:var(--ink-faint);">Carregando...</div>';
+
+  const { data: person, error } = await sb.from('crm_pessoas').select('*').eq('id', id).single();
+  if(error){ viewEl.innerHTML = 'Erro: ' + error.message; return; }
+
+  viewEl.innerHTML = `
+    <div class="person-header">
+      <div>
+        <h2>${escapeHtml(person.nome)}</h2>
+        <div class="tags">
+          <span class="tag">${person.tipo||'medico'}</span>
+          ${person.crm?`<span class="tag">CRM ${escapeHtml(person.crm)}</span>`:''}
+          ${person.especialidade?`<span class="tag">${escapeHtml(person.especialidade)}</span>`:''}
+        </div>
+        <div class="core-fields">
+          <div class="cf"><label>CPF</label><div class="v mono">${escapeHtml(person.cpf||'—')}</div></div>
+          <div class="cf"><label>Telefone</label><div class="v">${escapeHtml(person.telefone||'—')}</div></div>
+          <div class="cf"><label>Email</label><div class="v">${escapeHtml(person.email||'—')}</div></div>
+          <div class="cf"><label>Vínculo CallMed</label><div class="v">${escapeHtml(person.vinculo_callmed||'—')}</div></div>
+          <div class="cf"><label>Canal preferido</label><div class="v">${escapeHtml(person.canal_preferido||'—')}</div></div>
+          <div class="cf"><label>Score Lead</label><div class="v">${person.score_lead ?? '—'}/100</div></div>
+          <div class="cf"><label>Score Cliente</label><div class="v">${person.score_cliente ?? '—'}/100</div></div>
+          <div class="cf"><label>Origem</label><div class="v">${escapeHtml(person.origem||'—')}${person.quem_indicou?(' · indicado por '+escapeHtml(person.quem_indicou)):''}</div></div>
+          <div class="cf"><label>Status do Lead</label><div class="v">${escapeHtml(person.status_lead||'—')}</div></div>
+          <div class="cf"><label>Razão Social</label><div class="v">${escapeHtml(person.razao_social||'—')}</div></div>
+          <div class="cf"><label>CNPJ</label><div class="v mono">${escapeHtml(person.cnpj||'—')}</div></div>
+          <div class="cf"><label>PIX</label><div class="v mono">${escapeHtml(person.pix||'—')}</div></div>
+          <div class="cf"><label>Banco</label><div class="v">${escapeHtml(person.banco||'—')}${person.agencia?(' · ag. '+escapeHtml(person.agencia)):''}</div></div>
+        </div>
+        ${(person.qtde_plantoes_2026||person.valor_plantoes_2026) ? `
+        <div class="activity-strip">
+          <div class="astat"><span class="an">${person.qtde_plantoes_2026 ?? '—'}</span><span class="al">Plantões em 2026</span></div>
+          <div class="astat"><span class="an">R$ ${Number(person.valor_plantoes_2026||0).toLocaleString('pt-BR',{maximumFractionDigits:0})}</span><span class="al">Valor gerado</span></div>
+          <div class="astat"><span class="an">R$ ${Number(person.total_pago_plantoes_2026||0).toLocaleString('pt-BR',{maximumFractionDigits:0})}</span><span class="al">Total pago</span></div>
+          <div class="astat-note">Atividade real na CallMed Plantões · cadastro de ${fmtDate(person.cadastro_atualizado_em)}</div>
+        </div>` : `<div class="activity-strip empty">Sem atividade de plantões registrada em 2026 na base CallMed Plantões.</div>`}
+      </div>
+    </div>
+    <div id="blocks-container"></div>
+  `;
+  const container = document.getElementById('blocks-container');
+  for(const block of BLOCKS){
+    const section = document.createElement('div');
+    section.className = 'block';
+    section.innerHTML = `
+      <div class="block-head" data-table="${block.table}">
+        <h3>${block.icon} ${block.label}</h3>
+        <span class="count mono" id="count-${block.table}">…</span>
+      </div>
+      <div class="block-body" id="body-${block.table}"></div>
+    `;
+    container.appendChild(section);
+    section.querySelector('.block-head').addEventListener('click', ()=>{
+      document.getElementById('body-'+block.table).classList.toggle('open');
+    });
+    loadBlockData(block, id);
+  }
+}
+
+async function loadBlockData(block, personId){
+  const { data, error } = await sb.from(block.table).select('*').eq('pessoa_id', personId).order('created_at', {ascending:false});
+  const countEl = document.getElementById('count-'+block.table);
+  const bodyEl = document.getElementById('body-'+block.table);
+  if(error){ countEl.textContent = 'erro'; bodyEl.innerHTML = escapeHtml(error.message); return; }
+  countEl.textContent = data.length;
+  let recsHtml = data.length === 0 ? '<div class="no-rec">Nenhum registro ainda.</div>' : data.map(r=>`<div class="rec">${block.render(r)}</div>`).join('');
+  const formFields = block.fields.map(f=>{
+    if(f.type==='select'){ return `<select name="${f.name}"><option value="">${f.label}</option>${f.options.map(o=>`<option value="${o}">${o}</option>`).join('')}</select>`; }
+    if(f.type==='boolean'){ return `<select name="${f.name}"><option value="">${f.label}</option><option value="true">Sim</option><option value="false">Não</option></select>`; }
+    return `<input name="${f.name}" type="${f.type}" placeholder="${f.placeholder||f.label}">`;
+  }).join('');
+  bodyEl.innerHTML = recsHtml + `<form class="add-form" data-table="${block.table}">${formFields}<button type="submit">+ Adicionar</button></form>`;
+  bodyEl.querySelector('form').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const payload = { pessoa_id: personId };
+    let hasValue = false;
+    for(const f of block.fields){
+      let v = fd.get(f.name);
+      if(v === '' || v === null){ continue; }
+      hasValue = true;
+      if(f.type === 'number') v = parseFloat(v);
+      if(f.type === 'boolean') v = (v === 'true');
+      payload[f.name] = v;
+    }
+    if(!hasValue){ showToast('Preencha ao menos um campo.'); return; }
+    const { error: insErr } = await sb.from(block.table).insert(payload);
+    if(insErr){ showToast('Erro: ' + insErr.message); return; }
+    showToast('Adicionado a ' + block.label);
+    e.target.reset();
+    loadBlockData(block, personId);
+  });
+}
+
+// ---------- AGENDA / CALENDÁRIO ----------
+async function fetchMonthEvents(monthDate){
+  const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const end = new Date(monthDate.getFullYear(), monthDate.getMonth()+1, 1);
+  const { data, error } = await sb.from('crm_agenda').select('id,titulo,tipo,data_inicio,data_fim,local,status,notas,pessoa_id,crm_pessoas(nome)')
+    .gte('data_inicio', start.toISOString()).lt('data_inicio', end.toISOString()).order('data_inicio');
+  if(error){ showToast('Erro na agenda: ' + error.message); return []; }
+  return data;
+}
+
+async function renderCalendar(){
+  const titleEl = document.getElementById('cal-title');
+  titleEl.textContent = calMonth.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
+  const events = await fetchMonthEvents(calMonth);
+  const byDay = {};
+  events.forEach(ev=>{ const k = ymd(new Date(ev.data_inicio)); (byDay[k] = byDay[k]||[]).push(ev); });
+
+  const gridEl = document.getElementById('cal-grid');
+  gridEl.innerHTML = '';
+  ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'].forEach(d=>{
+    const el = document.createElement('div'); el.className='cal-dow'; el.textContent=d; gridEl.appendChild(el);
+  });
+  const firstDow = calMonth.getDay();
+  const daysInMonth = new Date(calMonth.getFullYear(), calMonth.getMonth()+1, 0).getDate();
+  const prevMonthDays = new Date(calMonth.getFullYear(), calMonth.getMonth(), 0).getDate();
+  const todayStr = ymd(new Date());
+  const cells = [];
+  for(let i=firstDow-1;i>=0;i--) cells.push({d:prevMonthDays-i, other:true, date:new Date(calMonth.getFullYear(), calMonth.getMonth()-1, prevMonthDays-i)});
+  for(let i=1;i<=daysInMonth;i++) cells.push({d:i, other:false, date:new Date(calMonth.getFullYear(), calMonth.getMonth(), i)});
+  while(cells.length % 7 !== 0) { const next = cells.length - (firstDow+daysInMonth); cells.push({d:next+1, other:true, date:new Date(calMonth.getFullYear(), calMonth.getMonth()+1, cells.length-(firstDow+daysInMonth))}); }
+
+  cells.forEach(c=>{
+    const key = ymd(c.date);
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell' + (c.other?' other-month':'') + (key===todayStr?' today':'') + (key===ymd(selectedDay)?' selected':'');
+    let evHtml = `<div class="dnum">${c.d}</div>`;
+    (byDay[key]||[]).slice(0,3).forEach(ev=>{
+      evHtml += `<div class="cal-evt ${ev.status}">${escapeHtml(ev.titulo)}</div>`;
+    });
+    if((byDay[key]||[]).length > 3) evHtml += `<div style="font-size:10px;color:var(--ink-faint);">+${byDay[key].length-3} mais</div>`;
+    cell.innerHTML = evHtml;
+    cell.addEventListener('click', ()=>{ selectedDay = c.date; renderCalendar(); renderDayEvents(byDay[key]||[], c.date); });
+    gridEl.appendChild(cell);
+  });
+  renderDayEvents(byDay[ymd(selectedDay)]||[], selectedDay);
+}
+function renderDayEvents(events, date){
+  const el = document.getElementById('day-events');
+  el.innerHTML = `<h4>${date.toLocaleDateString('pt-BR',{weekday:'long', day:'2-digit', month:'long'})}</h4>` +
+    (events.length===0 ? '<div class="no-rec">Nenhum compromisso.</div>' :
+      events.map(ev=>`<div class="evt-card"><div class="t">${escapeHtml(ev.titulo)}</div><div class="m">${fmtDateTime(ev.data_inicio)}${ev.crm_pessoas?.nome?(' · '+escapeHtml(ev.crm_pessoas.nome)):''}${ev.local?(' · '+escapeHtml(ev.local)):''}</div></div>`).join(''));
+}
+document.getElementById('cal-prev').addEventListener('click', ()=>{ calMonth.setMonth(calMonth.getMonth()-1); renderCalendar(); });
+document.getElementById('cal-next').addEventListener('click', ()=>{ calMonth.setMonth(calMonth.getMonth()+1); renderCalendar(); });
+document.getElementById('cal-today-btn').addEventListener('click', ()=>{ calMonth = new Date(); calMonth.setDate(1); selectedDay = new Date(); renderCalendar(); });
+
+// busca de pessoa no form de agenda
+document.getElementById('agenda-pessoa-busca').addEventListener('input', async (e)=>{
+  const val = e.target.value.trim();
+  const resEl = document.getElementById('agenda-pessoa-results');
+  if(val.length < 2){ resEl.innerHTML=''; return; }
+  const { data } = await sb.from('crm_pessoas').select('id,nome,crm').ilike('nome', `%${val}%`).limit(6);
+  resEl.innerHTML = (data||[]).map(p=>`<div class="rec" style="cursor:pointer;padding:6px 9px;" data-id="${p.id}" data-nome="${escapeHtml(p.nome)}">${escapeHtml(p.nome)} ${p.crm?('· CRM '+escapeHtml(p.crm)):''}</div>`).join('');
+  resEl.querySelectorAll('[data-id]').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      document.getElementById('agenda-pessoa-id').value = el.dataset.id;
+      document.getElementById('agenda-pessoa-selected').textContent = '✓ ' + el.dataset.nome;
+      document.getElementById('agenda-pessoa-busca').value = '';
+      resEl.innerHTML = '';
+    });
+  });
+});
+
+document.getElementById('agenda-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const pessoaId = fd.get('pessoa_id');
+  if(!pessoaId){ showToast('Busque e selecione um médico primeiro.'); return; }
+  const payload = {
+    pessoa_id: pessoaId,
+    titulo: fd.get('titulo'),
+    tipo: fd.get('tipo'),
+    data_inicio: new Date(fd.get('data_inicio')).toISOString(),
+    data_fim: fd.get('data_fim') ? new Date(fd.get('data_fim')).toISOString() : null,
+    local: fd.get('local') || null,
+    notas: fd.get('notas') || null,
+  };
+  const { error } = await sb.from('crm_agenda').insert(payload);
+  if(error){ showToast('Erro: ' + error.message); return; }
+  showToast('Compromisso agendado!');
+  e.target.reset();
+  document.getElementById('agenda-pessoa-id').value = '';
+  document.getElementById('agenda-pessoa-selected').textContent = '';
+  renderCalendar();
+});
+
+// ---------- KANBAN (Funil comercial) ----------
+const ETAPAS_FUNIL = [
+  {key:'contato', label:'Contato'}, {key:'atendimento', label:'Atendimento'}, {key:'agendamento', label:'Agendamento'},
+  {key:'reuniao', label:'Reunião'}, {key:'diagnostico', label:'Diagnóstico'}, {key:'proposta', label:'Proposta'},
+  {key:'fechamento', label:'Fechamento'}, {key:'follow_up', label:'Follow-up'},
+];
+async function renderFunil(){
+  const board = document.getElementById('funil-board');
+  board.innerHTML = ETAPAS_FUNIL.map(et=>`
+    <div class="kanban-col" data-etapa="${et.key}">
+      <div class="kanban-col-head"><div class="lbl">${et.label}</div><div class="cnt" id="fcnt-${et.key}">…</div></div>
+      <div class="kanban-col-body" id="fcol-${et.key}"></div>
+    </div>`).join('');
+
+  const { data, error } = await sb.from('crm_funil').select('pessoa_id,etapa,origem_contato,proximo_passo,data_combinada,atualizado_em,crm_pessoas(id,nome,especialidade)')
+    .order('atualizado_em', {ascending:false});
+  if(error){ showToast('Erro no funil: ' + error.message); return; }
+
+  const seen = new Set();
+  const latestByPessoa = [];
+  (data||[]).forEach(r=>{
+    if(seen.has(r.pessoa_id)) return;
+    seen.add(r.pessoa_id);
+    latestByPessoa.push(r);
+  });
+
+  ETAPAS_FUNIL.forEach(et=>{
+    const items = latestByPessoa.filter(r=>r.etapa===et.key);
+    document.getElementById('fcnt-'+et.key).textContent = items.length;
+    const colEl = document.getElementById('fcol-'+et.key);
+    colEl.innerHTML = items.length===0 ? '<div class="kanban-empty">Vazio</div>' : items.map(r=>`
+      <div class="kanban-card" data-pid="${r.crm_pessoas?.id}">
+        <div class="nm">${escapeHtml(r.crm_pessoas?.nome||'?')}</div>
+        ${r.origem_contato?`<div class="np">via ${escapeHtml(r.origem_contato)}</div>`:''}
+        ${r.proximo_passo?`<div class="np">→ ${escapeHtml(r.proximo_passo)}</div>`:''}
+        ${r.data_combinada?`<div class="dt">${fmtDate(r.data_combinada)}</div>`:''}
+      </div>`).join('');
+    colEl.querySelectorAll('.kanban-card').forEach(card=>{
+      card.addEventListener('click', ()=> goToPersonView(card.dataset.pid));
+    });
+  });
+}
+
+// ---------- KANBAN (Jornada) ----------
+const ETAPAS = [
+  {key:'priorizar', label:'Priorizar'}, {key:'contatar', label:'Contatar'}, {key:'abordar', label:'Abordar'},
+  {key:'construir', label:'Construir'}, {key:'fechar', label:'Fechar'}, {key:'implantar', label:'Implantar'},
+  {key:'fidelizar', label:'Fidelizar'}, {key:'expandir_indicar', label:'Expandir/Indicar'},
+];
+async function renderKanban(){
+  const board = document.getElementById('kanban-board');
+  board.innerHTML = ETAPAS.map(et=>`
+    <div class="kanban-col" data-etapa="${et.key}">
+      <div class="kanban-col-head"><div class="lbl">${et.label}</div><div class="cnt" id="kcnt-${et.key}">…</div></div>
+      <div class="kanban-col-body" id="kcol-${et.key}"></div>
+    </div>`).join('');
+
+  const { data, error } = await sb.from('crm_jornada').select('pessoa_id,etapa,proximo_passo,data_combinada,atualizado_em,crm_pessoas(id,nome,especialidade)')
+    .order('atualizado_em', {ascending:false});
+  if(error){ showToast('Erro na jornada: ' + error.message); return; }
+
+  const seen = new Set();
+  const latestByPessoa = [];
+  (data||[]).forEach(r=>{
+    if(seen.has(r.pessoa_id)) return;
+    seen.add(r.pessoa_id);
+    latestByPessoa.push(r);
+  });
+
+  ETAPAS.forEach(et=>{
+    const items = latestByPessoa.filter(r=>r.etapa===et.key);
+    document.getElementById('kcnt-'+et.key).textContent = items.length;
+    const colEl = document.getElementById('kcol-'+et.key);
+    colEl.innerHTML = items.length===0 ? '<div class="kanban-empty">Vazio</div>' : items.map(r=>`
+      <div class="kanban-card" data-pid="${r.crm_pessoas?.id}">
+        <div class="nm">${escapeHtml(r.crm_pessoas?.nome||'?')}</div>
+        ${r.proximo_passo?`<div class="np">→ ${escapeHtml(r.proximo_passo)}</div>`:''}
+        ${r.data_combinada?`<div class="dt">${fmtDate(r.data_combinada)}</div>`:''}
+      </div>`).join('');
+    colEl.querySelectorAll('.kanban-card').forEach(card=>{
+      card.addEventListener('click', ()=> goToPersonView(card.dataset.pid));
+    });
+  });
+}
+
+// ---------- HOJE (tarefas + lembretes) ----------
+async function renderHoje(){
+  const today = ymd(new Date());
+  const [{ data: tarefas, error: e1 }, { data: lembretes, error: e2 }] = await Promise.all([
+    sb.from('crm_tarefas_diarias').select('*, crm_pessoas(nome)').eq('data', today).order('created_at'),
+    sb.from('crm_lembretes').select('*, crm_pessoas(nome)').eq('status','pendente').lte('data_hora', new Date(Date.now()+7*86400000).toISOString()).order('data_hora'),
+  ]);
+  const tList = document.getElementById('tarefas-list');
+  if(e1){ tList.textContent = 'Erro: '+e1.message; }
+  else {
+    tList.innerHTML = (tarefas||[]).length===0 ? '<div class="no-rec">Nenhuma tarefa para hoje.</div>' : tarefas.map(t=>`
+      <div class="today-card ${t.concluida?'done':''}">
+        <div class="txt"><div>${escapeHtml(t.descricao)}</div><div class="meta">${t.categoria||''} ${t.crm_pessoas?.nome?(' · '+escapeHtml(t.crm_pessoas.nome)):''} · ${t.prioridade}</div></div>
+        <button data-id="${t.id}" data-done="${!t.concluida}">${t.concluida?'Reabrir':'Concluir'}</button>
+      </div>`).join('');
+    tList.querySelectorAll('button[data-id]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        await sb.from('crm_tarefas_diarias').update({concluida: b.dataset.done==='true'}).eq('id', b.dataset.id);
+        renderHoje();
+      });
+    });
+  }
+  const lList = document.getElementById('lembretes-list');
+  if(e2){ lList.textContent = 'Erro: '+e2.message; }
+  else {
+    lList.innerHTML = (lembretes||[]).length===0 ? '<div class="no-rec">Nenhum lembrete nos próximos 7 dias.</div>' : lembretes.map(l=>`
+      <div class="today-card">
+        <div class="txt"><div>${escapeHtml(l.mensagem||l.tipo)}</div><div class="meta">${l.tipo} ${l.crm_pessoas?.nome?(' · '+escapeHtml(l.crm_pessoas.nome)):''} · ${fmtDateTime(l.data_hora)}</div></div>
+        <button data-id="${l.id}">Concluir</button>
+      </div>`).join('');
+    lList.querySelectorAll('button[data-id]').forEach(b=>{
+      b.addEventListener('click', async ()=>{
+        await sb.from('crm_lembretes').update({status:'concluido'}).eq('id', b.dataset.id);
+        renderHoje();
+      });
+    });
+  }
+}
+document.getElementById('tarefa-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const { error } = await sb.from('crm_tarefas_diarias').insert({
+    descricao: fd.get('descricao'), prioridade: fd.get('prioridade'), categoria: fd.get('categoria'), data: ymd(new Date()),
+  });
+  if(error){ showToast('Erro: '+error.message); return; }
+  e.target.reset(); renderHoje();
+});
+
+// ---------- APÓLICES (vencimento) ----------
+async function renderApolices(){
+  const { data, error } = await sb.from('crm_apolices').select('*, crm_pessoas(nome)').order('data_vencimento', {ascending:true, nullsFirst:false});
+  const el = document.getElementById('apolices-list');
+  if(error){ el.textContent = 'Erro: '+error.message; return; }
+  if(!data || data.length===0){ el.innerHTML = '<div class="no-rec">Nenhuma apólice detalhada cadastrada ainda. Adicione pelo perfil do médico, bloco "Apólices (detalhado)".</div>'; return; }
+  const now = new Date();
+  el.innerHTML = data.map(a=>{
+    let cls = '';
+    if(a.data_vencimento){
+      const diff = (new Date(a.data_vencimento) - now) / 86400000;
+      if(diff <= 7) cls = 'venc-7'; else if(diff <= 30) cls = 'venc-30';
+    }
+    return `<div class="apolice-row ${cls}">
+      <div><div class="nm">${escapeHtml(a.crm_pessoas?.nome||'?')} — ${escapeHtml(a.seguradora||'')} ${escapeHtml(a.tipo_seguro||'')}</div>
+      <div class="sub">Nº ${escapeHtml(a.numero_apolice||'—')} · Cobertura R$ ${a.valor_cobertura||'—'} · <span class="mono">${a.status}</span></div></div>
+      <div class="mono" style="font-size:12.5px;">${a.data_vencimento?('Vence '+fmtDate(a.data_vencimento)):'sem data'}</div>
+    </div>`;
+  }).join('');
+}
+
+// ---------- BASE DE CONHECIMENTO ----------
+async function renderConhecimento(){
+  const { data, error } = await sb.from('crm_base_conhecimento').select('*').order('created_at',{ascending:false});
+  const el = document.getElementById('conhecimento-list');
+  if(error){ el.textContent = 'Erro: '+error.message; return; }
+  el.innerHTML = (data||[]).length===0 ? '<div class="no-rec">Nada cadastrado ainda.</div>' : data.map(k=>`
+    <div class="kb-card"><div class="cat">${escapeHtml(k.categoria||'geral')}</div><h4>${escapeHtml(k.titulo)}</h4><p>${escapeHtml(k.conteudo||'')}</p></div>`).join('');
+}
+document.getElementById('conhecimento-form').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const { error } = await sb.from('crm_base_conhecimento').insert({ titulo: fd.get('titulo'), categoria: fd.get('categoria'), conteudo: fd.get('conteudo') });
+  if(error){ showToast('Erro: '+error.message); return; }
+  e.target.reset(); renderConhecimento();
+});
+
+// ---------- ATA DE ENTREGÁVEIS ----------
+function fmtDateLong(s){ if(!s) return ''; try{ const d = new Date(s+'T00:00:00'); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'}); }catch(e){ return s; } }
+async function renderAta(){
+  const { data, error } = await sb.from('crm_ata_entregaveis').select('*').order('data', {ascending:false});
+  const el = document.getElementById('ata-list');
+  if(error){ el.textContent = 'Erro: '+error.message; return; }
+  if(!data || data.length===0){ el.innerHTML = '<div class="no-rec">Nenhum registro ainda.</div>'; return; }
+  el.innerHTML = data.map(a=>`
+    <div class="ata-entry">
+      <div class="dt">${fmtDateLong(a.data)}</div>
+      <div class="dw">${escapeHtml(a.dia_semana||'')}${a.participantes?(' · '+escapeHtml(a.participantes)):''}</div>
+      <h4 class="done-h4">Entregue &amp; decidido</h4>
+      <ul>${(a.entregue||[]).map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul>
+      <h4 class="open-h4">Em aberto</h4>
+      <ul>${(a.em_aberto||[]).map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul>
+    </div>`).join('');
+}
+
+checkSession();
+</script>
+</body>
+</html>
