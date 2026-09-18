@@ -366,6 +366,38 @@
   .sc-block ul{ margin:0; padding-left:16px; display:flex; flex-direction:column; gap:5px;}
   .sc-block li{ font-size:12px; color:rgba(255,255,255,.92); line-height:1.4;}
   @media (max-width:700px){ .sc-grid{grid-template-columns:1fr;} }
+  .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
+  .btn-export-pdf:hover{ background:#f2f3ff;}
+
+  /* ---- relatório PDF (impressão) ---- */
+  #print-report{ display:none; }
+  @media print{
+    #login-screen, #reset-screen, #app, .toast{ display:none !important; }
+    #print-report{ display:block !important; }
+    @page{ margin:14mm; }
+  }
+  .pr-page{ font-family:'Inter',sans-serif; color:#12141d; max-width:800px; margin:0 auto; -webkit-print-color-adjust:exact; print-color-adjust:exact;}
+  .pr-header{ display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid #0018FC; padding-bottom:14px; margin-bottom:24px;}
+  .pr-header img{ height:30px;}
+  .pr-header .pr-tag{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:#565c6e;}
+  .pr-title{ font-family:'Poppins',sans-serif; font-weight:800; font-size:26px; margin:0 0 4px; color:#0018FC;}
+  .pr-sub{ font-size:13px; color:#565c6e; margin:0 0 28px;}
+  .pr-section-title{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:#565c6e; margin:0 0 12px; border-left:3px solid #38E3BF; padding-left:8px;}
+  .pr-timeline{ position:relative; margin:0 0 30px 6px; padding-left:26px; border-left:2px solid #e3e5f0;}
+  .pr-tl-item{ position:relative; margin-bottom:18px; break-inside:avoid;}
+  .pr-tl-item::before{ content:""; position:absolute; left:-32px; top:2px; width:12px; height:12px; border-radius:50%; background:#0018FC; border:2px solid #fff; box-shadow:0 0 0 2px #0018FC;}
+  .pr-tl-item.empty::before{ background:#c7cad6; box-shadow:0 0 0 2px #c7cad6;}
+  .pr-tl-date{ font-family:'Poppins',sans-serif; font-weight:700; font-size:14px; color:#12141d;}
+  .pr-tl-day{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:#8b90a3; text-transform:uppercase; margin-left:6px;}
+  .pr-tl-text{ font-size:12.5px; color:#42475a; margin:2px 0 0;}
+  .pr-cols{ display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:26px;}
+  .pr-box{ border:1px solid #e3e5f0; border-radius:12px; padding:16px 18px; break-inside:avoid;}
+  .pr-box.done{ border-top:4px solid #38E3BF;}
+  .pr-box.open{ border-top:4px solid #c8790b;}
+  .pr-box h4{ font-family:'Poppins',sans-serif; font-size:14px; margin:0 0 10px;}
+  .pr-box ul{ margin:0; padding-left:16px; display:flex; flex-direction:column; gap:7px;}
+  .pr-box li{ font-size:12px; line-height:1.5; color:#33384a; break-inside:avoid;}
+  .pr-footer{ margin-top:24px; padding-top:12px; border-top:1px solid #e3e5f0; font-size:10.5px; color:#8b90a3; display:flex; justify-content:space-between;}
   .grid-2col{ display:grid; grid-template-columns:1fr 1fr; gap:32px; max-width:1000px;}
   .today-card{ background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--teal); border-radius:var(--radius-sm); padding:11px 15px; margin-bottom:8px; font-size:13px; display:flex; justify-content:space-between; align-items:center; gap:10px; box-shadow:var(--shadow-xs);}
   .today-card.done{ opacity:.5; border-left-color:var(--ink-faint);}
@@ -384,6 +416,7 @@
 </style>
 
 <div class="toast" id="toast"></div>
+<div id="print-report"></div>
 
 <script>
 const SUPABASE_URL = "https://rdkvkvhydcusbhugekeq.supabase.co";
@@ -1075,16 +1108,25 @@ async function renderAtaSemanal(){
   const el = document.getElementById('ata-semanal-list');
   if(error){ el.textContent = 'Erro: '+error.message; return; }
   if(!data || data.length===0){ el.innerHTML = '<div class="no-rec">Nenhum resumo semanal ainda — o primeiro sai na próxima sexta-feira.</div>'; return; }
-  el.innerHTML = data.map(w=>`
+  window._semanasData = data;
+  el.innerHTML = data.map((w,idx)=>`
     <div class="semana-card">
-      <p class="sc-eyebrow">📅 Resumo da semana</p>
-      <h3>${fmtDDMM(w.semana_inicio)} a ${fmtDDMM(w.semana_fim)}</h3>
-      <div class="sc-days">${(w.dias||[]).map(d=>`<div class="sc-day"><div class="scd">${escapeHtml(d.dia||'')}</div><div class="scdate">${escapeHtml(d.data||'')}</div><p>${escapeHtml(d.resumo||'')}</p></div>`).join('')}</div>
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <p class="sc-eyebrow">📅 Resumo da semana</p>
+          <h3 style="margin-bottom:2px;">${fmtDDMM(w.semana_inicio)} a ${fmtDDMM(w.semana_fim)}</h3>
+        </div>
+        <button type="button" class="btn-export-pdf" data-idx="${idx}">⬇ Exportar PDF</button>
+      </div>
+      <div class="sc-days" style="margin-top:14px;">${(w.dias||[]).map(d=>`<div class="sc-day"><div class="scd">${escapeHtml(d.dia||'')}</div><div class="scdate">${escapeHtml(d.data||'')}</div><p>${escapeHtml(d.resumo||'')}</p></div>`).join('')}</div>
       <div class="sc-grid">
         <div class="sc-block"><h4>O que a semana entregou</h4><ul>${(w.entregou||[]).map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul></div>
         <div class="sc-block"><h4>Em aberto p/ a próxima</h4><ul>${(w.em_aberto||[]).map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul></div>
       </div>
     </div>`).join('');
+  el.querySelectorAll('.btn-export-pdf').forEach(b=>{
+    b.addEventListener('click', ()=> exportSemanaPDF(window._semanasData[parseInt(b.dataset.idx,10)]));
+  });
 }
 document.querySelectorAll('#ata-toggle button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -1096,6 +1138,54 @@ document.querySelectorAll('#ata-toggle button').forEach(btn=>{
     if(diario) renderAta(); else renderAtaSemanal();
   });
 });
+
+// ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
+function exportSemanaPDF(w){
+  if(!w){ showToast('Semana não encontrada.'); return; }
+  const hoje = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const dias = (w.dias||[]);
+  const totalEntregas = (w.entregou||[]).length;
+  const diasComAtividade = dias.filter(d=>!/sem atividade/i.test(d.resumo||'')).length;
+  const html = `
+    <div class="pr-page">
+      <div class="pr-header">
+        <img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial">
+        <span class="pr-tag">Relatório semanal · ${escapeHtml(fmtDDMM(w.semana_inicio))} a ${escapeHtml(fmtDDMM(w.semana_fim))}</span>
+      </div>
+      <h1 class="pr-title">Relatório de Entregáveis da Semana</h1>
+      <p class="pr-sub">CallMed Proteção Patrimonial — semana de ${escapeHtml(fmtDateLong(w.semana_inicio))} a ${escapeHtml(fmtDateLong(w.semana_fim))}. ${diasComAtividade} de ${dias.length} dias com atividade registrada, totalizando ${totalEntregas} entregas/decisões.</p>
+
+      <p class="pr-section-title">Linha do tempo da semana</p>
+      <div class="pr-timeline">
+        ${dias.map(d=>{
+          const empty = /sem atividade/i.test(d.resumo||'');
+          return `<div class="pr-tl-item ${empty?'empty':''}">
+            <span class="pr-tl-date">${escapeHtml(d.data||'')}</span><span class="pr-tl-day">${escapeHtml(d.dia||'')}</span>
+            <p class="pr-tl-text">${escapeHtml(d.resumo||'')}</p>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <p class="pr-section-title">Destaques e decisões da semana</p>
+      <div class="pr-cols">
+        <div class="pr-box done">
+          <h4>✅ O que foi entregue</h4>
+          <ul>${(w.entregou||[]).map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul>
+        </div>
+        <div class="pr-box open">
+          <h4>⏳ Em aberto para a próxima semana</h4>
+          <ul>${(w.em_aberto||[]).map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul>
+        </div>
+      </div>
+
+      <div class="pr-footer">
+        <span>CallMed Proteção Patrimonial — relatório gerado automaticamente pelo CRM</span>
+        <span>Gerado em ${hoje}</span>
+      </div>
+    </div>`;
+  document.getElementById('print-report').innerHTML = html;
+  setTimeout(()=> window.print(), 80);
+}
 
 checkSession();
 </script>
