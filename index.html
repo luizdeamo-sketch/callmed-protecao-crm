@@ -1454,7 +1454,7 @@ async function renderOperacao(force){
   OP.loading = true;
   try{
     if(!OP.loaded){
-      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,total_pago_plantoes_2026',['nome','id']);
+      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026',['nome','id']);
     }
     await opLoadFunilApo();
     const wasLoaded = OP.loaded;
@@ -1890,18 +1890,36 @@ async function docsSignedUrl(path){
   const { data, error } = await sb.storage.from('crm-docs').createSignedUrl(path, 3600);
   if(error) throw error; return data.signedUrl;
 }
-async function findPessoas({cpf, crm, nome}){
-  const out = new Map();
-  const add = (rows, why)=> (rows||[]).forEach(r=>{ if(!out.has(r.id)) out.set(r.id, {...r, why}); });
-  const cols = 'id,nome,cpf,crm,especialidade';
-  if(cpf){ const d = dOnly(cpf); const { data } = await sb.from('crm_pessoas').select(cols).or(`cpf.eq.${d},cpf.eq.${fmtCPF(d)}`).limit(5); add(data,'CPF idêntico'); }
-  if(crm){ const { data } = await sb.from('crm_pessoas').select(cols).eq('crm', crm).limit(5); add(data,'CRM idêntico'); }
-  if(nome){
-    const toks = nome.trim().split(/\s+/).filter(x=>x.length>2);
-    if(toks.length>=2){ const { data } = await sb.from('crm_pessoas').select(cols).ilike('nome', `%${toks[0]}%${toks[toks.length-1]}%`).limit(6); add(data,'nome semelhante'); }
-  }
-  return [...out.values()];
+const NOME_STOP = new Set(['da','de','do','das','dos','e']);
+function normNome(x){
+  return String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z\s]/g,' ').split(/\s+/).filter(t=>t && !NOME_STOP.has(t));
 }
+async function ensurePessoas(){
+  if(!OP.pessoas.length){ OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026',['nome','id']); }
+}
+async function findPessoas({cpf, crm, nome}){
+  await ensurePessoas();
+  const d = dOnly(cpf), tk = normNome(nome), key = tk.join(' ');
+  const out = [];
+  OP.pessoas.forEach(p=>{
+    let why = null;
+    if(d.length===11 && dOnly(p.cpf)===d) why = 'CPF idêntico';
+    else if(crm && p.crm && String(p.crm).replace(/\D/g,'') === String(crm).replace(/\D/g,'') && !/^0+$/.test(String(crm))) why = 'CRM idêntico';
+    else if(tk.length>=2){
+      const pt = normNome(p.nome);
+      if(pt.join(' ')===key) why = 'nome idêntico';
+      else if(pt.length>=2){
+        const a = new Set(tk), b = new Set(pt), small = a.size<=b.size ? a : b, big = a.size<=b.size ? b : a;
+        if([...small].every(t=>big.has(t)) && small.size>=2) why = 'nome semelhante';
+        else if(tk[0]===pt[0] && tk[tk.length-1]===pt[pt.length-1]) why = 'nome semelhante';
+      }
+    }
+    if(why) out.push({...p, why});
+  });
+  const rank = {'CPF idêntico':0,'CRM idêntico':1,'nome idêntico':2,'nome semelhante':3};
+  return out.sort((x,y)=>rank[x.why]-rank[y.why]).slice(0,8);
+}
+const isStrong = (p)=> p.why!=='nome semelhante';
 function pessoaOptionHtml(p, name, checked){
   return `<label class="pk"><input type="radio" name="${name}" value="${p.id}" ${checked?'checked':''}><span><b>${escapeHtml(p.nome)}</b> <small>${p.cpf?escapeHtml(p.cpf)+' · ':''}${p.crm?'CRM '+escapeHtml(p.crm)+' · ':''}${escapeHtml(p.why||'')}</small></span></label>`;
 }
@@ -1970,7 +1988,7 @@ async function ncCheckDup(){
   const box = document.getElementById('nc-dup'); if(!box) return;
   const v = id=>document.getElementById('nc-'+id).value.trim();
   const found = await findPessoas({cpf:v('cpf'), crm:v('crm'), nome:v('nome')});
-  const strong = found.filter(p=>p.why!=='nome semelhante');
+  const strong = found.filter(isStrong);
   box.innerHTML = found.length ? `<div class="dup"><b>${strong.length?'⚠️ Já existe cadastro com esses dados:':'Cadastros com nome parecido:'}</b>${found.map(p=>`<div>• ${escapeHtml(p.nome)} <small>(${escapeHtml(p.why)})</small> <a href="#" data-openp="${p.id}">abrir cadastro</a></div>`).join('')}</div>` : '';
   box.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(a.dataset.openp); }));
 }
@@ -1978,11 +1996,18 @@ async function ncSave(){
   const v = id=>document.getElementById('nc-'+id).value.trim();
   const err = document.getElementById('nc-err'); err.textContent = '';
   if(!v('nome')){ err.textContent = 'Informe o nome do cliente.'; return; }
+  const dups = await findPessoas({cpf:v('cpf'), crm:v('crm'), nome:v('nome')});
+  const forte = dups.filter(isStrong);
+  if(forte.length){ err.innerHTML = `⚠️ Já existe cadastro (${escapeHtml(forte[0].why)}): <b>${escapeHtml(forte[0].nome)}</b> — <a href="#" id="nc-abrir">abrir cadastro existente</a>. Não criei duplicado.`;
+    const a = document.getElementById('nc-abrir'); if(a) a.addEventListener('click', ev=>{ ev.preventDefault(); dlgClose(); goToPersonView(forte[0].id); }); return; }
+  const sim = dups.filter(x=>!isStrong(x));
+  if(sim.length && !document.getElementById('nc-force')){ err.innerHTML = `Nome parecido com: ${sim.map(x=>escapeHtml(x.nome)).join(', ')}.<br><label><input type="checkbox" id="nc-force"> É outra pessoa — cadastrar mesmo assim</label> (marque e salve de novo)`; return; }
+  if(sim.length && !document.getElementById('nc-force').checked){ err.textContent = 'Marque "É outra pessoa" ou abra o cadastro existente.'; return; }
   const btn = document.getElementById('nc-save'); btn.disabled = true; btn.textContent = 'Salvando...';
   try{
     const row = { nome:v('nome'), tipo:v('tipo')||'medico' };
     ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou'].forEach(k=>{ if(v(k)) row[k] = v(k); });
-    const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,total_pago_plantoes_2026').single();
+    const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026').single();
     if(error) throw error;
     for(const file of (window._ncFiles||[])){
       try{ const path = await docsUpload(file, 'clientes/'+data.id);
@@ -2021,7 +2046,7 @@ async function caNext(){
   caForm(file, f, found);
 }
 function caForm(file, f, found){
-  const top = found[0] && (found[0].why==='CPF idêntico' || found[0].why==='CRM idêntico' || found[0].why==='cadastro aberto') ? found[0].id : null;
+  const top = found[0] && (found[0].why==='CPF idêntico' || found[0].why==='CRM idêntico' || found[0].why==='nome idêntico' || found[0].why==='cadastro aberto') ? found[0].id : null;
   const opts = found.map((p,i)=>pessoaOptionHtml(p,'ca-pes', p.id===top)).join('');
   const premAnual = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : '';
   const covs = DOCS_COVS.map(c=>`<label class="chk"><input type="checkbox" class="ca-cov" value="${c.k}" ${ (f.coberturas||[]).includes(c.k)?'checked':''}> ${c.l}</label>`).join('');
@@ -2074,13 +2099,26 @@ async function caSave(file, f){
   let sel = (document.querySelector('input[name="ca-pes"]:checked')||{}).value;
   if(sel==='buscar'){ const r = document.querySelector('input[name="ca-pes2"]:checked'); sel = r ? r.value : null; if(!sel){ err.textContent = 'Selecione o cliente na busca.'; return; } }
   if(sel==='novo' && !g('ca-n-nome')){ err.textContent = 'Informe o nome do novo cliente.'; return; }
+  if(sel==='novo'){
+    const dups = await findPessoas({cpf:g('ca-n-cpf')||f.cpf, crm:g('ca-n-crm'), nome:g('ca-n-nome')});
+    const forte = dups.filter(isStrong);
+    if(forte.length){ err.innerHTML = `⚠️ <b>Este cliente já está cadastrado</b> (${escapeHtml(forte[0].why)}): ${escapeHtml(forte[0].nome)}. Não criei duplicado — <a href="#" id="ca-usar" data-id="${forte[0].id}">vincular a este cadastro</a>.`;
+      const a = document.getElementById('ca-usar'); if(a) a.addEventListener('click', ev=>{ ev.preventDefault(); const box = document.getElementById('dlg'); let r = box.querySelector('input[name="ca-pes"][value="'+a.dataset.id+'"]');
+        if(!r){ const lab = document.createElement('label'); lab.className='pk'; lab.innerHTML = `<input type="radio" name="ca-pes" value="${a.dataset.id}"><span><b>${escapeHtml(forte[0].nome)}</b></span>`; box.querySelector('input[name="ca-pes"][value="novo"]').closest('label').before(lab); r = lab.querySelector('input'); r.addEventListener('change', ()=>{ box.querySelector('#ca-novo').style.display='none'; }); }
+        r.checked = true; box.querySelector('#ca-novo').style.display='none'; err.textContent=''; });
+      return; }
+    const sim = dups.filter(x=>!isStrong(x));
+    if(sim.length && !document.getElementById('ca-force')){
+      err.innerHTML = `Encontrei cadastro(s) com nome parecido: ${sim.map(x=>escapeHtml(x.nome)).join(', ')}.<br><label><input type="checkbox" id="ca-force"> É outra pessoa — criar novo cadastro mesmo assim</label> (marque e salve de novo, ou escolha o cadastro na lista acima)`; return; }
+    if(sim.length && !document.getElementById('ca-force').checked){ err.textContent = 'Marque "É outra pessoa" ou escolha o cadastro existente.'; return; }
+  }
   if(!sel && tipo!=='estudo' && tipo!=='concorrente'){ err.textContent = 'Escolha de quem é a apólice.'; return; }
   const btn = document.getElementById('ca-save'); btn.disabled = true; btn.textContent = 'Salvando...';
   try{
     let pessoaId = (sel && sel!=='novo') ? sel : null;
     if(sel==='novo'){
       const row = {nome:g('ca-n-nome'), tipo:g('ca-n-tipo')||'medico'}; if(g('ca-n-cpf')) row.cpf = g('ca-n-cpf'); if(g('ca-n-crm')) row.crm = g('ca-n-crm');
-      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,total_pago_plantoes_2026').single(); if(error) throw error;
+      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026').single(); if(error) throw error;
       pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
     }
     const path = await docsUpload(file, tipo==='estudo'||tipo==='concorrente' ? 'estudos' : 'apolices');
@@ -2159,7 +2197,7 @@ async function esCreate(file, person){
     let f = {}, path = null;
     if(file){ try{ f = await docsRead(file); }catch(e){ f = {}; } path = await docsUpload(file, 'estudos'); }
     const found = await findPessoas({cpf:f.cpf, nome:f.nome});
-    const strong = person ? {id:person.id, nome:person.nome} : found.find(p=>p.why==='CPF idêntico' || p.why==='CRM idêntico');
+    const strong = person ? {id:person.id, nome:person.nome} : found.find(isStrong);
     const prem = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : null;
     const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id: strong ? strong.id : null, cliente_nome: strong ? strong.nome : (f.nome||null), cliente_cpf:f.cpf||null,
       seguradora_atual:f.seguradora||null, tipo_seguro:f.tipo_seguro||null, numero_apolice:f.numero_apolice||null, vigencia_inicio:f.vig_ini||null, vigencia_fim:f.vig_fim||null,
