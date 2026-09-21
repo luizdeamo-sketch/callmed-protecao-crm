@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0018fc">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CRM — CallMed Proteção Patrimonial</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -223,7 +226,7 @@
           <div class="op-kpis" id="op-kpis"></div>
         </div>
         <div class="op-filters">
-          <input id="op-search" placeholder="Buscar por nome, CPF, CRM ou telefone...">
+          <input id="op-search" placeholder="Buscar por nome, CPF, CRM ou telefone..."><button id="op-ftoggle" class="om-cancel">⚙ Filtros</button>
           <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option></select>
           <select id="op-f-class"><option value="">Classificação: todas</option><option value="call_hot">Call Hot</option><option value="quente">Quente</option><option value="frio">Frio</option></select>
           <select id="op-f-tag"><option value="">Qualquer tag</option></select>
@@ -417,6 +420,7 @@
   .op-filters{ display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
   .op-filters input, .op-filters select, .op-filters button{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink); cursor:pointer;}
   .op-filters input{ width:240px; cursor:text;}
+  #op-ftoggle{ display:none;}
   .op-filters button:hover{ background:var(--brand-soft);}
   #op-range{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); min-width:150px; text-align:center;}
   #op-scroll{ overflow:auto; position:relative; --oplw:290px;}
@@ -567,6 +571,31 @@
   .ind-bar{ height:7px; background:#eceef6; border-radius:99px; overflow:hidden; margin-top:4px;} .ind-bar div{ height:100%; border-radius:99px;}
   .ind-line{ display:flex; align-items:center; gap:10px; margin:5px 0; font-size:12.5px;} .ind-line span{ width:56px; color:var(--ink-soft);} .ind-line .ind-bar{ flex:1; margin:0;} .ind-line small{ color:var(--ink-faint); width:90px; text-align:right;}
   #btn-backup{ border:1px solid var(--border); background:var(--surface); border-radius:var(--radius-sm); padding:6px 12px; font-size:12px; margin-right:8px;} #btn-backup:hover{ background:var(--brand-soft);}
+  @media (max-width:820px){
+    #app{ grid-template-columns:1fr; grid-template-rows:52px 1fr 62px;}
+    header{ grid-column:1; padding:0 12px;} header .brand img{ height:22px;} #who-email, #btn-backup{ display:none;}
+    #rail{ grid-column:1; grid-row:3; flex-direction:row; justify-content:flex-start; overflow-x:auto; padding:6px 8px; border-right:none; border-top:1px solid var(--border); gap:2px;}
+    #rail button{ flex:0 0 66px; width:66px; height:48px;}
+    .view-container{ grid-column:1; grid-row:2;}
+    input, select, textarea{ font-size:16px !important;}
+    .om-save, .om-cancel, .btn-export-pdf{ min-height:40px;}
+    .op-top{ padding:12px;} .op-title .sub{ display:none;} .op-filters input{ width:100%;} .op-filters select{ flex:1 1 46%;}
+    #op-range, #op-prev, #op-next, #op-prev12, #op-next12, #op-today, #op-reset, #op-import{ display:none;}
+    #op-ftoggle{ display:inline-block; order:-1;}
+    #view-operacao .op-filters:not(.open) select{ display:none;}
+    #op-search{ order:-3; flex:1 1 100%;} #op-hoje, #op-callhot, #op-newcli{ order:-2; flex:1 1 30%; margin-left:0 !important; font-size:13px; padding:9px 6px;}
+    .op-inner{ min-width:0 !important;} .op-head, .op-sumbox{ display:none;} .op-right{ display:none;}
+    .op-left{ position:static; width:100%; flex:1 1 100%; border-right:none; padding:10px 14px;}
+    .op-left .n{ font-size:14px; white-space:normal;} .op-left .m{ white-space:normal;}
+    #main{ padding:10px 12px;} .person-actions{ flex-wrap:wrap;} .pv-next{ flex-direction:column; align-items:flex-start;}
+    .core-fields{ grid-template-columns:1fr !important;}
+    #dlg, #op-modal{ padding:0; align-items:flex-end;}
+    .dlg-card, .dlg-card.wide, .op-modal-card{ max-width:100%; max-height:94vh; border-radius:16px 16px 0 0;}
+    .fgrid{ grid-template-columns:1fr;} .om-row{ grid-template-columns:1fr;} .om-dates{ flex-wrap:wrap;}
+    .pg{ padding:14px; overflow-x:auto;} .ca-table{ min-width:640px;}
+    #view-estudo{ grid-template-columns:1fr; grid-template-rows:auto 1fr;} .es-side{ max-height:34vh; border-right:none; border-bottom:1px solid var(--border);}
+    .ind-kpis{ grid-template-columns:repeat(2,1fr);}
+  }
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -933,7 +962,7 @@ async function pvResumo(body, p){
   const end = [p.logradouro,p.numero,p.complemento,p.bairro,p.cidade,p.uf,p.cep].filter(Boolean).join(', ');
   body.innerHTML = `<div class="pv-grid">
     <div class="es-box"><div class="ql">Dados</div><div class="core-fields">
-      ${pvField('CPF', escapeHtml(p.cpf||''), true)}${pvField('Telefone', p.telefone?escapeHtml(p.telefone)+(wa?` <a href="${wa}" target="_blank" rel="noopener" title="Abrir WhatsApp">💬</a>`:''):'')}${pvField('E-mail', escapeHtml(p.email||''))}
+      ${pvField('CPF', escapeHtml(p.cpf||''), true)}${pvField('Telefone', p.telefone?escapeHtml(p.telefone)+(wa?` <a href="${wa}" target="_blank" rel="noopener" title="Abrir WhatsApp">💬</a> <a href="tel:${dOnly(p.telefone)}" title="Ligar">📞</a>`:''):'')}${pvField('E-mail', escapeHtml(p.email||''))}
       ${pvField('Nascimento', p.data_nascimento?fmtDate(p.data_nascimento):'')}${pvField('Profissão / Regime', escapeHtml(p.profissao||'')+(p.regime_trabalho?' · '+escapeHtml(p.regime_trabalho):''))}
       ${pvField('Origem', escapeHtml(p.origem||'')+(p.quem_indicou?' · indicado por '+escapeHtml(p.quem_indicou):''))}${pvField('Campanha / Parceiro', escapeHtml(p.campanha||'')+(p.parceiro?' · '+escapeHtml(p.parceiro):''))}
       ${pvField('Endereço', escapeHtml(end))}${pvField('CNPJ / Razão social', escapeHtml(p.cnpj||'')+(p.razao_social?' · '+escapeHtml(p.razao_social):''))}${pvField('Observações', escapeHtml(p.observacoes||''))}
@@ -956,7 +985,7 @@ async function pvLead(p){
     <div class="ql" style="margin-top:12px">Datas relevantes (geram lembrete)</div>
     ${datas.length?datas.map((d,i)=>`<div class="rec"><span class="k">${fmtDate(d.data)}</span>${escapeHtml(d.descricao)} <small style="color:var(--ink-faint)">· avisar ${d.antecedencia||7} dia(s) antes</small> <a href="#" data-deldata="${i}" style="color:var(--red);float:right">remover</a></div>`).join(''):'<div class="hint">Nenhuma.</div>'}
     <div class="sg-row" style="margin-top:8px"><input id="ld-data" type="date" class="ca-inp" style="width:150px"><input id="ld-desc" class="ca-inp" placeholder="Ex.: viagem para a Disney" style="flex:1;min-width:160px"><input id="ld-ant" type="number" class="ca-inp" value="7" style="width:70px" title="Dias de antecedência"><button class="om-cancel" id="ld-add">+ Data</button></div>
-    <div class="ql" style="margin-top:12px">Anotações sobre o lead</div>
+    <div class="ql" style="margin-top:12px">Anotações sobre o lead <button type="button" class="om-cancel" data-dictate="ld-txt" style="padding:2px 8px;font-size:12px;text-transform:none">🎤 ditar</button></div>
     <textarea id="ld-txt" rows="3" style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-family:inherit;font-size:13px">${escapeHtml(p.quem_e_lead||'')}</textarea>
     <div style="margin-top:6px"><button class="om-save" id="ld-save">Salvar anotações</button></div>`;
   host.querySelector('#ld-save').addEventListener('click', async ()=>{ const v = document.getElementById('ld-txt').value.trim()||null; const { error } = await sb.from('crm_pessoas').update({quem_e_lead:v}).eq('id',p.id); if(error){ showToast('Erro: '+error.message); return; } p.quem_e_lead = v; showToast('Anotações salvas'); pvLead(p); });
@@ -982,7 +1011,7 @@ async function pvHistorico(body, p){
       ${fld('at-data','Data e hora',new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),'datetime-local')}
       <label class="fl"><span>Oportunidade (opcional)</span><select id="at-opp"><option value="">—</option>${opps.map(o=>`<option value="${o.id}">${escapeHtml(o.produto)}</option>`).join('')}</select></label>
       <label class="fl"><span>Resultado</span><select id="at-res"><option value="">—</option>${RESULTADOS.map(r=>`<option>${r}</option>`).join('')}</select></label>
-      <label class="fl full"><span>Resumo do que aconteceu</span><textarea id="at-resumo" rows="3" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
+      <label class="fl full"><span>Resumo do que aconteceu <button type="button" class="om-cancel" data-dictate="at-resumo" style="padding:2px 8px;font-size:12px;text-transform:none">🎤 ditar</button></span><textarea id="at-resumo" rows="3" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
       <label class="fl full"><span>E agora? Próxima ação (obrigatória)</span><select id="at-acao"><option value="">Selecione...</option>${ACOES.map(a=>`<option>${a}</option>`).join('')}<option value="__encerrar__">✖ Encerrar (oportunidade / lead)</option></select></label>
       <div id="at-next" class="fgrid full" style="grid-column:1/-1">${fld('at-pdata','Data da próxima ação','','date')}${fld('at-presp','Responsável',curUserName())}</div>
       <div id="at-close" class="fgrid full" style="grid-column:1/-1;display:none"><label class="fl"><span>Motivo</span><select id="at-motivo"><option value="">Selecione...</option>${MOTIVOS.map(m=>`<option>${m}</option>`).join('')}</select></label>${fld('at-reat','Data de reativação (para pausas)','','date')}</div>
@@ -1039,13 +1068,13 @@ async function pvOportunidades(p){
   const host = document.getElementById('pp-opps'); if(!host) return;
   const { data, error } = await sb.from('crm_oportunidades').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false});
   const rows = data||[];
-  host.innerHTML = `<div class="ql">Oportunidades por produto <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— a mesma pessoa pode gerar várias (Vida, RC, previdência, empresa…)</small></div>
+  host.innerHTML = `<div class="ql">Oportunidades por produto <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— a etapa de cada produto vive aqui; o funil da pessoa (Aliança) acompanha automaticamente a mais avançada</small></div>
     ${error?'<div class="om-err">'+escapeHtml(error.message)+'</div>':''}
     ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Etapa</th><th>Status</th><th>Prêmio previsto</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr data-opp="${o.id}"><td><b>${escapeHtml(o.produto)}</b></td><td>${escapeHtml((ETAPAS_FUNIL.find(e=>e.key===o.etapa)||{label:o.etapa}).label)}</td><td><span class="tagx ${o.status==='perdida'?'bad':(o.status==='ganha'?'':(o.status==='pausada'?'warn':''))}">${escapeHtml((OPP_STATUS.find(s=>s[0]===o.status)||[0,o.status])[1])}</span>${o.motivo_perda?'<br><small>'+escapeHtml(o.motivo_perda)+'</small>':''}</td><td>${fmtMoney(o.premio_previsto)}</td><td>${escapeHtml(o.responsavel||'—')}</td><td><a href="#" data-edit-opp="${o.id}">editar</a></td></tr>`).join('')}</tbody></table>`:'<div class="hint">Nenhuma oportunidade ainda.</div>'}
     <div class="sg-row" style="margin-top:10px"><select id="op-new-prod" class="ca-inp" style="width:190px">${OPP_PRODUTOS.map(o=>`<option>${o}</option>`).join('')}</select><select id="op-new-etapa" class="ca-inp" style="width:150px">${ETAPAS_FUNIL.map(e=>`<option value="${e.key}">${e.label}</option>`).join('')}</select><input id="op-new-prem" type="number" class="ca-inp" placeholder="Prêmio previsto (R$)" style="width:170px"><button class="om-save" id="op-new-add">+ Nova oportunidade</button></div>`;
   host.querySelector('#op-new-add').addEventListener('click', async ()=>{
     const { error } = await sb.from('crm_oportunidades').insert({ pessoa_id:p.id, produto:document.getElementById('op-new-prod').value, etapa:document.getElementById('op-new-etapa').value, premio_previsto:document.getElementById('op-new-prem').value?Number(document.getElementById('op-new-prem').value):null, responsavel:curUserName() });
-    if(error){ showToast('Erro: '+error.message); return; } showToast('Oportunidade criada'); pvOportunidades(p); });
+    if(error){ showToast('Erro: '+error.message); return; } await syncFunilComOpp(p.id, document.getElementById('op-new-etapa').value); showToast('Oportunidade criada'); pvOportunidades(p); });
   host.querySelectorAll('[data-edit-opp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); pvOppDialog(p, rows.find(r=>r.id===a.dataset.editOpp)); }));
 }
 function pvOppDialog(p, o){
@@ -1065,6 +1094,7 @@ function pvOppDialog(p, o){
     const upd = { etapa:g('oe-etapa'), status:st, premio_previsto:g('oe-prem')?Number(g('oe-prem')):null, responsavel:g('oe-resp')||null, motivo_perda:g('oe-motivo')||null, data_reativacao:g('oe-reat')||null, observacoes:g('oe-obs')||null,
       fechada_em:(st==='ganha'||st==='perdida')?new Date().toISOString():null, updated_at:new Date().toISOString() };
     const { error } = await sb.from('crm_oportunidades').update(upd).eq('id', o.id); if(error){ document.getElementById('oe-err').textContent = 'Erro: '+error.message; return; }
+    if(st==='ganha') await syncFunilComOpp(p.id, 'fechamento'); else if(st==='aberta') await syncFunilComOpp(p.id, upd.etapa);
     dlgClose(); showToast('Oportunidade atualizada'); pvOportunidades(p); });
   box.querySelector('#oe-del').addEventListener('click', async ()=>{ if(!confirm('Excluir esta oportunidade?')) return; await sb.from('crm_oportunidades').delete().eq('id', o.id); dlgClose(); pvOportunidades(p); });
 }
@@ -1078,6 +1108,38 @@ async function pvApolices(p){
     <div class="ql" style="margin-top:12px">Proteção atual (coberturas nas apólices)</div>
     <div class="chks">${['morte','ipa','invalidez_doenca','doencas_graves','dit','funeral','renda','sucessao','previdencia'].map(k=>`<span class="tagx" style="${have.has(k)?'':'background:#f2f3f9;color:var(--ink-faint);text-decoration:line-through'}">${covLabel(k)}</span>`).join(' ')}</div>
     ${cap?`<div class="hint">Capital de vida já segurado: <b>${fmtMoney(cap)}</b></div>`:''}`;
+}
+
+// ---- ditado por voz em qualquer campo de texto ----
+function dictateInto(taId, btn){
+  if(!SG_SR){ showToast('Ditado por voz: use o Chrome ou o Edge.'); return; }
+  const ta = document.getElementById(taId); if(!ta) return;
+  if(btn._rec){ try{ btn._rec.stop(); }catch(e){} return; }
+  const base = ta.value ? ta.value.replace(/\s+$/,'')+' ' : ''; let fin = '';
+  const r = new SG_SR(); r.lang = 'pt-BR'; r.continuous = true; r.interimResults = true; btn._rec = r; const label = btn.textContent;
+  r.onresult = e=>{ let it = ''; for(let i=e.resultIndex;i<e.results.length;i++){ const t = e.results[i][0].transcript; if(e.results[i].isFinal) fin += t+' '; else it += t; } ta.value = base + fin + it; };
+  r.onend = ()=>{ btn._rec = null; btn.textContent = '🎤 ditar'; btn.classList.remove('rec'); };
+  r.onerror = ev=>{ if(ev.error==='not-allowed') showToast('Permita o uso do microfone no navegador.'); };
+  r.start(); btn.textContent = '⏹ parar'; btn.classList.add('rec');
+}
+document.addEventListener('click', e=>{ const b = e.target.closest('[data-dictate]'); if(b){ e.preventDefault(); dictateInto(b.dataset.dictate, b); } });
+
+// ---------- FONTE ÚNICA DA ETAPA: oportunidades alimentam o funil da pessoa ----------
+async function syncFunilComOpp(pid, etapaKey){
+  try{
+    const idx = ETAPAS_FUNIL.findIndex(e=>e.key===etapaKey); if(idx<0) return;
+    const { data } = await sb.from('crm_funil').select(OP_FUNIL_COLS).eq('pessoa_id', pid); const rows = data||[];
+    if(rows.some(r=>r.etapa===etapaKey)) return;
+    const maxIdx = rows.reduce((m,r)=>Math.max(m, ETAPAS_FUNIL.findIndex(e=>e.key===r.etapa)), -1);
+    if(maxIdx>idx) return;
+    const hoje = ymdToday();
+    const abertos = rows.filter(r=>!r.data_fim).sort((a,b)=>String(a.data_inicio||a.created_at).localeCompare(String(b.data_inicio||b.created_at)));
+    const prev = abertos[abertos.length-1];
+    if(prev){ const ini = String(prev.data_inicio||prev.data_combinada||prev.created_at).slice(0,10); if(ini>=hoje) return;
+      const d = opD(hoje); d.setDate(d.getDate()-1); const { error } = await sb.from('crm_funil').update({data_fim:ymd(d)}).eq('id', prev.id); if(error) return; }
+    await sb.from('crm_funil').insert({pessoa_id:pid, etapa:etapaKey, data_inicio:hoje, data_combinada:hoje, observacao:'Atualizado pela oportunidade'});
+    OP.dirty = true;
+  }catch(e){ console.warn('sync funil', e); }
 }
 function pvDiagField(k, v, def){
   const val = v==null ? '' : v;
@@ -1804,6 +1866,7 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
 ['op-f-perfil','op-f-next','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
+document.getElementById('op-ftoggle').addEventListener('click', ()=> document.querySelector('#view-operacao .op-filters').classList.toggle('open'));
 const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
 document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
 document.getElementById('op-next').addEventListener('click', ()=>opShift(1));
