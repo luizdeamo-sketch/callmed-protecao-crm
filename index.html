@@ -205,6 +205,8 @@
 
   <nav id="rail">
     <button class="nav-btn active" data-view="operacao">🧭<span>Aliança</span></button>
+    <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
+    <button class="nav-btn" data-view="estudo" title="Estudo de apólice de outro corretor">🔍<span>Estudo</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
     <button class="nav-btn" data-view="ata">🗒️<span>Ata</span></button>
@@ -228,16 +230,19 @@
             <option value="novo">Sem contato ainda</option>
           </select>
           <select id="op-f-etapa"><option value="">Qualquer etapa atual</option></select>
+          <select id="op-f-plantao"><option value="">Plantão: qualquer</option><option value="7">Fez plantão nos últimos 7 dias</option><option value="30">Fez plantão nos últimos 30 dias</option><option value="90">Fez plantão nos últimos 90 dias</option><option value="nenhum">Sem plantão recente (+90 dias)</option></select>
           <select id="op-f-produto"><option value="">Qualquer produto</option></select>
           <select id="op-sort">
             <option value="nome">Ordenar: nome</option>
             <option value="plantoes">Ordenar: maior valor pago em plantões</option>
             <option value="etapa">Ordenar: etapa mais avançada</option>
+            <option value="plantao">Ordenar: plantão mais recente</option>
           </select>
           <button id="op-prev" title="12 meses anteriores">‹</button>
           <span id="op-range"></span>
           <button id="op-next" title="Próximos 12 meses">›</button>
           <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
+          <button id="op-newcli" class="om-save" style="margin-left:auto">＋ Novo cliente</button>
           <span id="op-chip"></span>
         </div>
       </div>
@@ -351,6 +356,19 @@
         <button type="submit">+ Adicionar</button>
       </form>
       <div id="conhecimento-list" style="max-width:700px;"></div>
+    </div>
+
+    <div id="view-central" class="view">
+      <div class="pg">
+        <div class="pg-head"><h2>Central de Apólices</h2><span class="sub" id="ca-count"></span><input id="ca-search" class="ca-inp" placeholder="Buscar cliente, seguradora ou nº..." style="margin-left:auto;max-width:280px"></div>
+        <div class="dz" id="ca-dz">📄 Arraste as apólices aqui (PDF ou foto) ou clique para anexar — o sistema lê, identifica o cliente e pergunta o que for preciso<input type="file" id="ca-file" multiple accept=".pdf,image/*" hidden></div>
+        <div id="ca-list"></div>
+      </div>
+    </div>
+
+    <div id="view-estudo" class="view">
+      <div class="es-side"><div class="es-side-h"><h3>Estudos</h3><button class="om-save" id="es-new">＋ Novo estudo</button></div><div id="es-list"></div></div>
+      <div class="pg" id="es-detail"><div class="op-more" style="padding-top:80px">Selecione um estudo à esquerda ou crie um novo.<br><br><b>Como funciona:</b> suba a apólice atual do cliente (de outro corretor) → o sistema lê os dados → cruza com as coberturas das nossas 8 seguradoras → mostra as lacunas, a combinação sugerida e compara as cotações que você lançar com o prêmio atual.</div></div>
     </div>
 
     <div id="view-ata" class="view" style="overflow-y:auto; padding:30px 36px;">
@@ -479,6 +497,49 @@
   .om-cancel, .om-save{ border-radius:var(--radius-sm); padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:var(--surface);}
   .om-save{ background:var(--brand); color:#fff; border-color:var(--brand);}
   .om-save:disabled{ opacity:.6;}
+  .dz{ border:2px dashed #c9cff0; background:var(--brand-soft); border-radius:var(--radius-md); padding:20px; text-align:center; color:var(--ink-soft); font-size:13px; cursor:pointer; margin:0 0 14px;}
+  .dz:hover, .dz.over{ border-color:var(--brand); color:var(--brand);}
+  .pg{ padding:24px 30px; overflow-y:auto; min-width:0;}
+  .pg-head{ display:flex; align-items:baseline; gap:14px; margin-bottom:14px;}
+  .ca-inp{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; font-size:13px; width:100%; background:var(--surface);}
+  .ca-table{ width:100%; border-collapse:collapse; font-size:12.5px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden;}
+  .ca-table th{ text-align:left; background:#f2f3f9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); padding:8px 10px;}
+  .ca-table td{ padding:8px 10px; border-top:1px solid var(--border-soft); vertical-align:top;}
+  .ca-table a{ color:var(--brand); text-decoration:none; font-weight:600;}
+  .tagx{ display:inline-block; background:var(--brand-soft); color:var(--brand); border-radius:999px; padding:1px 9px; font-size:11px; font-weight:600;}
+  .tagx.warn{ background:var(--amber-soft); color:var(--amber-ink);} .tagx.bad{ background:var(--red-soft); color:var(--red);}
+  #view-estudo{ grid-template-columns:320px 1fr;}
+  .es-side{ border-right:1px solid var(--border); background:var(--surface); overflow-y:auto; padding:14px;}
+  .es-side-h{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .es-card{ border:1px solid var(--border); border-radius:var(--radius-md); padding:10px 12px; margin-bottom:8px; cursor:pointer; background:var(--surface);}
+  .es-card:hover{ border-color:var(--brand);} .es-card.sel{ border-color:var(--brand); background:var(--brand-soft);}
+  .es-card .n{ font-weight:600; font-size:13px;} .es-card .m{ font-size:11.5px; color:var(--ink-faint);}
+  .es-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px;}
+  .es-head .sub{ margin-top:4px; font-size:12.5px; color:var(--ink-soft);}
+  .es-box{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:14px;}
+  .ql{ font-family:'IBM Plex Mono',monospace; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; margin-bottom:8px;}
+  .hint{ font-size:12px; color:var(--ink-faint); margin-top:6px;}
+  .reco{ background:var(--green-soft); border:1px solid #bfe6d4; border-radius:var(--radius-sm); padding:10px 12px; font-size:12.5px; line-height:1.6;}
+  .es-cov-t tr.gap td:nth-child(2){ color:var(--red); font-weight:600;} .es-cov-t tr.ok td:nth-child(2){ color:var(--green); font-weight:600;}
+  input.cot{ width:130px; border:1px solid var(--border); border-radius:6px; padding:5px 7px; font-size:12px;}
+  .es-linkrow{ display:flex; gap:10px; margin-top:8px;} .es-pick{ padding:7px 10px; border:1px solid var(--border-soft); border-radius:6px; margin-top:4px; cursor:pointer; font-size:12.5px;} .es-pick:hover{ background:var(--brand-soft);}
+  .es-actions{ display:flex; gap:10px; margin-top:8px;}
+  #es-obs{ width:100%; border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; font-size:12.5px; font-family:inherit;}
+  #dlg{ position:fixed; inset:0; z-index:70; background:rgba(15,18,30,.45); display:none; align-items:center; justify-content:center; padding:20px;}
+  .dlg-card{ background:var(--surface); border-radius:var(--radius-lg); width:100%; max-width:520px; max-height:92vh; display:flex; flex-direction:column; box-shadow:0 24px 60px -12px rgba(15,18,30,.45);}
+  .dlg-card.wide{ max-width:780px;}
+  .dlg-body{ overflow:auto; padding:14px 22px;}
+  .fgrid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px;}
+  .fl{ display:flex; flex-direction:column; gap:3px; font-size:10.5px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; color:var(--ink-faint);}
+  .fl.full{ grid-column:1 / -1;}
+  .fl input, .fl select{ border:1px solid var(--border); border-radius:6px; padding:7px 9px; font-size:13px; font-family:'Inter',sans-serif; text-transform:none; color:var(--ink); background:var(--surface);}
+  input.auto{ background:#f0f7ff !important; border-color:#9fb0ff !important;}
+  .nc-files{ font-size:12px; margin-bottom:10px; display:flex; flex-direction:column; gap:4px;}
+  .dup{ margin-top:10px; background:var(--amber-soft); border:1px solid var(--amber-line); border-radius:var(--radius-sm); padding:8px 12px; font-size:12.5px;} .dup a{ color:var(--brand); font-weight:600;}
+  .q{ border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:12px;}
+  .rd, .pk{ display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:4px 0; cursor:pointer;} .pk small{ color:var(--ink-faint);}
+  .chks{ display:flex; flex-wrap:wrap; gap:6px 14px;} .chk{ font-size:12px; display:flex; gap:5px; align-items:center;}
+  .pl-tag{ color:var(--ink-faint);} .pl-tag.hot{ color:var(--green); font-weight:600;} .pl-tag.warm{ color:var(--amber-ink); font-weight:600;}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -620,6 +681,8 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     if(btn.dataset.view === 'operacao') renderOperacao();
+    if(btn.dataset.view === 'central') renderCentral();
+    if(btn.dataset.view === 'estudo') renderEstudos();
     if(btn.dataset.view === 'funil') renderFunil();
     if(btn.dataset.view === 'jornada') renderKanban();
     if(btn.dataset.view === 'agenda') renderCalendar();
@@ -1270,7 +1333,7 @@ const OP_MESES = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','N
 const OP_UNIT_PX = 88;
 const OP_EXPANDED_W = 11;
 const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
-             start:new Date(2026,9,1), sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null };
+             plant:new Map(), dirty:false, start:new Date(2026,9,1), sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null };
 const OP_PAGE = 120;
 const DAY = 86400000;
 const opEnd = ()=> new Date(OP.start.getFullYear(), OP.start.getMonth()+12, 1);
@@ -1367,13 +1430,16 @@ async function opLoadFunilApo(){
   ]);
   OP.funil = new Map(); fun.forEach(r=>{ if(!OP.funil.has(r.pessoa_id)) OP.funil.set(r.pessoa_id,new Map()); OP.funil.get(r.pessoa_id).set(r.etapa, r); });
   OP.apo = new Map(); apo.forEach(r=>{ if(!OP.apo.has(r.pessoa_id)) OP.apo.set(r.pessoa_id,[]); OP.apo.get(r.pessoa_id).push(r); });
+  try{ const pl = await opFetchAll('crm_plantoes_resumo','pessoa_id,ultimo_plantao,qtde_mes_atual,qtde_mes_ref,valor_mes_ref,valor_12m,meses_12m',['pessoa_id']);
+       OP.plant = new Map(); pl.forEach(r=>OP.plant.set(r.pessoa_id, r)); }catch(e){ console.warn('plantoes', e); }
+  OP.dirty = false;
 }
 
 async function renderOperacao(force){
   if(OP.loading) return;
   const host = document.getElementById('op-scroll');
   if(OP.loaded){
-    if(!force) return opApplyFilters(true);
+    if(!force && !OP.dirty) return opApplyFilters(true);
   } else {
     host.innerHTML = '<div class="op-more">Carregando médicos, funil e apólices...</div>';
   }
@@ -1404,6 +1470,8 @@ function opApplyFilters(keep, scrollToList){
   const pr = document.getElementById('op-f-produto').value;
   const sort = document.getElementById('op-sort').value;
   const sf = OP.sumFilter;
+  const fpl = document.getElementById('op-f-plantao').value;
+  const nowD = new Date(); nowD.setHours(0,0,0,0);
   let list = OP.pessoas.filter(p=>{
     if(q && !((p.nome||'').toLowerCase().includes(q) || (p.crm||'').toLowerCase().includes(q) || (p.especialidade||'').toLowerCase().includes(q))) return false;
     const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id);
@@ -1412,6 +1480,10 @@ function opApplyFilters(keep, scrollToList){
     if(sit==='novo' && !(idx<0 && !cli)) return false;
     if(et && (idx<0 || ETAPAS_FUNIL[idx].key!==et)) return false;
     if(pr && !(OP.apo.get(p.id)||[]).some(a=>opProdKey(a.tipo_seguro)===pr)) return false;
+    if(fpl){
+      const pr = OP.plant.get(p.id); const ud = pr && pr.ultimo_plantao ? opD(pr.ultimo_plantao) : null; const dias = ud ? Math.round((nowD-ud)/DAY) : null;
+      if(fpl==='nenhum'){ if(dias!==null && dias<=90) return false; } else if(dias===null || dias>parseInt(fpl,10)) return false;
+    }
     if(sf){
       if(sf.st === 'cli'){ if(!opClienteNoMes(p.id, sf.mi)) return false; }
       else if(opStageAt(p.id, sf.mi) !== sf.st) return false;
@@ -1420,6 +1492,7 @@ function opApplyFilters(keep, scrollToList){
   });
   if(sort==='plantoes') list = list.slice().sort((a,b)=>(Number(b.total_pago_plantoes_2026)||0)-(Number(a.total_pago_plantoes_2026)||0));
   if(sort==='etapa') list = list.slice().sort((a,b)=>opCurEtapaIdx(b.id)-opCurEtapaIdx(a.id));
+  if(sort==='plantao') list = list.slice().sort((a,b)=>{ const ua=(OP.plant.get(a.id)||{}).ultimo_plantao||'', ub=(OP.plant.get(b.id)||{}).ultimo_plantao||''; return ub<ua?-1:(ub>ua?1:0); });
   const prevShown = keep ? OP.shown : 0;
   const scroller = document.getElementById('op-scroll');
   const prevTop = keep ? scroller.scrollTop : 0, prevLeft = keep ? scroller.scrollLeft : 0;
@@ -1506,7 +1579,9 @@ function opRenderAll(prevShown){
 function opRowHtml(p){
   const cli = opIsCliente(p.id);
   const apos = (OP.apo.get(p.id)||[]).slice().sort((a,b)=>{ const ra=opApoRange(a), rb=opApoRange(b); return (ra.start||0)-(rb.start||0); });
-  const pl = Number(p.total_pago_plantoes_2026)||0;
+  const prz = OP.plant.get(p.id); let plInfo = '';
+  if(prz && prz.ultimo_plantao){ const ud = opD(prz.ultimo_plantao); const t0 = new Date(); t0.setHours(0,0,0,0); const dd = Math.round((t0-ud)/DAY);
+    plInfo = ` · <span class="pl-tag ${dd<=7?'hot':dd<=30?'warm':''}">último plantão ${opFmt(ud).slice(0,5)}${prz.qtde_mes_atual?' · '+prz.qtde_mes_atual+' em '+OP_MESES[new Date().getMonth()].toLowerCase():''}</span>`; }
   const height = 10 + 26 + apos.length*24;
   const st = opStages(p.id);
   const today = new Date(); today.setHours(0,0,0,0);
@@ -1533,7 +1608,7 @@ function opRowHtml(p){
     const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}`;
     lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
   });
-  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${pl>0?' · plantões R$ '+Math.round(pl).toLocaleString('pt-BR'):''}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
+  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
 }
 
 function opAppendRows(n){
@@ -1675,11 +1750,521 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 });
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
-['op-f-situacao','op-f-etapa','op-f-produto','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
+['op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
 document.getElementById('btn-op-back').addEventListener('click', ()=> document.querySelector('.nav-btn[data-view="operacao"]').click());
 document.getElementById('op-prev').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()-1, OP.start.getMonth(), 1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
 document.getElementById('op-next').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()+1, OP.start.getMonth(), 1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
 document.getElementById('op-reset').addEventListener('click', ()=>{ OP.start = new Date(2026,9,1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
+
+// ---------- DOCUMENTOS: leitura automática (PDF/imagem) ----------
+const DOCS_INSURERS = [
+  ['Porto Seguro',/porto\s*seguro/i],['Allianz',/allianz/i],['Sul América',/sul\s*am[eé]rica|sulamerica/i],['Bradesco Seguros',/bradesco\s*(seguros|vida)/i],
+  ['Tokio Marine',/tokio\s*marine/i],['HDI',/\bHDI\b/],['Mapfre',/mapfre/i],['Azos',/\bazos\b/i],['MAG Seguros',/\bMAG\s*seguros|mongeral/i],['Icatu',/icatu/i],
+  ['Omint',/omint/i],['Centauro',/centauro/i],['Zurich',/zurich/i],['Liberty',/liberty/i],['SURA',/\bsura\b/i],['Itaú Seguros',/ita[uú]\s*seguros/i],
+  ['Prudential',/prudential/i],['MetLife',/metlife/i],['Amil',/\bamil\b/i],['Unimed',/unimed/i],['Generali',/generali/i],['Chubb',/chubb/i],['Pier',/\bpier\b/i]
+];
+const DOCS_COVS = [
+  {k:'morte', l:'Morte', re:/\bmorte\b(?!\s*acidental)|cobertura b[aá]sica|capital segurado/i},
+  {k:'morte_acidental', l:'Morte acidental', re:/morte\s*acidental/i},
+  {k:'ipa', l:'Invalidez por acidente (IPA)', re:/invalidez\s*permanente[^.\n]{0,40}acidente|\bIPA\b|\bIPTA\b/i},
+  {k:'invalidez_doenca', l:'Invalidez por doença', re:/invalidez[^.\n]{0,50}doen[çc]a|\bIFPD\b|\bIPD\b/i},
+  {k:'doencas_graves', l:'Doenças graves', re:/doen[çc]as?\s*graves|antecipa[çc][ãa]o[^.\n]{0,30}doen[çc]a|c[âa]ncer/i},
+  {k:'dit', l:'Diária por incapacidade (DIT)', re:/di[áa]rias?\s*(por|de)\s*incapacidade|\bDIT\b|incapacidade\s*tempor[áa]ria|\bDIH\b/i},
+  {k:'funeral', l:'Funeral / assistência funeral', re:/funeral/i},
+  {k:'renda', l:'Renda (família / invalidez)', re:/renda\s*(mensal|por|familiar|temporária)|pens[ãa]o/i},
+  {k:'sucessao', l:'Sucessão / vida inteira', re:/sucess[ãa]o|vida\s*inteira|whole\s*life/i},
+  {k:'previdencia', l:'Previdência', re:/previd[êe]ncia|\bVGBL\b|\bPGBL\b/i},
+  {k:'rc_prof', l:'RC profissional', re:/responsabilidade\s*civil\s*profissional|erro\s*m[ée]dico/i},
+];
+const DOCS_TIPOS = [
+  ['Vida em grupo',/vida\s*em\s*grupo|seguro\s*de\s*vida\s*coletivo|vida\s*coletivo/i],['Vida',/seguro\s*de\s*vida|vida\s*individual|\bvida\b/i],
+  ['Responsabilidade Civil',/responsabilidade\s*civil/i],['Automóvel',/autom[oó]vel|\bauto\b|ve[ií]culo/i],['Residencial',/residencial|resid[êe]ncia/i],
+  ['Empresarial',/empresarial|patrimonial/i],['Saúde',/plano\s*de\s*sa[uú]de|seguro\s*sa[uú]de/i],['Previdência',/previd[êe]ncia|\bVGBL\b|\bPGBL\b/i],
+  ['Acidentes Pessoais',/acidentes\s*pessoais/i],
+];
+function dOnly(s){ return String(s||'').replace(/\D/g,''); }
+function validCPF(c){
+  c = dOnly(c); if(c.length!==11 || /^(\d)\1+$/.test(c)) return false;
+  let s=0; for(let i=0;i<9;i++) s+=+c[i]*(10-i); let d=(s*10)%11%10; if(d!==+c[9]) return false;
+  s=0; for(let i=0;i<10;i++) s+=+c[i]*(11-i); d=(s*10)%11%10; return d===+c[10];
+}
+function fmtCPF(c){ c=dOnly(c); return c.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'); }
+function brToIso(s){ const m = String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ''; }
+function moneyBR(s){ if(!s) return null; const n = parseFloat(String(s).replace(/\./g,'').replace(',','.')); return isNaN(n) ? null : n; }
+function fmtMoney(n){ return (n===null||n===undefined||n==='') ? '—' : 'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function titleCase(s){ return String(s||'').toLowerCase().replace(/(^|\s)([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\b(Da|De|Do|Das|Dos|E)\b/g,x=>x.toLowerCase()); }
+
+function docsLoadScript(src){
+  return new Promise((res,rej)=>{
+    if(document.querySelector(`script[src="${src}"]`)) return res();
+    const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = ()=>rej(new Error('Falha ao carregar '+src)); document.head.appendChild(s);
+  });
+}
+async function docsPdfText(file){
+  await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise;
+  let out = '';
+  for(let p=1; p<=Math.min(pdf.numPages, 20); p++){
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    const rows = new Map();
+    tc.items.forEach(it=>{ const y = Math.round(it.transform[5]/3); if(!rows.has(y)) rows.set(y, []); rows.get(y).push(it); });
+    [...rows.keys()].sort((a,b)=>b-a).forEach(y=>{ out += rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str).join(' ') + '\n'; });
+  }
+  if(out.replace(/\s/g,'').length < 80){
+    const parts = [];
+    for(let p=1; p<=Math.min(pdf.numPages, 3); p++){
+      const page = await pdf.getPage(p); const vp = page.getViewport({scale:2});
+      const cv = document.createElement('canvas'); cv.width = vp.width; cv.height = vp.height;
+      await page.render({canvasContext: cv.getContext('2d'), viewport: vp}).promise;
+      parts.push(await docsOcr(cv));
+    }
+    out = parts.join('\n');
+  }
+  return out;
+}
+async function docsOcr(src){
+  await docsLoadScript('https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js');
+  const r = await Tesseract.recognize(src, 'por');
+  return r.data.text || '';
+}
+async function docsText(file){
+  if(/pdf$/i.test(file.type) || /\.pdf$/i.test(file.name)) return docsPdfText(file);
+  if(/^image\//.test(file.type)) return docsOcr(URL.createObjectURL(file));
+  if(/text|json|csv/.test(file.type) || /\.(txt|csv)$/i.test(file.name)) return file.text();
+  throw new Error('Formato não suportado para leitura automática (use PDF ou imagem).');
+}
+
+function docsExtract(text){
+  const t = String(text||'').replace(/\r/g,''); const f = {};
+  const cpfs = (t.match(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g)||[]).filter(validCPF);
+  if(cpfs.length) f.cpf = fmtCPF(cpfs[0]);
+  const cnpj = (t.match(/\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g)||[])[0]; if(cnpj) f.cnpj = cnpj;
+  const nm = t.match(/(?:segurado(?:\(a\))?|proponente|titular|nome\s*(?:completo|do\s*segurado|do\s*proponente)?)\s*[:\-–]\s*([^\n]{5,90})/i);
+  if(nm){ let n = nm[1].replace(/\s{2,}.*/,'').replace(/\b(CPF|CNPJ|RG|CRM|Data|Nasc|Sexo|Estado|Telefone|E-?mail)\b.*$/i,'').replace(/[\d\/.-]+$/,'').trim();
+          if(/^[A-Za-zÀ-ú' ]{6,}$/.test(n) && n.split(/\s+/).length>=2) f.nome = titleCase(n); }
+  const crm = t.match(/CRM[\s\-\/:]*(?:[A-Z]{2}[\s\-\/:]*)?(\d{4,7})/i); if(crm) f.crm = crm[1];
+  const em = t.match(/[\w.+-]+@[\w-]+\.[\w.-]+/); if(em) f.email = em[0].toLowerCase();
+  const ph = t.match(/\(?\b(\d{2})\)?[\s.-]?(9?\d{4})[\s.-]?(\d{4})\b/); if(ph && !/^(19|20)\d{2}$/.test(ph[1]+ph[2].slice(0,2))) f.telefone = `(${ph[1]}) ${ph[2]}-${ph[3]}`;
+  const nasc = t.match(/(?:nasc\w*|data\s*de\s*nascimento)[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})/i); if(nasc) f.data_nascimento = brToIso(nasc[1]);
+  const sx = t.match(/sexo[:\s]*(masculino|feminino|\bM\b|\bF\b)/i); if(sx) f.sexo = /^m/i.test(sx[1]) ? 'M' : 'F';
+  const ec = t.match(/estado\s*civil[:\s]*(solteiro|casado|divorciado|vi[uú]vo|uni[ãa]o\s*est[aá]vel|separado)/i); if(ec) f.estado_civil = ec[1].toLowerCase();
+  const esp = t.match(/especialidade[:\s]*([A-Za-zÀ-ú ]{4,50})/i); if(esp) f.especialidade = titleCase(esp[1].trim());
+  const rs = t.match(/raz[ãa]o\s*social[:\s]*([^\n]{4,80})/i); if(rs) f.razao_social = rs[1].replace(/\s{2,}.*/,'').trim();
+  const ap = t.match(/(?:ap[óo]lice|proposta)\s*(?:n[ºo°.]*|n[úu]mero)?\s*[:\-]?\s*([0-9][0-9.\-\/]{5,24})/i); if(ap) f.numero_apolice = ap[1].replace(/[.\-\/]+$/,'');
+  for(const [n,re] of DOCS_INSURERS){ if(re.test(t)){ f.seguradora = n; break; } }
+  for(const [n,re] of DOCS_TIPOS){ if(re.test(t)){ f.tipo_seguro = n; break; } }
+  if(/vida\s*em\s*grupo|coletiv|estipulante/i.test(t)) f.tipo_contratacao = 'Grupo'; else if(f.tipo_seguro) f.tipo_contratacao = 'Individual';
+  const vg = t.match(/vig[êe]ncia[^\d]{0,70}(\d{2}\/\d{2}\/\d{4})[^\d]{1,60}(\d{2}\/\d{2}\/\d{4})/is);
+  if(vg){ f.vig_ini = brToIso(vg[1]); f.vig_fim = brToIso(vg[2]); }
+  else { const ds = (t.match(/\d{2}\/\d{2}\/\d{4}/g)||[]); const h24 = t.match(/24\s*h(?:oras)?[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})[^\d]{1,40}24\s*h(?:oras)?[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})/is); if(h24){ f.vig_ini = brToIso(h24[1]); f.vig_fim = brToIso(h24[2]); } }
+  const pr = t.match(/pr[êe]mio\s*(total|anual|l[ií]quido|mensal)?[^\d]{0,35}(?:R\$)?\s*([\d.]+,\d{2})/i);
+  if(pr){ const v = moneyBR(pr[2]); const mensal = /mensal/i.test(pr[1]||'') || /parcela|mensalidade/i.test(pr[0]); f.premio = v; f.premio_periodo = mensal ? 'mensal' : 'anual'; }
+  const cap = t.match(/(?:import[âa]ncia\s*segurada|capital\s*segurado|valor\s*segurado|capital)[^\d]{0,45}(?:R\$)?\s*([\d.]+,\d{2})/i); if(cap) f.capital = moneyBR(cap[1]);
+  f.coberturas = DOCS_COVS.filter(c=>c.re.test(t)).map(c=>c.k);
+  f._chars = t.length;
+  return f;
+}
+async function docsRead(file){ const text = await docsText(file); return docsExtract(text); }
+
+async function docsUpload(file, pasta){
+  const safe = file.name.replace(/[^\w.\-]+/g,'_');
+  const path = `${pasta}/${Date.now()}_${safe}`;
+  const { error } = await sb.storage.from('crm-docs').upload(path, file, {contentType:file.type||'application/octet-stream', upsert:false});
+  if(error) throw error;
+  return path;
+}
+async function docsSignedUrl(path){
+  const { data, error } = await sb.storage.from('crm-docs').createSignedUrl(path, 3600);
+  if(error) throw error; return data.signedUrl;
+}
+async function findPessoas({cpf, crm, nome}){
+  const out = new Map();
+  const add = (rows, why)=> (rows||[]).forEach(r=>{ if(!out.has(r.id)) out.set(r.id, {...r, why}); });
+  const cols = 'id,nome,cpf,crm,especialidade';
+  if(cpf){ const d = dOnly(cpf); const { data } = await sb.from('crm_pessoas').select(cols).or(`cpf.eq.${d},cpf.eq.${fmtCPF(d)}`).limit(5); add(data,'CPF idêntico'); }
+  if(crm){ const { data } = await sb.from('crm_pessoas').select(cols).eq('crm', crm).limit(5); add(data,'CRM idêntico'); }
+  if(nome){
+    const toks = nome.trim().split(/\s+/).filter(x=>x.length>2);
+    if(toks.length>=2){ const { data } = await sb.from('crm_pessoas').select(cols).ilike('nome', `%${toks[0]}%${toks[toks.length-1]}%`).limit(6); add(data,'nome semelhante'); }
+  }
+  return [...out.values()];
+}
+function pessoaOptionHtml(p, name, checked){
+  return `<label class="pk"><input type="radio" name="${name}" value="${p.id}" ${checked?'checked':''}><span><b>${escapeHtml(p.nome)}</b> <small>${p.cpf?escapeHtml(p.cpf)+' · ':''}${p.crm?'CRM '+escapeHtml(p.crm)+' · ':''}${escapeHtml(p.why||'')}</small></span></label>`;
+}
+
+// ---------- janela genérica ----------
+function dlgOpen(html, wide){
+  let box = document.getElementById('dlg');
+  if(!box){ box = document.createElement('div'); box.id = 'dlg'; document.body.appendChild(box);
+    box.addEventListener('click', e=>{ if(e.target.id==='dlg' || e.target.closest('[data-close]')) dlgClose(); }); }
+  box.innerHTML = `<div class="dlg-card${wide?' wide':''}">${html}</div>`; box.style.display = 'flex';
+  return box;
+}
+function dlgClose(){ const b = document.getElementById('dlg'); if(b){ b.style.display='none'; b.innerHTML=''; } if(window._dlgOnClose){ const f = window._dlgOnClose; window._dlgOnClose = null; f(); } }
+function fld(id, label, val, type, full){
+  return `<label class="fl${full?' full':''}"><span>${label}</span><input id="${id}" type="${type||'text'}" value="${escapeHtml(val||'')}"></label>`;
+}
+
+// ---------- NOVO CLIENTE (com leitura de documentos) ----------
+const NC_FIELDS = [['nome','Nome completo *'],['cpf','CPF'],['crm','CRM'],['data_nascimento','Data de nascimento','date'],['telefone','Telefone'],['email','E-mail'],['especialidade','Especialidade'],['cnpj','CNPJ (PJ)'],['razao_social','Razão social']];
+function openNovoCliente(prefill, onSaved){
+  prefill = prefill || {};
+  const box = dlgOpen(`<div class="om-title"><div><h3>Novo cliente</h3><div class="om-sub">Anexe qualquer documento (RG, CNH, cartão do CRM, apólice, comprovantes). O sistema lê e preenche o que encontrar — você confere antes de salvar.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body">
+      <div class="dz" id="nc-dz">📎 Arraste documentos aqui ou clique para anexar<input type="file" id="nc-file" multiple accept=".pdf,image/*" hidden></div>
+      <div id="nc-files" class="nc-files"></div>
+      <div class="fgrid">
+        ${NC_FIELDS.map(([k,l,t])=>fld('nc-'+k,l,prefill[k],t,k==='nome')).join('')}
+        <label class="fl"><span>Sexo</span><select id="nc-sexo"><option value="">—</option><option value="M">Masculino</option><option value="F">Feminino</option></select></label>
+        <label class="fl"><span>Estado civil</span><select id="nc-estado_civil"><option value="">—</option><option>solteiro</option><option>casado</option><option>união estável</option><option>divorciado</option><option>viúvo</option></select></label>
+        <label class="fl"><span>Origem do cliente</span><select id="nc-origem"><option value="">—</option><option>CallMed Plantões</option><option>Indicação</option><option>Instagram</option><option>Evento</option><option>Outro</option></select></label>
+        ${fld('nc-quem_indicou','Quem indicou (se for indicação)','')}
+      </div>
+      <div id="nc-dup"></div><div class="om-err" id="nc-err"></div>
+    </div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="nc-save">Salvar cliente</button></div>`, true);
+  window._ncFiles = []; window._ncOnSaved = onSaved || null;
+  const dz = box.querySelector('#nc-dz'), inp = box.querySelector('#nc-file');
+  dz.addEventListener('click', ()=>inp.click());
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); ncAddFiles([...e.dataTransfer.files]); });
+  inp.addEventListener('change', ()=>{ ncAddFiles([...inp.files]); inp.value=''; });
+  ['nc-cpf','nc-crm','nc-nome'].forEach(id=> box.querySelector('#'+id).addEventListener('change', ncCheckDup));
+  box.querySelector('#nc-save').addEventListener('click', ncSave);
+  if(prefill.nome || prefill.cpf) ncCheckDup();
+}
+async function ncAddFiles(files){
+  const list = document.getElementById('nc-files');
+  for(const file of files){
+    const row = document.createElement('div'); row.className = 'nc-file'; row.textContent = `⏳ Lendo ${file.name}...`; list.appendChild(row);
+    window._ncFiles.push(file);
+    try{
+      const f = await docsRead(file);
+      const filled = [];
+      NC_FIELDS.map(x=>x[0]).concat(['sexo','estado_civil']).forEach(k=>{
+        const el = document.getElementById('nc-'+k); if(!el || !f[k] || el.value) return;
+        el.value = f[k]; el.classList.add('auto'); filled.push(k);
+      });
+      row.innerHTML = `✅ <b>${escapeHtml(file.name)}</b> — ${filled.length ? 'preencheu: '+filled.join(', ') : 'nada novo encontrado (confira/preencha manualmente)'}${f._chars<40?' · <i>pouco texto legível</i>':''}`;
+      ncCheckDup();
+    }catch(e){ row.innerHTML = `⚠️ <b>${escapeHtml(file.name)}</b> anexado, mas não consegui ler: ${escapeHtml(e.message||e)}`; }
+  }
+}
+async function ncCheckDup(){
+  const box = document.getElementById('nc-dup'); if(!box) return;
+  const v = id=>document.getElementById('nc-'+id).value.trim();
+  const found = await findPessoas({cpf:v('cpf'), crm:v('crm'), nome:v('nome')});
+  const strong = found.filter(p=>p.why!=='nome semelhante');
+  box.innerHTML = found.length ? `<div class="dup"><b>${strong.length?'⚠️ Já existe cadastro com esses dados:':'Cadastros com nome parecido:'}</b>${found.map(p=>`<div>• ${escapeHtml(p.nome)} <small>(${escapeHtml(p.why)})</small> <a href="#" data-openp="${p.id}">abrir cadastro</a></div>`).join('')}</div>` : '';
+  box.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(a.dataset.openp); }));
+}
+async function ncSave(){
+  const v = id=>document.getElementById('nc-'+id).value.trim();
+  const err = document.getElementById('nc-err'); err.textContent = '';
+  if(!v('nome')){ err.textContent = 'Informe o nome do cliente.'; return; }
+  const btn = document.getElementById('nc-save'); btn.disabled = true; btn.textContent = 'Salvando...';
+  try{
+    const row = { nome:v('nome'), tipo:'medico' };
+    ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou'].forEach(k=>{ if(v(k)) row[k] = v(k); });
+    const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,total_pago_plantoes_2026').single();
+    if(error) throw error;
+    for(const file of (window._ncFiles||[])){
+      try{ const path = await docsUpload(file, 'clientes/'+data.id);
+        await sb.from('crm_documentos').insert({pessoa_id:data.id, categoria:'cadastro', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size}); }catch(e){ console.warn(e); }
+    }
+    OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    const cb = window._ncOnSaved; window._ncOnSaved = null; window._dlgOnClose = null; dlgClose();
+    showToast('Cliente cadastrado');
+    if(cb) cb(data); else goToPersonView(data.id);
+  }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar cliente'; }
+}
+
+// ---------- CENTRAL DE APÓLICES ----------
+const CA_ORIGENS = {nova:'Nova (fechada por nós)', carteira:'Cliente cadastrado / carteira'};
+async function renderCentral(){
+  const host = document.getElementById('ca-list'); host.innerHTML = '<div class="op-more">Carregando apólices...</div>';
+  const { data, error } = await sb.from('crm_apolices').select('id,pessoa_id,numero_apolice,seguradora,tipo_seguro,data_emissao,data_vencimento,valor_premio,valor_cobertura,status,origem_apolice,arquivo_apolice,comissao_pct,crm_pessoas(nome)').order('created_at',{ascending:false}).limit(500);
+  if(error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(error.message)+'</div>'; return; }
+  const q = (document.getElementById('ca-search').value||'').toLowerCase();
+  const rows = (data||[]).filter(r=>!q || (r.crm_pessoas?.nome||'').toLowerCase().includes(q) || (r.seguradora||'').toLowerCase().includes(q) || (r.numero_apolice||'').toLowerCase().includes(q));
+  document.getElementById('ca-count').textContent = rows.length + ' apólice(s)';
+  host.innerHTML = rows.length ? `<table class="ca-table"><thead><tr><th>Cliente</th><th>Seguradora</th><th>Produto</th><th>Nº</th><th>Vigência</th><th>Prêmio</th><th>Origem</th><th></th></tr></thead><tbody>${rows.map(r=>{
+    const late = r.data_vencimento && new Date(r.data_vencimento) < new Date();
+    return `<tr><td><a href="#" data-openp="${r.pessoa_id}">${escapeHtml(r.crm_pessoas?.nome||'?')}</a></td><td>${escapeHtml(r.seguradora||'—')}</td><td>${escapeHtml(r.tipo_seguro||'—')}</td><td class="mono">${escapeHtml(r.numero_apolice||'—')}</td><td>${fmtDate(r.data_emissao)} → <span style="${late?'color:var(--red);font-weight:600':''}">${fmtDate(r.data_vencimento)}</span></td><td>${fmtMoney(r.valor_premio)}</td><td><span class="tagx">${escapeHtml(CA_ORIGENS[r.origem_apolice]||r.origem_apolice||'—')}</span></td><td>${r.arquivo_apolice?`<a href="#" data-file="${escapeHtml(r.arquivo_apolice)}">📎 abrir</a>`:''}</td></tr>`; }).join('')}</tbody></table>` : '<div class="op-more">Nenhuma apólice ainda. Arraste um PDF acima para começar.</div>';
+  host.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); goToPersonView(a.dataset.openp); }));
+  host.querySelectorAll('[data-file]').forEach(a=>a.addEventListener('click', async e=>{ e.preventDefault(); try{ window.open(await docsSignedUrl(a.dataset.file), '_blank'); }catch(x){ showToast('Erro: '+x.message); } }));
+}
+let caQueue = [];
+function caEnqueue(files){ caQueue = caQueue.concat(files); if(!document.getElementById('dlg') || document.getElementById('dlg').style.display!=='flex') caNext(); }
+async function caNext(){
+  const file = caQueue.shift(); if(!file){ renderCentral(); return; }
+  const box = dlgOpen(`<div class="om-title"><div><h3>Lendo ${escapeHtml(file.name)}...</h3><div class="om-sub">Extraindo texto e identificando os dados da apólice.</div></div></div><div class="dlg-body"><div class="op-more">⏳ Aguarde...</div></div>`, true);
+  let f = {};
+  try{ f = await docsRead(file); }catch(e){ f = {_erro:e.message}; }
+  const found = await findPessoas({cpf:f.cpf, nome:f.nome});
+  caForm(file, f, found);
+}
+function caForm(file, f, found){
+  const top = found[0] && (found[0].why==='CPF idêntico' || found[0].why==='CRM idêntico') ? found[0].id : null;
+  const opts = found.map((p,i)=>pessoaOptionHtml(p,'ca-pes', p.id===top)).join('');
+  const premAnual = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : '';
+  const covs = DOCS_COVS.map(c=>`<label class="chk"><input type="checkbox" class="ca-cov" value="${c.k}" ${ (f.coberturas||[]).includes(c.k)?'checked':''}> ${c.l}</label>`).join('');
+  const box = dlgOpen(`<div class="om-title"><div><h3>Nova apólice — ${escapeHtml(file.name)}</h3><div class="om-sub">${f._erro?'⚠️ Não consegui ler o arquivo automaticamente ('+escapeHtml(f._erro)+'). Preencha manualmente.':'Leitura automática concluída — confira os campos antes de salvar.'}</div></div><button data-close>✕</button></div>
+    <div class="dlg-body">
+      <div class="q"><div class="ql">1. O que é esta apólice?</div>
+        <label class="rd"><input type="radio" name="ca-tipo" value="nova" checked> <b>Apólice nova</b> — fechada por nós, emitida agora</label>
+        <label class="rd"><input type="radio" name="ca-tipo" value="carteira"> <b>De cliente já cadastrado</b> — carteira existente / renovação / endosso</label>
+        <label class="rd"><input type="radio" name="ca-tipo" value="estudo"> <b>Para estudo</b> — o cliente quer que analisemos</label>
+        <label class="rd"><input type="radio" name="ca-tipo" value="concorrente"> <b>De outro corretor/seguradora</b> — para oferecermos algo melhor</label>
+        <div class="hint" id="ca-hint"></div></div>
+      <div class="q"><div class="ql">2. De quem é?</div>
+        ${opts || '<div class="hint">Nenhum cliente cadastrado encontrado com esses dados.</div>'}
+        <label class="pk"><input type="radio" name="ca-pes" value="novo" ${opts && top?'':(opts?'':'checked')}><span><b>Cadastrar como novo cliente</b> ${f.nome?'— '+escapeHtml(f.nome):''}</span></label>
+        <label class="pk"><input type="radio" name="ca-pes" value="buscar"><span><b>Buscar outro cliente</b></span></label>
+        <div id="ca-busca" style="display:none"><input id="ca-busca-q" class="ca-inp" placeholder="Nome, CPF ou CRM..."><div id="ca-busca-res"></div></div>
+        <div class="fgrid" id="ca-novo" style="display:none">${fld('ca-n-nome','Nome do cliente',f.nome,'text',true)}${fld('ca-n-cpf','CPF',f.cpf)}${fld('ca-n-crm','CRM',f.crm)}</div></div>
+      <div class="q"><div class="ql">3. Dados da apólice</div><div class="fgrid">
+        ${fld('ca-seg','Seguradora *',f.seguradora)}${fld('ca-prod','Produto / tipo *',f.tipo_seguro)}
+        ${fld('ca-num','Nº da apólice',f.numero_apolice)}
+        <label class="fl"><span>Contratação</span><select id="ca-contr"><option ${f.tipo_contratacao==='Individual'?'selected':''}>Individual</option><option ${f.tipo_contratacao==='Grupo'?'selected':''}>Grupo</option><option>PJ / Empresarial</option></select></label>
+        ${fld('ca-ini','Início da vigência',f.vig_ini,'date')}${fld('ca-fim','Fim da vigência',f.vig_fim,'date')}
+        ${fld('ca-prem','Prêmio anual (R$)',premAnual===''?'':String(premAnual),'number')}${fld('ca-cap','Capital / cobertura (R$)',f.capital?String(f.capital):'','number')}
+        ${fld('ca-com','Comissão (%)','','number')}
+        <label class="fl"><span>Forma de pagamento</span><select id="ca-pag"><option value="">—</option><option>Boleto</option><option>Cartão de crédito</option><option>Débito em conta</option><option>Folha / desconto</option><option>Pix</option></select></label>
+        ${fld('ca-vend','Quem vendeu / origem (ex.: Amanda, indicação da Carla)','','text',true)}
+        <label class="fl full"><span>Status</span><select id="ca-status"><option value="ativa">Ativa</option><option value="proposta">Proposta em análise</option><option value="aguardando_emissao">Aguardando emissão</option></select></label>
+      </div><div class="ql" style="margin-top:10px">Coberturas identificadas</div><div class="chks">${covs}</div>
+      <label class="fl full" style="margin-top:8px"><span>Observações</span><input id="ca-obs" type="text"></label></div>
+      <div class="om-err" id="ca-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ca-save">Salvar apólice</button></div>`, true);
+  window._dlgOnClose = ()=>{ if(caQueue.length) caNext(); };
+  const showPes = ()=>{ const v = (box.querySelector('input[name="ca-pes"]:checked')||{}).value;
+    box.querySelector('#ca-novo').style.display = v==='novo' ? 'grid' : 'none'; box.querySelector('#ca-busca').style.display = v==='buscar' ? 'block' : 'none'; };
+  box.querySelectorAll('input[name="ca-pes"]').forEach(r=>r.addEventListener('change', showPes)); showPes();
+  const hint = ()=>{ const v = box.querySelector('input[name="ca-tipo"]:checked').value;
+    box.querySelector('#ca-hint').textContent = (v==='estudo'||v==='concorrente') ? '→ Será enviada para o módulo Estudo (comparativo com nossas seguradoras) e não conta como apólice ativa do cliente.' : ''; };
+  box.querySelectorAll('input[name="ca-tipo"]').forEach(r=>r.addEventListener('change', hint));
+  let t; box.querySelector('#ca-busca-q').addEventListener('input', e=>{ clearTimeout(t); t = setTimeout(async ()=>{
+    const q = e.target.value.trim(); if(q.length<2){ box.querySelector('#ca-busca-res').innerHTML=''; return; }
+    const { data } = await sb.from('crm_pessoas').select('id,nome,cpf,crm').or(`nome.ilike.%${q}%,cpf.ilike.%${q}%,crm.ilike.%${q}%`).limit(8);
+    box.querySelector('#ca-busca-res').innerHTML = (data||[]).map(p=>pessoaOptionHtml({...p,why:''},'ca-pes2',false)).join('');
+  },250); });
+  box.querySelector('#ca-save').addEventListener('click', ()=>caSave(file, f));
+}
+async function caSave(file, f){
+  const g = id=>document.getElementById(id).value.trim(); const err = document.getElementById('ca-err'); err.textContent = '';
+  const tipo = document.querySelector('input[name="ca-tipo"]:checked').value;
+  if(!g('ca-seg') || !g('ca-prod')){ err.textContent = 'Informe seguradora e produto.'; return; }
+  let sel = (document.querySelector('input[name="ca-pes"]:checked')||{}).value;
+  if(sel==='buscar'){ const r = document.querySelector('input[name="ca-pes2"]:checked'); sel = r ? r.value : null; if(!sel){ err.textContent = 'Selecione o cliente na busca.'; return; } }
+  if(sel==='novo' && !g('ca-n-nome')){ err.textContent = 'Informe o nome do novo cliente.'; return; }
+  if(!sel && tipo!=='estudo' && tipo!=='concorrente'){ err.textContent = 'Escolha de quem é a apólice.'; return; }
+  const btn = document.getElementById('ca-save'); btn.disabled = true; btn.textContent = 'Salvando...';
+  try{
+    let pessoaId = (sel && sel!=='novo') ? sel : null;
+    if(sel==='novo'){
+      const row = {nome:g('ca-n-nome'), tipo:'medico'}; if(g('ca-n-cpf')) row.cpf = g('ca-n-cpf'); if(g('ca-n-crm')) row.crm = g('ca-n-crm');
+      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,total_pago_plantoes_2026').single(); if(error) throw error;
+      pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    }
+    const path = await docsUpload(file, tipo==='estudo'||tipo==='concorrente' ? 'estudos' : 'apolices');
+    const covs = [...document.querySelectorAll('.ca-cov:checked')].map(c=>c.value);
+    const num = id=>{ const v = g(id); return v==='' ? null : Number(v); };
+    if(tipo==='estudo' || tipo==='concorrente'){
+      const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id:pessoaId, cliente_nome:f.nome||g('ca-n-nome')||null, cliente_cpf:f.cpf||g('ca-n-cpf')||null,
+        seguradora_atual:g('ca-seg'), corretor_atual:g('ca-vend')||null, tipo_seguro:g('ca-prod'), numero_apolice:g('ca-num')||null,
+        vigencia_inicio:g('ca-ini')||null, vigencia_fim:g('ca-fim')||null, premio_anual:num('ca-prem'), capital_segurado:num('ca-cap'), coberturas_atuais:covs,
+        dados_extraidos:{origem:tipo, contratacao:g('ca-contr'), pagamento:g('ca-pag')||null, extraido:f}, documento_path:path, observacoes:g('ca-obs')||null }).select('id').single();
+      if(error) throw error;
+      await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+      window._dlgOnClose = null; dlgClose(); showToast('Enviada para o Estudo');
+      ES.open = data.id; document.querySelector('.nav-btn[data-view="estudo"]').click(); caQueue = [];
+      return;
+    }
+    const { data: ap, error } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, numero_apolice:g('ca-num')||null, seguradora:g('ca-seg'), tipo_seguro:g('ca-prod'),
+      data_emissao:g('ca-ini')||null, data_vencimento:g('ca-fim')||null, valor_premio:num('ca-prem'), valor_cobertura:num('ca-cap'), status:g('ca-status'),
+      observacoes:g('ca-obs')||null, arquivo_apolice:path, origem_apolice:tipo, tipo_contratacao:g('ca-contr'), comissao_pct:num('ca-com'), forma_pagamento:g('ca-pag')||null,
+      corretor_origem:g('ca-vend')||null, coberturas:covs, dados_extraidos:f }).select('id').single();
+    if(error) throw error;
+    await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+    OP.dirty = true;
+    window._dlgOnClose = null; dlgClose(); showToast(sel==='novo' ? 'Apólice salva e novo cliente cadastrado' : 'Apólice associada ao cliente');
+    if(caQueue.length) caNext(); else renderCentral();
+  }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar apólice'; }
+}
+(function(){
+  const dz = document.getElementById('ca-dz'), inp = document.getElementById('ca-file');
+  dz.addEventListener('click', ()=>inp.click());
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); caEnqueue([...e.dataTransfer.files]); });
+  inp.addEventListener('change', ()=>{ caEnqueue([...inp.files]); inp.value=''; });
+  let t; document.getElementById('ca-search').addEventListener('input', ()=>{ clearTimeout(t); t = setTimeout(renderCentral, 250); });
+})();
+
+// ---------- ESTUDO (comparativo com nossas seguradoras) ----------
+const ES = { list:[], cat:[], open:null, cur:null, plant:null };
+const ES_CORE = ['morte','ipa','invalidez_doenca','doencas_graves','dit'];
+const ES_OPT = ['funeral','renda','sucessao','previdencia'];
+const ES_STATUS = [['aberto','Aberto'],['analise','Em análise'],['proposta','Proposta enviada'],['fechado','Fechado'],['perdido','Perdido']];
+function covLabel(k){ return (DOCS_COVS.find(c=>c.k===k)||{l:k}).l; }
+async function renderEstudos(){
+  const host = document.getElementById('es-list'); host.innerHTML = '<div class="op-more">Carregando...</div>';
+  if(!ES.cat.length){ const { data } = await sb.from('crm_catalogo_produtos').select('*').order('seguradora'); ES.cat = data||[]; }
+  const { data, error } = await sb.from('crm_estudos').select('*').order('created_at',{ascending:false}).limit(200);
+  if(error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(error.message)+'</div>'; return; }
+  ES.list = data||[];
+  host.innerHTML = ES.list.length ? ES.list.map(e=>{
+    const dias = e.vigencia_fim ? Math.round((new Date(e.vigencia_fim)-new Date())/86400000) : null;
+    return `<div class="es-card${ES.open===e.id?' sel':''}" data-id="${e.id}"><div class="n">${escapeHtml(e.cliente_nome||'Sem cliente')}</div><div class="m">${escapeHtml(e.seguradora_atual||'—')} · ${escapeHtml(e.tipo_seguro||'—')}</div><div class="m">${dias===null?'sem vigência':(dias<0?'vencida há '+(-dias)+'d':'vence em '+dias+'d')} · <span class="tagx">${escapeHtml((ES_STATUS.find(s=>s[0]===e.status)||[0,e.status])[1])}</span>${e.pessoa_id?' · ✓ vinculado':''}</div></div>`; }).join('') : '<div class="op-more">Nenhum estudo ainda.<br>Clique em “＋ Novo estudo” e suba a apólice atual do cliente.</div>';
+  if(ES.open){ const cur = ES.list.find(x=>x.id===ES.open); if(cur) esShow(cur); }
+}
+document.getElementById('es-list').addEventListener('click', e=>{ const c = e.target.closest('.es-card'); if(!c) return; ES.open = c.dataset.id; renderEstudos(); });
+document.getElementById('es-new').addEventListener('click', ()=>{
+  const box = dlgOpen(`<div class="om-title"><div><h3>Novo estudo</h3><div class="om-sub">Suba a apólice atual do cliente (de outro corretor). O sistema lê os dados e já cruza com as nossas seguradoras.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="dz" id="es-dz">📎 Arraste a apólice atual aqui ou clique (PDF ou foto)<input type="file" id="es-file" accept=".pdf,image/*" hidden></div><div class="hint">Sem o arquivo? <a href="#" id="es-manual">Criar estudo em branco</a> e preencher à mão.</div></div>`, false);
+  const dz = box.querySelector('#es-dz'), inp = box.querySelector('#es-file');
+  dz.addEventListener('click', ()=>inp.click());
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); esCreate(e.dataTransfer.files[0]); });
+  inp.addEventListener('change', ()=> esCreate(inp.files[0]));
+  box.querySelector('#es-manual').addEventListener('click', e=>{ e.preventDefault(); esCreate(null); });
+});
+async function esCreate(file){
+  const box = document.getElementById('dlg'); box.querySelector('.dlg-body').innerHTML = '<div class="op-more">⏳ Lendo a apólice e cruzando com o catálogo...</div>';
+  try{
+    let f = {}, path = null;
+    if(file){ try{ f = await docsRead(file); }catch(e){ f = {}; } path = await docsUpload(file, 'estudos'); }
+    const found = await findPessoas({cpf:f.cpf, nome:f.nome});
+    const strong = found.find(p=>p.why==='CPF idêntico' || p.why==='CRM idêntico');
+    const prem = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : null;
+    const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id: strong ? strong.id : null, cliente_nome: strong ? strong.nome : (f.nome||null), cliente_cpf:f.cpf||null,
+      seguradora_atual:f.seguradora||null, tipo_seguro:f.tipo_seguro||null, numero_apolice:f.numero_apolice||null, vigencia_inicio:f.vig_ini||null, vigencia_fim:f.vig_fim||null,
+      premio_anual:prem, capital_segurado:f.capital||null, coberturas_atuais:f.coberturas||[], dados_extraidos:{origem:'estudo', extraido:f}, documento_path:path }).select('id').single();
+    if(error) throw error;
+    if(path) await sb.from('crm_documentos').insert({pessoa_id: strong?strong.id:null, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+    dlgClose(); ES.open = data.id; renderEstudos();
+    showToast(strong ? 'Estudo criado e vinculado a '+strong.nome : 'Estudo criado — vincule ou cadastre o cliente');
+  }catch(e){ box.querySelector('.dlg-body').innerHTML = '<div class="om-err">Erro: '+escapeHtml(e.message||e)+'</div>'; }
+}
+
+function esAnalise(e){
+  const have = new Set(e.coberturas_atuais||[]);
+  const missCore = ES_CORE.filter(k=>!have.has(k)), missOpt = ES_OPT.filter(k=>!have.has(k));
+  const gaps = missCore.concat(missOpt);
+  const bySeg = new Map();
+  ES.cat.forEach(p=>{ if(!bySeg.has(p.seguradora)) bySeg.set(p.seguradora, []); bySeg.get(p.seguradora).push(p); });
+  const rank = [...bySeg.entries()].map(([seg,prods])=>{
+    const cov = new Map(); prods.forEach(p=>(p.coberturas||[]).forEach(c=>{ if(gaps.includes(c) && !cov.has(c)) cov.set(c, p); }));
+    const core = missCore.filter(c=>cov.has(c)).length;
+    return {seg, prods, cov, core, total:cov.size};
+  }).sort((a,b)=>b.core-a.core || b.total-a.total);
+  // combinação mínima (guloso), preferindo a mesma seguradora
+  let remaining = new Set(gaps), combo = [], lastSeg = null;
+  while(remaining.size){
+    let best = null;
+    ES.cat.forEach(p=>{ const n = (p.coberturas||[]).filter(c=>remaining.has(c)).length; if(!n) return;
+      const score = n*10 + (p.seguradora===lastSeg?3:0) + (missCore.some(c=>(p.coberturas||[]).includes(c)&&remaining.has(c))?5:0);
+      if(!best || score>best.score) best = {p, n, score}; });
+    if(!best) break; combo.push(best.p); lastSeg = best.p.seguradora; (best.p.coberturas||[]).forEach(c=>remaining.delete(c));
+  }
+  return {have, missCore, missOpt, rank, combo, semProduto:[...remaining]};
+}
+
+function esShow(e){
+  ES.cur = e; const a = esAnalise(e);
+  const dias = e.vigencia_fim ? Math.round((new Date(e.vigencia_fim)-new Date())/86400000) : null;
+  const pl = ES.plant;
+  const renda = pl && pl.valor_12m ? Number(pl.valor_12m) : null;
+  const mult = renda && e.capital_segurado ? (e.capital_segurado/renda) : null;
+  const cots = (e.cotacoes||{});
+  const covRows = ES_CORE.concat(ES_OPT).map(k=>{
+    const has = a.have.has(k); const cand = ES.cat.filter(p=>(p.coberturas||[]).includes(k));
+    return `<tr class="${has?'ok':(ES_CORE.includes(k)?'gap':'opt')}"><td>${covLabel(k)}${ES_CORE.includes(k)?'':' <small>(complementar)</small>'}</td><td>${has?'✅ tem':'— não tem'}</td><td>${has?'':(cand.length?cand.map(p=>`${escapeHtml(p.seguradora)} <small>(${escapeHtml(p.produto)})</small>`).join('<br>'):'<i>sem produto no catálogo ainda</i>')}</td></tr>`; }).join('');
+  const rankRows = a.rank.filter(r=>r.total>0).slice(0,6).map((r,i)=>{
+    const cot = cots[r.seg] ?? '';
+    const eco = (cot!=='' && e.premio_anual) ? (e.premio_anual - Number(cot)) : null;
+    return `<tr><td><b>${i+1}. ${escapeHtml(r.seg)}</b></td><td>${r.core}/${a.missCore.length} essenciais${a.missOpt.length?` + ${r.total-r.core} compl.`:''}</td><td><small>${[...r.cov.entries()].map(([c,p])=>covLabel(c)+' → '+escapeHtml(p.produto)).join('<br>')}</small></td><td><input class="cot" data-seg="${escapeHtml(r.seg)}" type="number" placeholder="prêmio anual cotado" value="${cot}"></td><td>${eco===null?'—':`<b style="color:${eco>=0?'var(--green)':'var(--red)'}">${eco>=0?'−':'+'}${fmtMoney(Math.abs(eco))}</b>`}</td></tr>`; }).join('');
+  const janela = dias===null ? '<span class="tagx">informe a vigência</span>' : dias<0 ? '<span class="tagx bad">vencida há '+(-dias)+' dias</span>' : dias<=60 ? '<span class="tagx warn">janela de oferta aberta — vence em '+dias+' dias</span>' : '<span class="tagx">vence em '+dias+' dias — abordar a partir de '+opFmt(new Date(new Date(e.vigencia_fim).getTime()-60*86400000))+'</span>';
+  const covChips = DOCS_COVS.map(c=>`<label class="chk"><input type="checkbox" class="es-cov" value="${c.k}" ${a.have.has(c.k)?'checked':''}> ${c.l}</label>`).join('');
+  document.getElementById('es-detail').innerHTML = `
+    <div class="es-head"><div><h2>${escapeHtml(e.cliente_nome||'Estudo sem cliente')}</h2><div class="sub">${janela}${e.documento_path?` · <a href="#" id="es-file-open">📎 ver apólice atual</a>`:''}</div></div>
+      <select id="es-status">${ES_STATUS.map(s=>`<option value="${s[0]}" ${e.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></div>
+    <div class="es-box"><div class="ql">Cliente</div>
+      ${e.pessoa_id?`<div>✓ Vinculado ao cadastro <a href="#" id="es-open-p">abrir cadastro completo</a> · <a href="#" id="es-unlink">desvincular</a></div>`:`<div class="hint">Este estudo ainda não está ligado a um cliente cadastrado.</div>
+        <div class="es-linkrow"><input id="es-busca" class="ca-inp" placeholder="Buscar cliente cadastrado (nome, CPF, CRM)..."><button class="om-cancel" id="es-newp">＋ Criar cadastro a partir do estudo</button></div><div id="es-busca-res"></div>`}
+      ${renda?`<div class="hint">Renda com a CallMed nos últimos 12 meses: <b>${fmtMoney(renda)}</b> (${pl.meses_12m||0} meses ativos)${mult!==null?` · capital atual = <b>${mult.toFixed(1)}× a renda anual</b> <small>(referência prática de mercado: 5 a 10×)</small>`:''}</div>`:''}</div>
+    <div class="es-box"><div class="ql">Apólice atual (outro corretor)</div><div class="fgrid">
+      ${fld('es-seg','Seguradora atual',e.seguradora_atual)}${fld('es-cor','Corretor atual',e.corretor_atual)}${fld('es-tipo','Produto',e.tipo_seguro)}${fld('es-num','Nº da apólice',e.numero_apolice)}
+      ${fld('es-ini','Início',e.vigencia_inicio,'date')}${fld('es-fim','Fim',e.vigencia_fim,'date')}${fld('es-prem','Prêmio anual (R$)',e.premio_anual===null?'':String(e.premio_anual),'number')}${fld('es-cap','Capital segurado (R$)',e.capital_segurado===null?'':String(e.capital_segurado),'number')}</div>
+      <div class="ql" style="margin-top:10px">Coberturas da apólice atual</div><div class="chks">${covChips}</div></div>
+    <div class="es-box"><div class="ql">Lacunas × o que temos no catálogo</div>
+      <table class="ca-table es-cov-t"><thead><tr><th>Cobertura</th><th>Hoje</th><th>Quem cobre entre as nossas seguradoras</th></tr></thead><tbody>${covRows}</tbody></table>
+      <div class="hint">Base: nomes/condições gerais catalogadas em Seguradoras\\catalogo-seguradoras.md. Confirme sempre a cobertura exata na condição geral antes de ofertar.</div></div>
+    <div class="es-box"><div class="ql">Recomendação</div>
+      ${a.combo.length?`<div class="reco"><b>Combinação mínima que fecha as lacunas:</b><br>${a.combo.map(p=>`• <b>${escapeHtml(p.seguradora)}</b> — ${escapeHtml(p.produto)} <small>(${(p.coberturas||[]).map(covLabel).join(', ')}; ${escapeHtml(p.modalidade||'')})</small>`).join('<br>')}${a.semProduto.length?`<br><span class="tagx warn">Sem produto catalogado para: ${a.semProduto.map(covLabel).join(', ')}</span>`:''}</div>`:'<div class="hint">A apólice atual já cobre tudo o que o catálogo oferece.</div>'}
+      <div class="ql" style="margin-top:12px">Ranking por seguradora + cotações</div>
+      <table class="ca-table"><thead><tr><th>Seguradora</th><th>Fecha</th><th>Como</th><th>Cotação (R$/ano)</th><th>vs. atual</th></tr></thead><tbody>${rankRows||'<tr><td colspan="5">Sem lacunas cobertas pelo catálogo.</td></tr>'}</tbody></table>
+      <div class="hint">O catálogo ainda não tem tabela de preços — lance aqui as cotações que você tirar em cada seguradora para ver a economia real frente ao prêmio atual.</div></div>
+    <div class="es-box"><div class="ql">Parecer / observações</div><textarea id="es-obs" rows="5">${escapeHtml(e.observacoes||'')}</textarea>
+      <div class="es-actions"><button class="om-cancel" id="es-parecer">Gerar parecer automático</button><span style="flex:1"></span><button class="om-save" id="es-save">Salvar estudo</button></div></div>`;
+  const $ = id=>document.getElementById(id);
+  if($('es-file-open')) $('es-file-open').addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(e.documento_path),'_blank'); }catch(x){ showToast('Erro: '+x.message); } });
+  if($('es-open-p')) $('es-open-p').addEventListener('click', ev=>{ ev.preventDefault(); goToPersonView(e.pessoa_id); });
+  if($('es-unlink')) $('es-unlink').addEventListener('click', async ev=>{ ev.preventDefault(); await sb.from('crm_estudos').update({pessoa_id:null}).eq('id',e.id); renderEstudos(); });
+  if($('es-newp')) $('es-newp').addEventListener('click', ()=> openNovoCliente({nome:e.cliente_nome, cpf:e.cliente_cpf}, async p=>{ await sb.from('crm_estudos').update({pessoa_id:p.id, cliente_nome:p.nome}).eq('id',e.id); renderEstudos(); }));
+  if($('es-busca')){ let t; $('es-busca').addEventListener('input', ev=>{ clearTimeout(t); t = setTimeout(async ()=>{
+    const q = ev.target.value.trim(); if(q.length<2){ $('es-busca-res').innerHTML=''; return; }
+    const { data } = await sb.from('crm_pessoas').select('id,nome,cpf,crm').or(`nome.ilike.%${q}%,cpf.ilike.%${q}%,crm.ilike.%${q}%`).limit(8);
+    $('es-busca-res').innerHTML = (data||[]).map(p=>`<div class="es-pick" data-id="${p.id}" data-nome="${escapeHtml(p.nome)}"><b>${escapeHtml(p.nome)}</b> <small>${p.cpf||''} ${p.crm?'CRM '+p.crm:''}</small></div>`).join('');
+    $('es-busca-res').querySelectorAll('.es-pick').forEach(d=>d.addEventListener('click', async ()=>{ await sb.from('crm_estudos').update({pessoa_id:d.dataset.id, cliente_nome:d.dataset.nome}).eq('id',e.id); showToast('Estudo vinculado'); renderEstudos(); }));
+  },250); }); }
+  document.querySelectorAll('#es-detail .cot').forEach(i=>i.addEventListener('change', ()=> esRecalcCot()));
+  document.querySelectorAll('#es-detail .es-cov').forEach(i=>i.addEventListener('change', async ()=>{ await esSave(true); }));
+  $('es-parecer').addEventListener('click', ()=>{ $('es-obs').value = esParecer(esCollect(), esAnalise(esCollect())); });
+  $('es-save').addEventListener('click', ()=>esSave(false));
+  $('es-status').addEventListener('change', ()=>esSave(true));
+  if(e.pessoa_id && (!ES.plant || ES.plant.pessoa_id!==e.pessoa_id)){
+    sb.from('crm_plantoes_resumo').select('*').eq('pessoa_id', e.pessoa_id).maybeSingle().then(({data})=>{ ES.plant = data || {pessoa_id:e.pessoa_id}; if(ES.cur && ES.cur.id===e.id && data) esShow(ES.cur); });
+  }
+}
+function esCollect(){
+  const g = id=>document.getElementById(id).value.trim(); const n = id=> g(id)===''?null:Number(g(id));
+  const cots = {}; document.querySelectorAll('#es-detail .cot').forEach(i=>{ if(i.value!=='') cots[i.dataset.seg] = Number(i.value); });
+  return { ...ES.cur, seguradora_atual:g('es-seg')||null, corretor_atual:g('es-cor')||null, tipo_seguro:g('es-tipo')||null, numero_apolice:g('es-num')||null,
+    vigencia_inicio:g('es-ini')||null, vigencia_fim:g('es-fim')||null, premio_anual:n('es-prem'), capital_segurado:n('es-cap'),
+    coberturas_atuais:[...document.querySelectorAll('#es-detail .es-cov:checked')].map(c=>c.value), cotacoes:cots, status:document.getElementById('es-status').value, observacoes:g('es-obs')||null };
+}
+function esRecalcCot(){ ES.cur = esCollect(); esShow(ES.cur); }
+async function esSave(silent){
+  const e = esCollect();
+  const { error } = await sb.from('crm_estudos').update({ seguradora_atual:e.seguradora_atual, corretor_atual:e.corretor_atual, tipo_seguro:e.tipo_seguro, numero_apolice:e.numero_apolice,
+    vigencia_inicio:e.vigencia_inicio, vigencia_fim:e.vigencia_fim, premio_anual:e.premio_anual, capital_segurado:e.capital_segurado, coberturas_atuais:e.coberturas_atuais,
+    cotacoes:e.cotacoes, status:e.status, observacoes:e.observacoes, analise:{gerado_em:new Date().toISOString(), lacunas:esAnalise(e).missCore}, updated_at:new Date().toISOString() }).eq('id', e.id);
+  if(error){ showToast('Erro: '+error.message); return; }
+  if(!silent) showToast('Estudo salvo');
+  if(silent){ ES.cur = e; const i = ES.list.findIndex(x=>x.id===e.id); if(i>=0) ES.list[i] = e; esShow(e); } else renderEstudos();
+}
+function esParecer(e, a){
+  const L = [];
+  L.push(`ESTUDO DE APÓLICE — ${e.cliente_nome||'cliente'}`);
+  L.push(`Apólice atual: ${e.tipo_seguro||'—'} · ${e.seguradora_atual||'—'}${e.corretor_atual?' (corretor '+e.corretor_atual+')':''}${e.numero_apolice?' · nº '+e.numero_apolice:''}`);
+  L.push(`Vigência: ${opFmt(opD(e.vigencia_inicio))||'—'} a ${opFmt(opD(e.vigencia_fim))||'—'} · Prêmio anual: ${fmtMoney(e.premio_anual)} · Capital: ${fmtMoney(e.capital_segurado)}`);
+  L.push(`Coberturas atuais: ${(e.coberturas_atuais||[]).map(covLabel).join(', ')||'não identificadas'}`);
+  L.push(`Lacunas essenciais: ${a.missCore.map(covLabel).join(', ')||'nenhuma'}`);
+  if(a.missOpt.length) L.push(`Coberturas complementares ausentes: ${a.missOpt.map(covLabel).join(', ')}`);
+  if(a.combo.length) L.push(`Sugestão: ${a.combo.map(p=>p.seguradora+' — '+p.produto).join('; ')}.`);
+  if(a.semProduto.length) L.push(`Sem produto catalogado para: ${a.semProduto.map(covLabel).join(', ')} (verificar com as seguradoras).`);
+  const cots = e.cotacoes||{}; Object.keys(cots).forEach(s=>{ if(e.premio_anual) L.push(`Cotação ${s}: ${fmtMoney(cots[s])}/ano (${cots[s]<=e.premio_anual?'economia de '+fmtMoney(e.premio_anual-cots[s]):'acréscimo de '+fmtMoney(cots[s]-e.premio_anual)} vs. atual).`); });
+  return L.join('\n');
+}
+
+document.getElementById('op-newcli').addEventListener('click', ()=> openNovoCliente());
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
