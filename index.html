@@ -238,9 +238,9 @@
             <option value="etapa">Ordenar: etapa mais avançada</option>
             <option value="plantao">Ordenar: plantão mais recente</option>
           </select>
-          <button id="op-prev" title="12 meses anteriores">‹</button>
+          <button id="op-prev12" title="Voltar 12 meses">«</button><button id="op-prev" title="Voltar 1 mês">‹</button>
           <span id="op-range"></span>
-          <button id="op-next" title="Próximos 12 meses">›</button>
+          <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button><button id="op-today" title="Começar no mês atual">Mês atual</button>
           <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
           <button id="op-newcli" class="om-save" style="margin-left:auto">＋ Novo cliente</button>
           <span id="op-chip"></span>
@@ -1773,9 +1773,13 @@ let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
 ['op-f-perfil','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
 document.getElementById('btn-op-back').addEventListener('click', ()=> document.querySelector('.nav-btn[data-view="operacao"]').click());
-document.getElementById('op-prev').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()-1, OP.start.getMonth(), 1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
-document.getElementById('op-next').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()+1, OP.start.getMonth(), 1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
-document.getElementById('op-reset').addEventListener('click', ()=>{ OP.start = new Date(2026,9,1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
+const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
+document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
+document.getElementById('op-next').addEventListener('click', ()=>opShift(1));
+document.getElementById('op-prev12').addEventListener('click', ()=>opShift(-12));
+document.getElementById('op-next12').addEventListener('click', ()=>opShift(12));
+document.getElementById('op-today').addEventListener('click', ()=>{ const n = new Date(); OP.start = new Date(n.getFullYear(), n.getMonth(), 1); OP.sumFilter = null; opApplyFilters(true); });
+document.getElementById('op-reset').addEventListener('click', ()=>{ OP.start = new Date(2026,9,1); OP.sumFilter = null; opApplyFilters(true); });
 
 // ---------- DOCUMENTOS: leitura automática (PDF/imagem) ----------
 const DOCS_INSURERS = [
