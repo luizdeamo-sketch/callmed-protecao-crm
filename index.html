@@ -226,6 +226,7 @@
           <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option></select>
           <select id="op-f-class"><option value="">Classificação: todas</option><option value="call_hot">Call Hot</option><option value="quente">Quente</option><option value="frio">Frio</option></select>
           <select id="op-f-tag"><option value="">Qualquer tag</option></select>
+          <select id="op-f-next"><option value="">Próxima ação: todas</option><option value="atrasada">Atrasadas</option><option value="hoje">Para hoje</option><option value="semana">Nos próximos 7 dias</option><option value="sem">Leads em funil sem ação</option></select>
           <select id="op-f-situacao">
             <option value="">Todas as situações</option>
             <option value="cliente">Clientes (com apólice)</option>
@@ -245,7 +246,7 @@
           <span id="op-range"></span>
           <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button><button id="op-today" title="Começar no mês atual">Mês atual</button>
           <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
-          <button id="op-import" class="om-cancel" style="margin-left:auto">⬆ Importar contatos</button><button id="op-newcli" class="om-save">＋ Novo cliente</button>
+          <button id="op-hoje" class="om-cancel" style="margin-left:auto">☀️ Hoje</button><button id="op-callhot" class="om-cancel">🔥 Call Hot da semana</button><button id="op-import" class="om-cancel">⬆ Importar contatos</button><button id="op-newcli" class="om-save">＋ Novo cliente</button>
           <span id="op-chip"></span>
         </div>
       </div>
@@ -1459,7 +1460,7 @@ async function renderOperacao(force){
   OP.loading = true;
   try{
     if(!OP.loaded){
-      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026',['nome','id']);
+      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026',['nome','id']);
     }
     await opLoadFunilApo();
     const wasLoaded = OP.loaded;
@@ -1485,7 +1486,7 @@ function opApplyFilters(keep, scrollToList){
   const sort = document.getElementById('op-sort').value;
   const sf = OP.sumFilter;
   const fpl = document.getElementById('op-f-plantao').value;
-  const fperfil = document.getElementById('op-f-perfil').value, fclass = document.getElementById('op-f-class').value, ftag = document.getElementById('op-f-tag').value;
+  const fperfil = document.getElementById('op-f-perfil').value, fclass = document.getElementById('op-f-class').value, fnext = document.getElementById('op-f-next').value, ftag = document.getElementById('op-f-tag').value;
   const nowD = new Date(); nowD.setHours(0,0,0,0);
   let list = OP.pessoas.filter(p=>{
     if(q){ const qd = dOnly(q); const okTxt = (p.nome||'').toLowerCase().includes(q) || (p.crm||'').toLowerCase().includes(q) || (p.especialidade||'').toLowerCase().includes(q);
@@ -1494,6 +1495,9 @@ function opApplyFilters(keep, scrollToList){
     if(fperfil==='medico' && !isMedico(p)) return false;
     if(fperfil==='nao_medico' && isMedico(p)) return false;
     if(fclass && p.classificacao!==fclass) return false;
+    if(fnext){ const dn = daysTo(p.proxima_data);
+      if(fnext==='sem'){ if(p.proxima_acao || !opIsLeadAberto(p)) return false; }
+      else { if(!p.proxima_acao || dn===null) return false; if(fnext==='atrasada' && dn>=0) return false; if(fnext==='hoje' && dn!==0) return false; if(fnext==='semana' && (dn<0||dn>7)) return false; } }
     if(ftag && !(p.tags||[]).includes(ftag)) return false;
     const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id);
     if(sit==='cliente' && !cli) return false;
@@ -1552,7 +1556,7 @@ function opRenderKpis(){
   let med = 0, nao = 0, cli = 0, fun = 0;
   OP.pessoas.forEach(p=>{ if(isMedico(p)) med++; else nao++; if(opIsCliente(p.id)) cli++; else if(opCurEtapaIdx(p.id)>=0) fun++; });
   document.getElementById('op-kpis').innerHTML =
-    `<span class="op-kpi"><b>${med}</b> médicos</span>${nao?`<span class="op-kpi" style="background:var(--amber-soft)"><b style="color:var(--amber-ink)">${nao}</b> não médicos</span>`:''}<span class="op-kpi"><b>${fun}</b> em funil</span><span class="op-kpi"><b>${cli}</b> clientes</span><span class="op-kpi">exibindo <b>${OP.filtered.length}</b></span>${OP.pessoas.length && opDupGroups().length ? `<button class="op-kpi" id="op-dups" style="border:none;cursor:pointer;background:var(--amber-soft)">⚠ <b style="color:var(--amber-ink)">${opDupGroups().length}</b> possíveis duplicados</button>` : ''}`;
+    `<span class="op-kpi"><b>${med}</b> médicos</span>${nao?`<span class="op-kpi" style="background:var(--amber-soft)"><b style="color:var(--amber-ink)">${nao}</b> não médicos</span>`:''}<span class="op-kpi"><b>${fun}</b> em funil</span><span class="op-kpi"><b>${cli}</b> clientes</span><span class="op-kpi">exibindo <b>${OP.filtered.length}</b></span>${(()=>{ const h = opHojeCounts(); return (h.late||h.semAcao) ? `${h.late?`<button class="op-kpi" data-fnext="atrasada" style="border:none;cursor:pointer;background:var(--red-soft)">⏰ <b style="color:var(--red)">${h.late}</b> atrasadas</button>`:''}${h.semAcao?`<button class="op-kpi" data-fnext="sem" style="border:none;cursor:pointer;background:var(--amber-soft)">⚠ <b style="color:var(--amber-ink)">${h.semAcao}</b> sem próxima ação</button>`:''}` : ''; })()}${OP.pessoas.length && opDupGroups().length ? `<button class="op-kpi" id="op-dups" style="border:none;cursor:pointer;background:var(--amber-soft)">⚠ <b style="color:var(--amber-ink)">${opDupGroups().length}</b> possíveis duplicados</button>` : ''}`;
 }
 
 function opGridCss(){
@@ -1644,7 +1648,7 @@ function opRowHtml(p){
     const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}`;
     lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
   });
-  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${p.classificacao==='call_hot'?' · <span class="pl-tag hot" style="color:var(--red)">🔥 Call Hot</span>':(p.classificacao==='quente'?' · <span class="pl-tag warm">Quente</span>':'')}${(p.tags&&p.tags.length)?' · 🏷 '+escapeHtml(p.tags.join(', ')):''}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
+  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${p.classificacao==='call_hot'?' · <span class="pl-tag hot" style="color:var(--red)">🔥 Call Hot</span>':(p.classificacao==='quente'?' · <span class="pl-tag warm">Quente</span>':'')}${(p.tags&&p.tags.length)?' · 🏷 '+escapeHtml(p.tags.join(', ')):''}${opNextInfo(p)}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
 }
 
 function opAppendRows(n){
@@ -1739,6 +1743,7 @@ function opRefreshRow(pid){
 }
 
 document.getElementById('view-operacao').addEventListener('click', (e)=>{
+  const kn = e.target.closest('[data-fnext]'); if(kn){ document.getElementById('op-f-next').value = kn.dataset.fnext; opApplyFilters(false); return; }
   if(e.target.closest('#op-dups')){ opDupDialog(); return; }
   if(e.target.closest('#op-chip-x')){ OP.sumFilter = null; opApplyFilters(true); return; }
   const tg = e.target.closest('.op-mtoggle');
@@ -1787,7 +1792,7 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 });
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
-['op-f-perfil','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
+['op-f-perfil','op-f-next','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
 const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
 document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
 document.getElementById('op-next').addEventListener('click', ()=>opShift(1));
@@ -1932,7 +1937,7 @@ function normNome(x){
   return String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z\s]/g,' ').split(/\s+/).filter(t=>t && !NOME_STOP.has(t));
 }
 async function ensurePessoas(){
-  if(!OP.pessoas.length){ OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026',['nome','id']); }
+  if(!OP.pessoas.length){ OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026',['nome','id']); }
 }
 async function findPessoas({cpf, crm, nome, telefone}){
   await ensurePessoas();
@@ -2055,7 +2060,7 @@ function ncRow(){
   return row;
 }
 async function ncCreateLead(){
-  const { data, error } = await sb.from('crm_pessoas').insert(ncRow()).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026').single();
+  const { data, error } = await sb.from('crm_pessoas').insert(ncRow()).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single();
   if(error){ ncBanner('Não consegui criar o lead automaticamente: '+escapeHtml(error.message)); return; }
   NC.pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
   await ncRegisterDocs(data.id);
@@ -2106,10 +2111,10 @@ async function ncSave(){
     let data;
     const row = ncRow(); if(document.getElementById('nc-sem-ind').checked && !row.quem_indicou) row.quem_indicou = 'Sem indicação (contato direto)';
     if(NC.pessoaId){
-      const r = await sb.from('crm_pessoas').update(row).eq('id', NC.pessoaId).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
+      const r = await sb.from('crm_pessoas').update(row).eq('id', NC.pessoaId).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
       const i = OP.pessoas.findIndex(x=>x.id===data.id); if(i>=0) OP.pessoas[i] = data;
     } else {
-      const r = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
+      const r = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
       OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
     }
     await ncRegisterDocs(data.id);
@@ -2319,7 +2324,7 @@ async function impRun(){
     for(let i=0;i<novos.length;i+=100){
       btn.textContent = `Cadastrando clientes ${Math.min(i+100,novos.length)}/${novos.length}...`;
       const chunk = novos.slice(i,i+100);
-      const { data, error } = await sb.from('crm_pessoas').insert(chunk.map(n=>{ const r = {nome:n.nome, tipo}; if(n.cpf) r.cpf = n.cpf; return r; })).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026');
+      const { data, error } = await sb.from('crm_pessoas').insert(chunk.map(n=>{ const r = {nome:n.nome, tipo}; if(n.cpf) r.cpf = n.cpf; return r; })).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026');
       if(error) throw error;
       data.forEach((d,j)=>{ chunk[j].id = d.id; OP.pessoas.push(d); });
     }
@@ -2426,7 +2431,7 @@ async function caSave(file, f){
     let pessoaId = (sel && sel!=='novo') ? sel : null;
     if(sel==='novo'){
       const row = {nome:g('ca-n-nome'), tipo:g('ca-n-tipo')||'medico'}; if(g('ca-n-cpf')) row.cpf = g('ca-n-cpf'); if(g('ca-n-crm')) row.crm = g('ca-n-crm');
-      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026').single(); if(error) throw error;
+      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single(); if(error) throw error;
       pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
     }
     const path = await docsUpload(file, tipo==='estudo'||tipo==='concorrente' ? 'estudos' : 'apolices');
@@ -2949,7 +2954,7 @@ async function ctRun(){
   const btn = document.getElementById('ct-go'), err = document.getElementById('ct-err'); btn.disabled = true;
   try{
     const tipo = document.getElementById('ct-tipo').value, upd = document.getElementById('ct-upd').checked;
-    const COLS = 'id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026';
+    const COLS = 'id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026';
     for(let i=0;i<CT.novos.length;i+=100){
       btn.textContent = `Cadastrando ${Math.min(i+100,CT.novos.length)}/${CT.novos.length}...`;
       const chunk = CT.novos.slice(i,i+100).map(o=>({...o, tipo}));
@@ -2969,6 +2974,98 @@ async function ctRun(){
     dlgClose(); showToast(`${CT.novos.length} contatos novos cadastrados${upd?` · ${atualizados} existentes completados`:''}`); opApplyFilters(true);
   }catch(e){ err.textContent = 'Erro durante a importação: '+(e.message||e); btn.disabled = false; btn.textContent = 'Tentar novamente'; }
 }
+
+// ---------- HOJE + CALL HOT (dentro da Aliança) ----------
+const todayD = ()=>{ const d = new Date(); d.setHours(0,0,0,0); return d; };
+function opNextInfo(p){
+  if(!p.proxima_acao) return '';
+  const d = daysTo(p.proxima_data); const cls = d!==null && d<0 ? 'color:var(--red);font-weight:600' : (d===0 ? 'color:var(--amber-ink);font-weight:600' : '');
+  return ` · <span style="${cls}">→ ${escapeHtml(p.proxima_acao)}${p.proxima_data?' '+fmtDate(p.proxima_data).slice(0,5):''}</span>`;
+}
+function opIsLeadAberto(p){ return opCurEtapaIdx(p.id)>=0 && !opIsCliente(p.id); }
+function opHojeCounts(){
+  let late = 0, hoje = 0, semAcao = 0;
+  OP.pessoas.forEach(p=>{ const d = daysTo(p.proxima_data);
+    if(p.proxima_acao && d!==null){ if(d<0) late++; else if(d===0) hoje++; }
+    if(!p.proxima_acao && opIsLeadAberto(p)) semAcao++; });
+  return {late, hoje, semAcao};
+}
+function opBirthdays(days){
+  const out = []; const t = todayD();
+  OP.pessoas.forEach(p=>{ if(!p.data_nascimento) return; const [y,m,d] = String(p.data_nascimento).slice(0,10).split('-').map(Number); if(!m||!d) return;
+    let n = new Date(t.getFullYear(), m-1, d); if(n < t) n = new Date(t.getFullYear()+1, m-1, d);
+    const dd = Math.round((n-t)/86400000); if(dd<=days) out.push({p, dd, idade:n.getFullYear()-y}); });
+  return out.sort((a,b)=>a.dd-b.dd);
+}
+function opDatasRelevantes(){
+  const out = []; OP.pessoas.forEach(p=>(p.datas_relevantes||[]).forEach(dr=>{ const dd = daysTo(dr.data); if(dd!==null && dd>=0 && dd<=(dr.antecedencia||7)) out.push({p, dr, dd}); }));
+  return out.sort((a,b)=>a.dd-b.dd);
+}
+const hojeRow = (p, right, sub)=>`<div class="rec hj-row"><a href="#" data-openp="${p.id}" style="font-weight:600;color:var(--brand)">${escapeHtml(p.nome)}</a>${sub?` <small style="color:var(--ink-faint)">${sub}</small>`:''}<span style="float:right;font-size:12px">${right||''}</span></div>`;
+
+async function opHojeDialog(onlyMine){
+  const me = curUserName();
+  const box = dlgOpen(`<div class="om-title"><div><h3>☀️ Hoje — o que preciso fazer</h3><div class="om-sub">${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div></div><button data-close>✕</button></div>
+    <div class="dlg-body" id="hj-body"><div class="op-more">Carregando...</div></div>`, true);
+  const t0 = todayD().toISOString(), t1 = new Date(todayD().getTime()+86400000).toISOString();
+  const dow = (todayD().getDay()+6)%7; const ini2 = new Date(todayD().getTime()+(7-dow)*86400000), fim2 = new Date(ini2.getTime()+7*86400000);
+  const [ag, agNext, tar] = await Promise.all([
+    sb.from('crm_agenda').select('titulo,data_inicio,crm_pessoas(nome)').gte('data_inicio',t0).lt('data_inicio',t1).order('data_inicio'),
+    sb.from('crm_agenda').select('id',{count:'exact',head:true}).gte('data_inicio',ini2.toISOString()).lt('data_inicio',fim2.toISOString()),
+    sb.from('crm_tarefas_diarias').select('*').eq('data', ymdToday()).order('created_at')]);
+  const acoes = OP.pessoas.filter(p=>p.proxima_acao && daysTo(p.proxima_data)!==null && daysTo(p.proxima_data)<=0 && (!onlyMine || (p.proximo_responsavel||'')===me)).sort((a,b)=>String(a.proxima_data).localeCompare(String(b.proxima_data)));
+  const semAcao = OP.pessoas.filter(p=>!p.proxima_acao && opIsLeadAberto(p));
+  const renov = []; OP.apo.forEach((list,pid)=>list.forEach(a=>{ if(a.status==='cancelada'||!a.data_vencimento) return; const dd = daysTo(String(a.data_vencimento).slice(0,10)); if(dd!==null && dd>=0 && dd<=60) renov.push({p:OP.pessoas.find(x=>x.id===pid), a, dd}); }));
+  renov.sort((x,y)=>x.dd-y.dd);
+  const bd = opBirthdays(7), dr = opDatasRelevantes();
+  const nxt = agNext.count ?? 0;
+  const sec = (title, cnt, html)=>`<div class="es-box"><div class="ql">${title} <span class="tagx" style="margin-left:6px">${cnt}</span></div>${html||'<div class="hint">Nada por aqui. 👍</div>'}</div>`;
+  document.getElementById('hj-body').innerHTML =
+    `<div class="sg-row" style="margin-bottom:10px"><label class="chk"><input type="checkbox" id="hj-mine" ${onlyMine?'checked':''}> Só as minhas (${escapeHtml(me)})</label><span style="flex:1"></span><span class="tagx ${nxt<3?'warn':''}">Agenda da semana que vem: ${nxt} evento(s)${nxt<3?' — deixe-a cheia antes de a atual acabar':''}</span></div>`
+    + sec('⏰ Ações de hoje e atrasadas', acoes.length, acoes.map(p=>{ const d = daysTo(p.proxima_data); return hojeRow(p, d<0?`<span class="tagx bad">atrasada ${-d}d</span>`:'<span class="tagx warn">hoje</span>', escapeHtml(p.proxima_acao)+' · '+escapeHtml(p.proximo_responsavel||'')); }).join(''))
+    + sec('⚠ Leads em funil sem próxima ação', semAcao.length, semAcao.slice(0,40).map(p=>hojeRow(p, '', 'Defina a próxima ação')).join('') + (semAcao.length>40?`<div class="hint">+${semAcao.length-40} outros — use o filtro “Próxima ação” na Aliança.</div>`:''))
+    + sec('🔄 Renovações nos próximos 60 dias', renov.length, renov.map(r=>hojeRow(r.p, `<span class="tagx ${r.dd<=15?'bad':(r.dd<=30?'warn':'')}">${r.dd}d</span>`, escapeHtml((r.a.tipo_seguro||'')+' · '+(r.a.seguradora||'')))).join(''))
+    + sec('🎂 Aniversários (7 dias) e datas relevantes', bd.length+dr.length, bd.map(b=>hojeRow(b.p, b.dd===0?'<span class="tagx warn">hoje</span>':b.dd+'d', 'Aniversário — '+b.idade+' anos (brinde/mensagem)')).join('') + dr.map(x=>hojeRow(x.p, x.dd===0?'<span class="tagx warn">hoje</span>':x.dd+'d', escapeHtml(x.dr.descricao)+' · '+fmtDate(x.dr.data))).join(''))
+    + sec('📅 Compromissos de hoje', (ag.data||[]).length, (ag.data||[]).map(e=>`<div class="rec"><span class="k">${new Date(e.data_inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>${escapeHtml(e.titulo)}${e.crm_pessoas?.nome?' · '+escapeHtml(e.crm_pessoas.nome):''}</div>`).join(''))
+    + `<div class="es-box"><div class="ql">✅ Tarefas avulsas de hoje</div>${(tar.data||[]).map(t=>`<div class="rec hj-task"><label class="chk"><input type="checkbox" data-task="${t.id}" ${t.concluida?'checked':''}> <span style="${t.concluida?'text-decoration:line-through;color:var(--ink-faint)':''}">${escapeHtml(t.descricao)}</span></label></div>`).join('')||'<div class="hint">Nenhuma tarefa.</div>'}
+       <div class="sg-row" style="margin-top:8px"><input id="hj-task-new" class="ca-inp" placeholder="Nova tarefa (não precisa ter médico vinculado)..." style="flex:1"><button class="om-save" id="hj-task-add">+ Tarefa</button></div></div>`;
+  const b = document.getElementById('hj-body');
+  b.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(a.dataset.openp); }));
+  b.querySelector('#hj-mine').addEventListener('change', e=>opHojeDialog(e.target.checked));
+  b.querySelector('#hj-task-add').addEventListener('click', async ()=>{ const v = document.getElementById('hj-task-new').value.trim(); if(!v) return; const { error } = await sb.from('crm_tarefas_diarias').insert({descricao:v, prioridade:'media', categoria:'vendas', data:ymdToday()}); if(error){ showToast('Erro: '+error.message); return; } opHojeDialog(onlyMine); });
+  b.querySelectorAll('[data-task]').forEach(c=>c.addEventListener('change', async ()=>{ await sb.from('crm_tarefas_diarias').update({concluida:c.checked}).eq('id', c.dataset.task); opHojeDialog(onlyMine); }));
+}
+
+// ---- Call Hot: lista automática da semana ----
+async function opCallHotDialog(){
+  const box = dlgOpen(`<div class="om-title"><div><h3>🔥 Call Hot da semana</h3><div class="om-sub">Lista calculada automaticamente — quem contatar primeiro. Meta da semana: <span id="ch-meta">…</span> contatos.</div></div><button data-close>✕</button></div><div class="dlg-body" id="ch-body"><div class="op-more">Calculando...</div></div>`, true);
+  const [{ data: metas }, { data: opps }] = await Promise.all([sb.from('crm_metas').select('*'), sb.from('crm_oportunidades').select('pessoa_id').eq('status','aberta')]);
+  const M = {}; (metas||[]).forEach(m=>M[m.chave]=Number(m.valor)); const N = M.contatos_semana || 100;
+  const openOpp = new Set((opps||[]).map(o=>o.pessoa_id)); const nowD = todayD();
+  const rows = OP.pessoas.map(p=>{
+    const why = []; let sc = 0; const add = (n, t)=>{ sc += n; why.push(t); };
+    if(p.classificacao==='call_hot') add(40,'Call Hot'); else if(p.classificacao==='quente') add(25,'Quente');
+    const pr = OP.plant.get(p.id); if(pr && pr.ultimo_plantao){ const dd = Math.round((nowD-opD(pr.ultimo_plantao))/DAY); if(dd<=7) add(30,'plantão há '+dd+'d'); else if(dd<=30) add(20,'plantão há '+dd+'d'); else if(dd<=90) add(10,'plantão há '+dd+'d');
+      const v = Number(pr.valor_12m)||0; if(v>0) add(Math.min(15, Math.round(v/10000)), 'renda CallMed'); }
+    const idx = opCurEtapaIdx(p.id); if(idx>=0) add(idx*3, 'etapa '+ETAPAS_FUNIL[idx].label);
+    if(openOpp.has(p.id)) add(10,'oportunidade aberta');
+    const d = daysTo(p.proxima_data); if(p.proxima_acao && d!==null){ if(d<0) add(15,'ação atrasada'); else if(d===0) add(10,'ação hoje'); else if(d>0) add(-20,'já agendado'); }
+    if(!isMedico(p)) sc -= 5;
+    return {p, sc, why};
+  }).filter(r=>r.sc>=15 && !opIsCliente(r.p.id)).sort((a,b)=>b.sc-a.sc).slice(0, N);
+  document.getElementById('ch-meta').textContent = N;
+  document.getElementById('ch-body').innerHTML = `<div class="sg-row" style="margin-bottom:10px"><span class="hint" style="margin:0">Pontos: classificação (Call Hot 40, Quente 25) + plantão recente (até 30) + renda CallMed (até 15) + etapa do funil + oportunidade aberta + ação atrasada. Clientes com apólice ativa ficam de fora.</span><span style="flex:1"></span><button class="om-cancel" id="ch-csv">⬇ Exportar CSV</button></div>
+    <table class="ca-table"><thead><tr><th>#</th><th>Médico</th><th>Pontos</th><th>Por quê</th><th>Próxima ação</th><th></th></tr></thead><tbody>${rows.map((r,i)=>`<tr><td>${i+1}</td><td><a href="#" data-openp="${r.p.id}">${escapeHtml(r.p.nome)}</a><br><small style="color:var(--ink-faint)">${escapeHtml(r.p.telefone||'')}</small></td><td><b>${r.sc}</b></td><td><small>${r.why.map(escapeHtml).join(' · ')}</small></td><td><small>${r.p.proxima_acao?escapeHtml(r.p.proxima_acao)+' '+fmtDate(r.p.proxima_data):'—'}</small></td><td><button class="om-cancel" data-ch="${r.p.id}" style="padding:4px 8px;font-size:11.5px">Contatar hoje</button></td></tr>`).join('')||'<tr><td colspan="6">Nenhum candidato ainda — classifique contatos e carregue plantões.</td></tr>'}</tbody></table>`;
+  const b = document.getElementById('ch-body');
+  b.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(a.dataset.openp); }));
+  b.querySelectorAll('[data-ch]').forEach(btn=>btn.addEventListener('click', async ()=>{ const upd = {proxima_acao:'Realizar primeiro contato', proxima_data:ymdToday(), proximo_responsavel:curUserName()};
+    const { error } = await sb.from('crm_pessoas').update(upd).eq('id', btn.dataset.ch); if(error){ showToast('Erro: '+error.message); return; } const p = OP.pessoas.find(x=>x.id===btn.dataset.ch); if(p) Object.assign(p, upd); btn.textContent = '✓ agendado'; btn.disabled = true; }));
+  b.querySelector('#ch-csv').addEventListener('click', ()=>{ const esc = v=>{ const t = v==null?'':String(v); return /[;"\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t; };
+    const csv = '﻿'+['#;Nome;Telefone;Pontos;Motivos'].concat(rows.map((r,i)=>[i+1,r.p.nome,r.p.telefone,r.sc,r.why.join(' | ')].map(esc).join(';'))).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download = 'call-hot-'+ymdToday()+'.csv'; a.click(); });
+}
+document.getElementById('op-hoje').addEventListener('click', ()=>opHojeDialog(false));
+document.getElementById('op-callhot').addEventListener('click', opCallHotDialog);
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
