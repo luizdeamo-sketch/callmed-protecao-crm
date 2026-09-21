@@ -204,13 +204,8 @@
   </header>
 
   <nav id="rail">
-    <button class="nav-btn active" data-view="operacao">🧭<span>Operação</span></button>
-    <button class="nav-btn" data-view="pessoas">👥<span>Pessoas</span></button>
+    <button class="nav-btn active" data-view="operacao">🧭<span>Trajetória</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
-    <button class="nav-btn" data-view="funil">📶<span>Funil</span></button>
-    <button class="nav-btn" data-view="jornada">🗂️<span>Jornada</span></button>
-    <button class="nav-btn" data-view="hoje">☀️<span>Hoje</span></button>
-    <button class="nav-btn" data-view="apolices">📄<span>Apólices</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
     <button class="nav-btn" data-view="ata">🗒️<span>Ata</span></button>
   </nav>
@@ -220,8 +215,8 @@
     <div id="view-operacao" class="view active">
       <div class="op-top">
         <div class="op-title">
-          <h2>Operação</h2>
-          <span class="sub">Todos os médicos · funil comercial e produtos numa única visão. Clique numa célula do funil para marcar/desmarcar; clique no nome para abrir o cadastro completo.</span>
+          <h2>Trajetória</h2>
+          <span class="sub">Cada médico do cadastro numa linha do tempo: faixa do funil comercial + uma linha por produto. Clique na faixa do funil para marcar/desmarcar uma etapa na data; clique no nome para abrir o cadastro completo.</span>
           <div class="op-kpis" id="op-kpis"></div>
         </div>
         <div class="op-filters">
@@ -239,13 +234,20 @@
             <option value="plantoes">Ordenar: maior valor pago em plantões</option>
             <option value="etapa">Ordenar: etapa mais avançada</option>
           </select>
+          <button id="op-prev" title="12 meses anteriores">‹</button>
+          <span id="op-range"></span>
+          <button id="op-next" title="Próximos 12 meses">›</button>
+          <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
         </div>
       </div>
       <div id="op-scroll"><div class="op-more">Carregando médicos...</div></div>
     </div>
 
+    <div id="op-pop"></div>
+
     <div id="view-pessoas" class="view">
       <div id="sidebar">
+        <button class="btn-ghost" id="btn-op-back">← Voltar para a Trajetória</button>
         <div id="search-box"><input id="search-input" placeholder="Buscar por nome, CPF ou CRM..."></div>
         <div id="list-status">Carregando...</div>
         <div id="person-list"></div>
@@ -395,43 +397,55 @@
   .sc-block li{ font-size:12px; color:rgba(255,255,255,.92); line-height:1.4;}
   @media (max-width:700px){ .sc-grid{grid-template-columns:1fr;} }
   #view-operacao{ grid-template-rows:auto 1fr; background:var(--bg);}
-  .op-top{ padding:18px 24px 12px; display:flex; flex-direction:column; gap:12px; background:var(--surface); border-bottom:1px solid var(--border);}
+  .op-top{ padding:16px 24px 12px; display:flex; flex-direction:column; gap:10px; background:var(--surface); border-bottom:1px solid var(--border);}
   .op-title{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
   .op-title h2{ font-size:1.25rem;}
-  .op-title .sub{ color:var(--ink-soft); font-size:12.5px;}
+  .op-title .sub{ color:var(--ink-soft); font-size:12px; max-width:640px;}
   .op-kpis{ display:flex; gap:8px; flex-wrap:wrap; margin-left:auto;}
   .op-kpi{ background:var(--brand-soft); border-radius:999px; padding:3px 12px; font-size:12px; color:var(--ink-soft);}
   .op-kpi b{ color:var(--brand); font-family:'Poppins',sans-serif;}
   .op-filters{ display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
-  .op-filters input, .op-filters select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink);}
-  .op-filters input{ width:260px;}
-  #op-scroll{ overflow:auto; position:relative;}
-  table.op{ border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:100%;}
-  table.op th, table.op td{ border-bottom:1px solid var(--border-soft); border-right:1px solid var(--border-soft); padding:0; height:38px; background:var(--surface);}
-  table.op thead th{ position:sticky; z-index:3; background:#f2f3f9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); font-weight:600; text-align:center; height:30px;}
-  table.op thead tr.g1 th{ top:0; height:26px; color:#fff; letter-spacing:.1em;}
-  table.op thead tr.g2 th{ top:26px; height:44px; line-height:1.2;}
-  table.op thead th .cnt{ display:block; font-family:'Poppins',sans-serif; font-size:13px; color:var(--brand); margin-top:2px;}
-  th.g-funil{ background:var(--brand) !important;} th.g-prod{ background:#149c6b !important;} th.g-info{ background:#565c6e !important;}
-  table.op .sticky-l{ position:sticky; left:0; z-index:2; min-width:290px; max-width:290px; text-align:left; border-right:2px solid var(--border);}
-  table.op thead th.sticky-l{ z-index:4; text-align:left; padding-left:14px;}
-  .op-name{ padding:4px 12px; cursor:pointer; overflow:hidden;}
-  .op-name:hover{ background:var(--brand-soft);}
-  .op-name .n{ font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px;}
-  .op-name .m{ font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  .op-name .cli{ display:inline-block; font-size:9.5px; background:var(--green-soft); color:var(--green); border-radius:4px; padding:0 5px; margin-left:6px; font-family:'IBM Plex Mono',monospace; font-weight:600; vertical-align:1px;}
-  td.fl{ min-width:74px; text-align:center; cursor:pointer;}
-  td.fl:hover{ background:var(--brand-soft);}
-  td.fl .on{ display:inline-flex; flex-direction:column; align-items:center; line-height:1.1; color:var(--brand); font-weight:700;}
-  td.fl .on small{ font-size:9.5px; font-weight:500; color:var(--ink-soft);}
-  td.fl.cur{ background:#e8ecff;}
-  td.fl .off{ color:#d5d8e4; font-size:11px;}
-  td.pd{ min-width:104px; padding:4px 5px !important;}
-  .bar{ border-radius:6px; padding:3px 7px; color:#fff; font-size:10.5px; font-weight:600; line-height:1.25; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
-  .bar small{ display:block; font-weight:400; opacity:.9; font-size:9.5px;}
-  .bar.ok{ background:#2fae7d;} .bar.warn{ background:#d9932a;} .bar.late{ background:#c23636;}
-  td.pl{ min-width:96px; text-align:right; padding:0 10px !important; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft);}
+  .op-filters input, .op-filters select, .op-filters button{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink); cursor:pointer;}
+  .op-filters input{ width:240px; cursor:text;}
+  .op-filters button:hover{ background:var(--brand-soft);}
+  #op-range{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); min-width:150px; text-align:center;}
+  #op-scroll{ overflow:auto; position:relative; --oplw:290px;}
+  .op-inner{ min-width:calc(var(--oplw) + 1080px);}
+  .op-row{ display:flex; border-bottom:1px solid var(--border-soft); background:var(--surface);}
+  .op-left{ position:sticky; left:0; z-index:2; width:var(--oplw); flex:0 0 var(--oplw); background:inherit; border-right:2px solid var(--border); padding:6px 12px; cursor:pointer; overflow:hidden; background:var(--surface);}
+  .op-left:hover{ background:var(--brand-soft);}
+  .op-left .n{ font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .op-left .m{ font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .op-left .cli{ display:inline-block; font-size:9.5px; background:var(--green-soft); color:var(--green); border-radius:4px; padding:0 5px; margin-left:6px; font-family:'IBM Plex Mono',monospace; font-weight:600; vertical-align:1px;}
+  .op-right{ position:relative; flex:1; background-image:var(--opgrid);}
+  .op-head{ position:sticky; top:0; z-index:5; background:#f2f3f9; border-bottom:1px solid var(--border);}
+  .op-head .op-left{ background:#f2f3f9; z-index:6; cursor:default; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; display:flex; align-items:center;}
+  .op-head .op-right{ height:38px; background-image:none;}
+  .op-mh{ position:absolute; top:0; bottom:0; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; color:var(--ink-soft); border-left:1px solid var(--border); line-height:1.15;}
+  .op-mh small{ font-weight:500; font-size:9.5px; color:var(--ink-faint);}
+  .op-mh.cur{ background:#e8ecff; color:var(--brand);}
+  .op-sumbox{ border-bottom:2px solid var(--border);}
+  .op-sumtitle{ display:flex; align-items:center; gap:10px; padding:8px 12px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); position:sticky; left:0; width:var(--oplw); background:var(--surface); cursor:pointer;}
+  .op-sumrow{ display:flex; border-top:1px solid var(--border-soft); background:var(--surface);}
+  .op-sumrow .op-left{ cursor:default; padding:3px 12px; font-size:12px; display:flex; align-items:center; gap:8px; font-weight:500;}
+  .op-sumrow .op-left:hover{ background:var(--surface);}
+  .op-sumrow .op-right{ height:26px;}
+  .op-sumcell{ position:absolute; top:0; bottom:0; display:flex; align-items:center; justify-content:center; font-family:'Poppins',sans-serif; font-weight:600; font-size:12.5px;}
+  .op-sumcell.z{ color:#c5c9d6; font-weight:400;}
+  .op-dot{ width:9px; height:9px; border-radius:50%; flex:none;}
+  .op-lane{ position:absolute; left:0; right:0; height:22px;}
+  .op-lane.funil{ cursor:copy;}
+  .seg{ position:absolute; top:1px; height:20px; border-radius:5px; color:#fff; font-size:10.5px; font-weight:600; padding:0 7px; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:6px; cursor:pointer;}
+  .apo-bar{ position:absolute; top:1px; height:20px; border-radius:5px; color:#fff; font-size:10.5px; font-weight:600; padding:0 8px; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;}
+  .apo-bar.late{ opacity:.5; background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.28) 0 6px,transparent 6px 12px);}
+  .op-today{ position:absolute; top:0; bottom:0; width:2px; background:rgba(194,54,54,.55); z-index:1; pointer-events:none;}
   .op-more{ padding:14px; text-align:center; color:var(--ink-faint); font-size:12px;}
+  #op-pop{ position:fixed; z-index:50; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); box-shadow:0 12px 32px -8px rgba(15,18,30,.28); padding:6px; min-width:210px; display:none;}
+  #op-pop .ph{ font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--ink-faint); padding:6px 10px 4px; text-transform:uppercase; letter-spacing:.06em;}
+  #op-pop button{ display:flex; width:100%; align-items:center; gap:8px; border:none; background:transparent; padding:7px 10px; border-radius:6px; font-size:13px; cursor:pointer; text-align:left; color:var(--ink);}
+  #op-pop button:hover{ background:var(--brand-soft);}
+  #op-pop button.on{ font-weight:700;}
+  #btn-op-back{ margin:10px 14px 0; align-self:flex-start;}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -562,7 +576,6 @@ function boot(){
   document.getElementById('ics-url').value = `${SUPABASE_URL}/functions/v1/agenda-ics?token=${ICS_TOKEN}`;
   loadPeople('');
   renderCalendar();
-  renderKanban();
   renderOperacao();
 }
 
@@ -585,7 +598,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
 });
 function goToPersonView(personId){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelector('.nav-btn[data-view="pessoas"]').classList.add('active');
+  document.querySelector('.nav-btn[data-view="operacao"]').classList.add('active');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-pessoas').classList.add('active');
   openPerson(personId);
@@ -1207,20 +1220,49 @@ document.querySelectorAll('#ata-toggle button').forEach(btn=>{
   });
 });
 
-// ---------- OPERAÇÃO (matriz: médicos x funil x produtos) ----------
+// ---------- TRAJETÓRIA (linha do tempo: médicos x funil x produtos) ----------
 const OP_PRODUTOS = [
-  {k:'vida', l:'Vida', re:/vida/i, not:/grupo/i},
-  {k:'vida_grupo', l:'Vida em grupo', re:/vida.*grupo|grupo/i},
-  {k:'rc', l:'RC Profissional', re:/respons|\brc\b/i},
-  {k:'auto', l:'Automóvel', re:/auto/i},
-  {k:'resid', l:'Residencial', re:/resid/i},
-  {k:'emp', l:'Empresarial', re:/empres/i},
-  {k:'saude', l:'Saúde', re:/sa[uú]de/i},
-  {k:'prev', l:'Previdência', re:/previd/i},
-  {k:'outros', l:'Outros', re:/.*/},
+  {k:'vida', l:'Vida', re:/vida/i, not:/grupo/i, c:'#2bbf8a'},
+  {k:'vida_grupo', l:'Vida em grupo', re:/grupo/i, c:'#2f9e57'},
+  {k:'rc', l:'RC Profissional', re:/respons|\brc\b/i, c:'#7b8190'},
+  {k:'auto', l:'Automóvel', re:/auto/i, c:'#4b8df5'},
+  {k:'resid', l:'Residencial', re:/resid/i, c:'#f5a623'},
+  {k:'emp', l:'Empresarial', re:/empres/i, c:'#22bcd6'},
+  {k:'saude', l:'Saúde', re:/sa[uú]de/i, c:'#e0568c'},
+  {k:'prev', l:'Previdência', re:/previd/i, c:'#8b5cf6'},
+  {k:'outros', l:'Outros', re:/.*/, c:'#9aa0b4'},
 ];
-const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false };
-const OP_PAGE = 150;
+const OP_STAGE_COLORS = ['#9fb0ff','#7d92ff','#5b74ff','#3a55ff','#1f3af0','#0018fc','#0012c9','#000d94'];
+const OP_MESES = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
+             start:new Date(2026,9,1), sumOpen:true };
+const OP_PAGE = 120;
+const opEnd = ()=> new Date(OP.start.getFullYear(), OP.start.getMonth()+12, 1);
+
+function opD(s){ if(!s) return null; const x = String(s).slice(0,10).split('-'); return new Date(+x[0], +x[1]-1, +x[2]); }
+function opPct(d){ return (d - OP.start) / (opEnd() - OP.start) * 100; }
+function opClamp(p){ return Math.max(0, Math.min(100, p)); }
+function opProd(k){ return OP_PRODUTOS.find(p=>p.k===k) || OP_PRODUTOS[OP_PRODUTOS.length-1]; }
+function opProdKey(tipo){
+  const t = tipo || '';
+  for(const p of OP_PRODUTOS){ if(p.re.test(t) && !(p.not && p.not.test(t))) return p.k; }
+  return 'outros';
+}
+function opStageDate(r){ return opD(r.data_combinada || r.created_at); }
+function opStages(pid){
+  const m = OP.funil.get(pid); if(!m) return [];
+  const out = [];
+  ETAPAS_FUNIL.forEach((e,i)=>{ const r = m.get(e.key); if(r) out.push({i, key:e.key, label:e.label, date:opStageDate(r)}); });
+  return out.sort((a,b)=> a.date-b.date || a.i-b.i);
+}
+function opCurEtapaIdx(pid){ const s = opStages(pid); return s.length ? s[s.length-1].i : -1; }
+function opApoRange(a){
+  let end = opD(a.data_vencimento), start = opD(a.data_emissao);
+  if(!start && end){ start = new Date(end.getFullYear()-1, end.getMonth(), end.getDate()); }
+  if(!end && start){ end = new Date(start.getFullYear()+1, start.getMonth(), start.getDate()); }
+  return {start, end};
+}
+function opIsCliente(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status!=='cancelada'); }
 
 async function opFetchAll(table, cols, orderCols){
   let out = [], from = 0;
@@ -1235,53 +1277,43 @@ async function opFetchAll(table, cols, orderCols){
   }
   return out;
 }
-function opProdKey(tipo){
-  const t = tipo || '';
-  for(const p of OP_PRODUTOS){ if(p.re.test(t) && !(p.not && p.not.test(t))) return p.k; }
-  return 'outros';
+async function opLoadFunilApo(){
+  const [fun, apo] = await Promise.all([
+    opFetchAll('crm_funil','id,pessoa_id,etapa,created_at,data_combinada',['id']),
+    opFetchAll('crm_apolices','id,pessoa_id,tipo_seguro,seguradora,status,data_emissao,data_vencimento,valor_premio',['id']),
+  ]);
+  OP.funil = new Map(); fun.forEach(r=>{ if(!OP.funil.has(r.pessoa_id)) OP.funil.set(r.pessoa_id,new Map()); OP.funil.get(r.pessoa_id).set(r.etapa, r); });
+  OP.apo = new Map(); apo.forEach(r=>{ if(!OP.apo.has(r.pessoa_id)) OP.apo.set(r.pessoa_id,[]); OP.apo.get(r.pessoa_id).push(r); });
 }
-function opApoStatus(a){
-  if(!a.data_vencimento) return 'ok';
-  const dias = (new Date(a.data_vencimento) - new Date())/86400000;
-  if(dias < 0) return 'late';
-  if(dias <= 60) return 'warn';
-  return 'ok';
-}
-function opCurEtapaIdx(pid){
-  const m = OP.funil.get(pid); if(!m) return -1;
-  let idx = -1; ETAPAS_FUNIL.forEach((e,i)=>{ if(m.has(e.key)) idx = i; });
-  return idx;
-}
-function opIsCliente(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status!=='cancelada'); }
 
 async function renderOperacao(force){
   if(OP.loading) return;
-  if(OP.loaded && !force){ opApplyFilters(); return; }
-  OP.loading = true;
   const host = document.getElementById('op-scroll');
-  host.innerHTML = '<div class="op-more">Carregando médicos, funil e apólices...</div>';
+  if(OP.loaded){
+    if(!force) return opApplyFilters(true);
+  } else {
+    host.innerHTML = '<div class="op-more">Carregando médicos, funil e apólices...</div>';
+  }
+  OP.loading = true;
   try{
-    const [pess, fun, apo] = await Promise.all([
-      opFetchAll('crm_pessoas','id,nome,crm,especialidade,total_pago_plantoes_2026',['nome','id']),
-      opFetchAll('crm_funil','id,pessoa_id,etapa,created_at,data_combinada',['id']),
-      opFetchAll('crm_apolices','id,pessoa_id,tipo_seguro,seguradora,status,data_vencimento,valor_premio',['id']),
-    ]);
-    OP.pessoas = pess;
-    OP.funil = new Map(); fun.forEach(r=>{ if(!OP.funil.has(r.pessoa_id)) OP.funil.set(r.pessoa_id,new Map()); OP.funil.get(r.pessoa_id).set(r.etapa, r); });
-    OP.apo = new Map(); apo.forEach(r=>{ if(!OP.apo.has(r.pessoa_id)) OP.apo.set(r.pessoa_id,[]); OP.apo.get(r.pessoa_id).push(r); });
+    if(!OP.loaded){
+      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,total_pago_plantoes_2026',['nome','id']);
+    }
+    await opLoadFunilApo();
+    const wasLoaded = OP.loaded;
     OP.loaded = true;
     const fe = document.getElementById('op-f-etapa');
     if(fe.options.length<=1) ETAPAS_FUNIL.forEach(e=>{ const o=document.createElement('option'); o.value=e.key; o.textContent='Etapa atual: '+e.label; fe.appendChild(o); });
     const fp = document.getElementById('op-f-produto');
     if(fp.options.length<=1) OP_PRODUTOS.forEach(p=>{ const o=document.createElement('option'); o.value=p.k; o.textContent='Tem: '+p.l; fp.appendChild(o); });
-    opApplyFilters();
+    opApplyFilters(wasLoaded);
   }catch(e){
     host.innerHTML = '<div class="op-more">Erro ao carregar: '+escapeHtml(e.message||String(e))+'</div>';
   }
   OP.loading = false;
 }
 
-function opApplyFilters(){
+function opApplyFilters(keep){
   const q = document.getElementById('op-search').value.trim().toLowerCase();
   const sit = document.getElementById('op-f-situacao').value;
   const et = document.getElementById('op-f-etapa').value;
@@ -1299,74 +1331,143 @@ function opApplyFilters(){
   });
   if(sort==='plantoes') list = list.slice().sort((a,b)=>(Number(b.total_pago_plantoes_2026)||0)-(Number(a.total_pago_plantoes_2026)||0));
   if(sort==='etapa') list = list.slice().sort((a,b)=>opCurEtapaIdx(b.id)-opCurEtapaIdx(a.id));
+  const prevShown = keep ? OP.shown : 0;
+  const scroller = document.getElementById('op-scroll');
+  const prevTop = keep ? scroller.scrollTop : 0, prevLeft = keep ? scroller.scrollLeft : 0;
   OP.filtered = list; OP.shown = 0;
-  opRenderTable();
+  opRenderAll(prevShown);
+  scroller.scrollTop = prevTop; scroller.scrollLeft = prevLeft;
   opRenderKpis();
 }
 
 function opRenderKpis(){
-  const total = OP.pessoas.length;
   let cli = 0, fun = 0;
   OP.pessoas.forEach(p=>{ if(opIsCliente(p.id)) cli++; else if(opCurEtapaIdx(p.id)>=0) fun++; });
   document.getElementById('op-kpis').innerHTML =
-    `<span class="op-kpi"><b>${total}</b> médicos</span><span class="op-kpi"><b>${fun}</b> em funil</span><span class="op-kpi"><b>${cli}</b> clientes</span><span class="op-kpi">exibindo <b>${OP.filtered.length}</b></span>`;
+    `<span class="op-kpi"><b>${OP.pessoas.length}</b> médicos</span><span class="op-kpi"><b>${fun}</b> em funil</span><span class="op-kpi"><b>${cli}</b> clientes</span><span class="op-kpi">exibindo <b>${OP.filtered.length}</b></span>`;
 }
 
-function opStageCounts(){
-  return ETAPAS_FUNIL.map(e=>{ let n=0; OP.funil.forEach(m=>{ if(m.has(e.key)) n++; }); return n; });
-}
-function opProdCounts(){
-  const c = {}; OP_PRODUTOS.forEach(p=>c[p.k]=0);
-  OP.apo.forEach(list=>{ const s=new Set(list.map(a=>opProdKey(a.tipo_seguro))); s.forEach(k=>c[k]++); });
-  return c;
+function opGridCss(){
+  const layers = [];
+  for(let i=1;i<12;i++){
+    const p = opPct(new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1)).toFixed(3);
+    layers.push(`linear-gradient(to right,transparent calc(${p}% - .5px),#e6e9f2 calc(${p}% - .5px),#e6e9f2 calc(${p}% + .5px),transparent calc(${p}% + .5px))`);
+  }
+  const t = opPct(new Date());
+  if(t>=0 && t<=100) layers.push(`linear-gradient(to right,transparent calc(${t.toFixed(3)}% - 1px),rgba(194,54,54,.55) calc(${t.toFixed(3)}% - 1px),rgba(194,54,54,.55) calc(${t.toFixed(3)}% + 1px),transparent calc(${t.toFixed(3)}% + 1px))`);
+  return layers.join(',');
 }
 
-function opRenderTable(){
+function opMonthsInfo(){
+  const out = [];
+  for(let i=0;i<12;i++){
+    const s = new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1);
+    const e = new Date(OP.start.getFullYear(), OP.start.getMonth()+i+1, 1);
+    out.push({s, e, l:opPct(s), w:opPct(e)-opPct(s), name:OP_MESES[s.getMonth()], yr:String(s.getFullYear()).slice(2)});
+  }
+  return out;
+}
+
+function opSummary(months){
+  const stageCounts = ETAPAS_FUNIL.map(()=>months.map(()=>0));
+  const cliCounts = months.map(()=>0);
+  OP.funil.forEach((m,pid)=>{
+    const st = opStages(pid); if(!st.length) return;
+    months.forEach((mo,mi)=>{
+      let cur = null; st.forEach(s=>{ if(s.date < mo.e) cur = s; });
+      if(cur) stageCounts[cur.i][mi]++;
+    });
+  });
+  OP.apo.forEach(list=>{
+    months.forEach((mo,mi)=>{
+      if(list.some(a=>{ if(a.status==='cancelada') return false; const r = opApoRange(a); return r.start && r.end && r.start < mo.e && r.end >= mo.s; })) cliCounts[mi]++;
+    });
+  });
+  return {stageCounts, cliCounts};
+}
+
+function opSumRowHtml(label, dotColor, counts, months){
+  return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right" style="--opgrid:${'none'}">${
+    months.map((mo,mi)=>`<div class="op-sumcell${counts[mi]?'':' z'}" style="left:${mo.l}%;width:${mo.w}%">${counts[mi]||'·'}</div>`).join('')}</div></div>`;
+}
+
+function opRenderAll(prevShown){
   const host = document.getElementById('op-scroll');
-  const sc = opStageCounts(), pc = opProdCounts();
-  host.innerHTML = `<table class="op" id="op-table">
-    <thead>
-      <tr class="g1"><th class="sticky-l g-info" rowspan="1">MÉDICO</th><th class="g-info">PLANTÕES</th><th class="g-funil" colspan="${ETAPAS_FUNIL.length}">FUNIL COMERCIAL</th><th class="g-prod" colspan="${OP_PRODUTOS.length}">PRODUTOS (CLIENTE)</th></tr>
-      <tr class="g2"><th class="sticky-l">${OP.filtered.length} de ${OP.pessoas.length}</th><th>Pago 2026</th>
-        ${ETAPAS_FUNIL.map((e,i)=>`<th>${e.label}<span class="cnt">${sc[i]}</span></th>`).join('')}
-        ${OP_PRODUTOS.map(p=>`<th>${p.l}<span class="cnt">${pc[p.k]}</span></th>`).join('')}
-      </tr>
-    </thead>
-    <tbody id="op-body"></tbody></table><div class="op-more" id="op-more"></div>`;
-  opAppendRows();
+  const months = opMonthsInfo();
+  const now = new Date();
+  host.style.setProperty('--opgrid', opGridCss());
+  const lastM = new Date(OP.start.getFullYear(), OP.start.getMonth()+11, 1);
+  document.getElementById('op-range').textContent = `${OP_MESES[OP.start.getMonth()]}/${OP.start.getFullYear()} – ${OP_MESES[lastM.getMonth()]}/${lastM.getFullYear()}`;
+  const sm = opSummary(months);
+  const sumRows = ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], months)).join('')
+    + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, months);
+  host.innerHTML = `<div class="op-inner">
+    <div class="op-sumbox">
+      <div class="op-sumtitle" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal — médicos por etapa do funil (situação ao fim de cada mês)</div>
+      <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'}">${sumRows}</div>
+    </div>
+    <div class="op-row op-head"><div class="op-left">${OP.filtered.length} de ${OP.pessoas.length} médicos</div><div class="op-right">${
+      months.map(mo=>`<div class="op-mh${(now>=mo.s&&now<mo.e)?' cur':''}" style="left:${mo.l}%;width:${mo.w}%">${mo.name}<small>${mo.yr}</small></div>`).join('')}</div></div>
+    <div id="op-body"></div><div class="op-more" id="op-more"></div></div>`;
+  opAppendRows(Math.max(prevShown||0, OP_PAGE));
 }
 
 function opRowHtml(p){
-  const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id), fm = OP.funil.get(p.id);
-  const apos = OP.apo.get(p.id)||[];
+  const cli = opIsCliente(p.id);
+  const apos = (OP.apo.get(p.id)||[]).slice().sort((a,b)=>{ const ra=opApoRange(a), rb=opApoRange(b); return (ra.start||0)-(rb.start||0); });
   const pl = Number(p.total_pago_plantoes_2026)||0;
-  let h = `<tr data-pid="${p.id}"><td class="sticky-l"><div class="op-name" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}</div></div></td>`;
-  h += `<td class="pl">${pl>0 ? 'R$ '+Math.round(pl).toLocaleString('pt-BR') : '—'}</td>`;
-  ETAPAS_FUNIL.forEach((e,i)=>{
-    const r = fm && fm.get(e.key);
-    const d = r ? fmtDate(r.data_combinada || r.created_at).slice(0,5) : '';
-    h += `<td class="fl${i===idx?' cur':''}" data-pid="${p.id}" data-etapa="${e.key}">${r?`<span class="on">●<small>${d}</small></span>`:'<span class="off">○</span>'}</td>`;
+  const height = 10 + 26 + apos.length*24;
+  const st = opStages(p.id);
+  const today = new Date();
+  let segs = '';
+  st.forEach((s,i)=>{
+    const endD = (i+1<st.length) ? st[i+1].date : (today > s.date ? today : new Date(s.date.getTime()+14*86400000));
+    let l = opPct(s.date), r = opPct(endD);
+    if(r < 0 || l > 100) return;
+    l = opClamp(l); r = opClamp(r);
+    segs += `<div class="seg" data-etapa="${s.key}" style="left:${l}%;width:${Math.max(r-l,0.6)}%;background:${OP_STAGE_COLORS[s.i]}" title="${s.label} · ${s.date.toLocaleDateString('pt-BR')}">${s.label}</div>`;
   });
-  OP_PRODUTOS.forEach(pd=>{
-    const list = apos.filter(a=>opProdKey(a.tipo_seguro)===pd.k);
-    if(!list.length){ h += '<td class="pd"></td>'; return; }
-    const a = list[0], st = opApoStatus(a);
-    h += `<td class="pd"><div class="bar ${st}" data-open="${p.id}" title="${escapeHtml((a.seguradora||'')+' · '+(a.tipo_seguro||'')+(a.data_vencimento?' · vence '+fmtDate(a.data_vencimento):''))}">${escapeHtml(a.seguradora||'Apólice')}${list.length>1?' +'+(list.length-1):''}<small>${a.data_vencimento?'vence '+fmtDate(a.data_vencimento):''}</small></div></td>`;
+  let lanes = `<div class="op-lane funil" data-pid="${p.id}" style="top:5px">${segs}</div>`;
+  apos.forEach((a,i)=>{
+    const rg = opApoRange(a); if(!rg.start || !rg.end) return;
+    let l = opPct(rg.start), r = opPct(rg.end);
+    if(r < 0 || l > 100) return;
+    l = opClamp(l); r = opClamp(r);
+    const pd = opProd(opProdKey(a.tipo_seguro));
+    const late = rg.end < today || a.status==='cancelada';
+    const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${rg.start.toLocaleDateString('pt-BR')} a ${rg.end.toLocaleDateString('pt-BR')}${late?' (encerrada)':''}`;
+    lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
   });
-  return h + '</tr>';
+  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${pl>0?' · plantões R$ '+Math.round(pl).toLocaleString('pt-BR'):''}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
 }
 
-function opAppendRows(){
+function opAppendRows(n){
   const body = document.getElementById('op-body'); if(!body) return;
-  const slice = OP.filtered.slice(OP.shown, OP.shown + OP_PAGE);
+  const slice = OP.filtered.slice(OP.shown, OP.shown + (n||OP_PAGE));
   body.insertAdjacentHTML('beforeend', slice.map(opRowHtml).join(''));
   OP.shown += slice.length;
   const more = document.getElementById('op-more');
   if(more) more.textContent = OP.shown < OP.filtered.length ? `Mostrando ${OP.shown} de ${OP.filtered.length} — role para carregar mais` : (OP.filtered.length ? `Fim da lista (${OP.filtered.length})` : 'Nenhum médico encontrado com esses filtros.');
 }
 
-async function opToggleFlag(td){
-  const pid = td.dataset.pid, etapa = td.dataset.etapa;
+// ---- popup para marcar/desmarcar etapa do funil na data clicada ----
+let opPopCtx = null;
+function opShowPop(pid, date, x, y){
+  opPopCtx = {pid, date};
+  const m = OP.funil.get(pid);
+  const pop = document.getElementById('op-pop');
+  pop.innerHTML = `<div class="ph">Etapa em ${date.toLocaleDateString('pt-BR')}</div>` + ETAPAS_FUNIL.map((e,i)=>{
+    const r = m && m.get(e.key);
+    return `<button data-etapa="${e.key}" class="${r?'on':''}"><span class="op-dot" style="background:${OP_STAGE_COLORS[i]}"></span>${r?'✓ ':''}${e.label}${r?` <small style="color:var(--ink-faint);font-weight:400">· ${opStageDate(r).toLocaleDateString('pt-BR').slice(0,5)} (remover)</small>`:''}</button>`;
+  }).join('');
+  pop.style.display = 'block';
+  const w = pop.offsetWidth, h = pop.offsetHeight;
+  pop.style.left = Math.min(x, window.innerWidth - w - 10) + 'px';
+  pop.style.top = Math.min(y, window.innerHeight - h - 10) + 'px';
+}
+function opHidePop(){ document.getElementById('op-pop').style.display = 'none'; opPopCtx = null; }
+
+async function opToggleStage(pid, etapa, date){
   let m = OP.funil.get(pid);
   const had = m && m.has(etapa);
   if(had){
@@ -1374,32 +1475,59 @@ async function opToggleFlag(td){
     if(error){ showToast('Erro: '+error.message); return; }
     m.delete(etapa); if(!m.size) OP.funil.delete(pid);
   } else {
-    const { data, error } = await sb.from('crm_funil').insert({ pessoa_id: pid, etapa }).select('id,pessoa_id,etapa,created_at,data_combinada').single();
+    const iso = ymd(date);
+    const { data, error } = await sb.from('crm_funil').insert({ pessoa_id: pid, etapa, data_combinada: iso }).select('id,pessoa_id,etapa,created_at,data_combinada').single();
     if(error){ showToast('Erro: '+error.message); return; }
     if(!m){ m = new Map(); OP.funil.set(pid, m); }
     m.set(etapa, data);
   }
   const p = OP.pessoas.find(x=>x.id===pid);
-  const tr = td.closest('tr');
-  tr.outerHTML = opRowHtml(p);
-  const sc = opStageCounts();
-  document.querySelectorAll('#op-table thead tr.g2 th').forEach((th,i)=>{ if(i>=2 && i<2+ETAPAS_FUNIL.length) th.querySelector('.cnt').textContent = sc[i-2]; });
+  const row = document.querySelector(`.op-row[data-pid="${pid}"]`);
+  if(row && p) row.outerHTML = opRowHtml(p);
+  const months = opMonthsInfo(), sm = opSummary(months);
+  const rowsHost = document.getElementById('op-sumrows');
+  if(rowsHost) rowsHost.innerHTML = ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], months)).join('') + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, months);
   opRenderKpis();
 }
 
 document.getElementById('view-operacao').addEventListener('click', (e)=>{
+  const pop = e.target.closest('#op-pop');
+  const lane = e.target.closest('.op-lane.funil');
+  if(lane){
+    const rect = lane.getBoundingClientRect();
+    const frac = (e.clientX - rect.left) / rect.width;
+    const date = new Date(OP.start.getTime() + frac * (opEnd() - OP.start));
+    date.setHours(0,0,0,0);
+    e.stopPropagation();
+    opShowPop(lane.dataset.pid, date, e.clientX, e.clientY);
+    return;
+  }
   const open = e.target.closest('[data-open]');
   if(open){ goToPersonView(open.dataset.open); return; }
-  const td = e.target.closest('td.fl');
-  if(td) opToggleFlag(td);
+  if(e.target.closest('#op-sumtoggle')){
+    OP.sumOpen = !OP.sumOpen;
+    document.getElementById('op-sumrows').style.display = OP.sumOpen ? 'block' : 'none';
+    document.getElementById('op-sumtoggle').textContent = (OP.sumOpen?'▾':'▸') + ' Resumo mensal — médicos por etapa do funil (situação ao fim de cada mês)';
+  }
 });
+document.getElementById('op-pop').addEventListener('click', (e)=>{
+  const b = e.target.closest('button[data-etapa]'); if(!b || !opPopCtx) return;
+  const ctx = opPopCtx; opHidePop();
+  opToggleStage(ctx.pid, b.dataset.etapa, ctx.date);
+});
+document.addEventListener('click', (e)=>{ if(!e.target.closest('#op-pop') && !e.target.closest('.op-lane.funil')) opHidePop(); });
 document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
+  opHidePop();
   const el = e.target;
-  if(el.scrollTop + el.clientHeight > el.scrollHeight - 400 && OP.shown < OP.filtered.length) opAppendRows();
+  if(el.scrollTop + el.clientHeight > el.scrollHeight - 500 && OP.shown < OP.filtered.length) opAppendRows();
 });
 let opSearchTimer = null;
-document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(opApplyFilters, 250); });
-['op-f-situacao','op-f-etapa','op-f-produto','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', opApplyFilters));
+document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
+['op-f-situacao','op-f-etapa','op-f-produto','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
+document.getElementById('btn-op-back').addEventListener('click', ()=> document.querySelector('.nav-btn[data-view="operacao"]').click());
+document.getElementById('op-prev').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()-1, OP.start.getMonth(), 1); opApplyFilters(true); });
+document.getElementById('op-next').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()+1, OP.start.getMonth(), 1); opApplyFilters(true); });
+document.getElementById('op-reset').addEventListener('click', ()=>{ OP.start = new Date(2026,9,1); opApplyFilters(true); });
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
