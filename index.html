@@ -360,8 +360,17 @@
 
     <div id="view-central" class="view">
       <div class="pg">
-        <div class="pg-head"><h2>Central de Apólices</h2><a href="#" id="ca-allest" style="font-size:12px;color:var(--brand);font-weight:600">ver todos os estudos</a><span class="sub" id="ca-count"></span><input id="ca-search" class="ca-inp" placeholder="Buscar cliente, seguradora ou nº..." style="margin-left:auto;max-width:280px"></div>
-        <div class="dz" id="ca-dz">📄 Arraste as apólices aqui (PDF ou foto) ou clique para anexar — o sistema lê, identifica o cliente e pergunta o que for preciso<input type="file" id="ca-file" multiple accept=".pdf,image/*" hidden></div>
+        <div class="pg-head"><h2>Central de Apólices</h2><span class="sub" id="ca-count"></span><a href="#" id="ca-allest" style="font-size:12px;color:var(--brand);font-weight:600">ver todos os estudos</a>
+          <span style="margin-left:auto;display:flex;gap:8px"><button class="om-cancel" id="ca-import">⬆ Importar planilha</button><button class="om-cancel" id="ca-export">⬇ Exportar CSV</button></span></div>
+        <div class="op-kpis" id="ca-kpis" style="margin:0 0 12px"></div>
+        <div class="op-filters" style="margin-bottom:12px">
+          <input id="ca-search" placeholder="Buscar cliente, CPF, seguradora, produto ou nº..." style="width:280px">
+          <select id="ca-f-status"><option value="">Todos os status</option><option value="ativa">Ativas</option><option value="vencida">Vencidas</option><option value="proposta">Proposta em análise</option><option value="aguardando_emissao">Aguardando emissão</option><option value="encerrada">Encerradas</option><option value="cancelada">Canceladas</option></select>
+          <select id="ca-f-seg"><option value="">Todas as seguradoras</option></select>
+          <select id="ca-f-prod"><option value="">Todos os produtos</option></select>
+          <select id="ca-f-venc"><option value="">Qualquer vencimento</option><option value="vencidas">Já vencidas</option><option value="30">Vencem em 30 dias</option><option value="60">Vencem em 60 dias</option><option value="90">Vencem em 90 dias</option></select>
+        </div>
+        <div class="dz" id="ca-dz">📄 Arraste apólices (PDF ou foto) aqui ou clique — o sistema lê, identifica o cliente e pergunta o que for preciso<input type="file" id="ca-file" multiple accept=".pdf,image/*" hidden></div>
         <div id="ca-list"></div>
       </div>
     </div>
@@ -505,6 +514,7 @@
   .ca-table{ width:100%; border-collapse:collapse; font-size:12.5px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden;}
   .ca-table th{ text-align:left; background:#f2f3f9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); padding:8px 10px;}
   .ca-table td{ padding:8px 10px; border-top:1px solid var(--border-soft); vertical-align:top;}
+  .ca-table th.sortable{ cursor:pointer;} .ca-table th.sortable:hover{ color:var(--brand);} .ca-row{ cursor:pointer;} .ca-row:hover td{ background:var(--brand-soft);}
   .ca-table a{ color:var(--brand); text-decoration:none; font-weight:600;}
   .tagx{ display:inline-block; background:var(--brand-soft); color:var(--brand); border-radius:999px; padding:1px 9px; font-size:11px; font-weight:600;}
   .tagx.warn{ background:var(--amber-soft); color:var(--amber-ink);} .tagx.bad{ background:var(--red-soft); color:var(--red);}
@@ -2020,25 +2030,217 @@ async function ncSave(){
   }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar cliente'; }
 }
 
-// ---------- CENTRAL DE APÓLICES ----------
-const CA_ORIGENS = {nova:'Nova (fechada por nós)', carteira:'Cliente cadastrado / carteira'};
-async function renderCentral(){
-  const host = document.getElementById('ca-list'); host.innerHTML = '<div class="op-more">Carregando apólices...</div>';
-  const { data, error } = await sb.from('crm_apolices').select('id,pessoa_id,numero_apolice,seguradora,tipo_seguro,data_emissao,data_vencimento,valor_premio,valor_cobertura,status,origem_apolice,arquivo_apolice,comissao_pct,crm_pessoas(nome)').order('created_at',{ascending:false}).limit(500);
-  if(error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(error.message)+'</div>'; return; }
+// ---------- CENTRAL DE APÓLICES = banco completo de apólices ----------
+const CA_ORIGENS = {nova:'Nova (fechada por nós)', carteira:'Carteira / cliente cadastrado', importada:'Importada'};
+const CA_STATUS = [['ativa','Ativa'],['proposta','Proposta em análise'],['aguardando_emissao','Aguardando emissão'],['encerrada','Encerrada'],['cancelada','Cancelada']];
+const CA = { data:[], filtered:[], shown:0, sort:{k:'data_vencimento', dir:1}, loaded:false };
+const CA_PAGE = 200;
+const caStatusLabel = (v)=> (CA_STATUS.find(s=>s[0]===v)||[0,v||'—'])[1];
+function caEfetivo(r){ // status efetivo considerando a vigência
+  if(r.status==='cancelada') return 'cancelada';
+  if(r.status==='ativa' && r.data_vencimento && new Date(r.data_vencimento) < new Date(new Date().toDateString())) return 'vencida';
+  return r.status||'ativa';
+}
+async function renderCentral(force){
+  const host = document.getElementById('ca-list');
+  if(CA.loaded && !force){ caApply(); return; }
+  host.innerHTML = '<div class="op-more">Carregando apólices...</div>';
+  try{
+    CA.data = await opFetchAll('crm_apolices','id,pessoa_id,numero_apolice,seguradora,tipo_seguro,data_emissao,data_vencimento,valor_premio,valor_cobertura,status,origem_apolice,tipo_contratacao,arquivo_apolice,comissao_pct,forma_pagamento,corretor_origem,observacoes,crm_pessoas(nome,cpf)',['id']);
+    CA.loaded = true;
+    const uniq = (k)=>[...new Set(CA.data.map(r=>r[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const fill = (id, label, vals)=>{ const el = document.getElementById(id); const cur = el.value; el.innerHTML = `<option value="">${label}</option>`+vals.map(v=>`<option>${escapeHtml(v)}</option>`).join(''); el.value = cur; };
+    fill('ca-f-seg','Todas as seguradoras', uniq('seguradora')); fill('ca-f-prod','Todos os produtos', uniq('tipo_seguro'));
+    caApply();
+  }catch(e){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(e.message||String(e))+'</div>'; }
+}
+function caApply(){
   const q = (document.getElementById('ca-search').value||'').toLowerCase();
-  const rows = (data||[]).filter(r=>!q || (r.crm_pessoas?.nome||'').toLowerCase().includes(q) || (r.seguradora||'').toLowerCase().includes(q) || (r.numero_apolice||'').toLowerCase().includes(q));
-  document.getElementById('ca-count').textContent = rows.length + ' apólice(s)';
-  host.innerHTML = rows.length ? `<table class="ca-table"><thead><tr><th>Cliente</th><th>Seguradora</th><th>Produto</th><th>Nº</th><th>Vigência</th><th>Prêmio</th><th>Origem</th><th></th></tr></thead><tbody>${rows.map(r=>{
-    const late = r.data_vencimento && new Date(r.data_vencimento) < new Date();
-    return `<tr><td><a href="#" data-openp="${r.pessoa_id}">${escapeHtml(r.crm_pessoas?.nome||'?')}</a></td><td>${escapeHtml(r.seguradora||'—')}</td><td>${escapeHtml(r.tipo_seguro||'—')}</td><td class="mono">${escapeHtml(r.numero_apolice||'—')}</td><td>${fmtDate(r.data_emissao)} → <span style="${late?'color:var(--red);font-weight:600':''}">${fmtDate(r.data_vencimento)}</span></td><td>${fmtMoney(r.valor_premio)}</td><td><span class="tagx">${escapeHtml(CA_ORIGENS[r.origem_apolice]||r.origem_apolice||'—')}</span></td><td>${r.arquivo_apolice?`<a href="#" data-file="${escapeHtml(r.arquivo_apolice)}">📎 abrir</a>`:''}</td></tr>`; }).join('')}</tbody></table>` : '<div class="op-more">Nenhuma apólice ainda. Arraste um PDF acima para começar.</div>';
-  host.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); goToPersonView(a.dataset.openp); }));
-  host.querySelectorAll('[data-file]').forEach(a=>a.addEventListener('click', async e=>{ e.preventDefault(); try{ window.open(await docsSignedUrl(a.dataset.file), '_blank'); }catch(x){ showToast('Erro: '+x.message); } }));
+  const fs = document.getElementById('ca-f-status').value, fseg = document.getElementById('ca-f-seg').value, fpr = document.getElementById('ca-f-prod').value, fv = document.getElementById('ca-f-venc').value;
+  const now = new Date(new Date().toDateString());
+  let rows = CA.data.filter(r=>{
+    if(q && !((r.crm_pessoas?.nome||'').toLowerCase().includes(q) || (r.seguradora||'').toLowerCase().includes(q) || (r.numero_apolice||'').toLowerCase().includes(q) || (r.tipo_seguro||'').toLowerCase().includes(q) || dOnly(r.crm_pessoas?.cpf).includes(dOnly(q)) && dOnly(q).length>=4)) return false;
+    if(fs && caEfetivo(r)!==fs) return false;
+    if(fseg && r.seguradora!==fseg) return false;
+    if(fpr && r.tipo_seguro!==fpr) return false;
+    if(fv){ if(!r.data_vencimento) return false; const dias = Math.round((new Date(r.data_vencimento)-now)/86400000); if(fv==='vencidas'){ if(dias>=0) return false; } else if(dias<0 || dias>parseInt(fv,10)) return false; }
+    return true;
+  });
+  const {k, dir} = CA.sort;
+  rows = rows.slice().sort((a,b)=>{ let x = k==='cliente' ? (a.crm_pessoas?.nome||'') : a[k], y = k==='cliente' ? (b.crm_pessoas?.nome||'') : b[k];
+    if(x==null||x==='') return 1; if(y==null||y==='') return -1; return (typeof x==='number' ? x-y : String(x).localeCompare(String(y),'pt-BR'))*dir; });
+  CA.filtered = rows; CA.shown = 0;
+  const ativas = CA.data.filter(r=>caEfetivo(r)==='ativa'), prem = ativas.reduce((t,r)=>t+(Number(r.valor_premio)||0),0);
+  const v60 = ativas.filter(r=>r.data_vencimento && (new Date(r.data_vencimento)-now)/86400000 <= 60).length;
+  document.getElementById('ca-kpis').innerHTML = `<span class="op-kpi"><b>${CA.data.length}</b> apólices no banco</span><span class="op-kpi"><b>${ativas.length}</b> ativas</span><span class="op-kpi">prêmio anual ativo <b>${fmtMoney(prem)}</b></span><span class="op-kpi" style="background:var(--amber-soft)"><b style="color:var(--amber-ink)">${v60}</b> vencem em até 60 dias</span><span class="op-kpi">exibindo <b>${rows.length}</b></span>`;
+  document.getElementById('ca-count').textContent = '';
+  const th = (key,label)=>`<th class="sortable" data-k="${key}">${label}${CA.sort.k===key?(CA.sort.dir>0?' ▲':' ▼'):''}</th>`;
+  document.getElementById('ca-list').innerHTML = rows.length ? `<table class="ca-table"><thead><tr>${th('cliente','Cliente')}${th('seguradora','Seguradora')}${th('tipo_seguro','Produto')}${th('numero_apolice','Nº')}${th('data_vencimento','Vigência')}${th('valor_premio','Prêmio anual')}${th('status','Status')}<th>Origem</th><th></th></tr></thead><tbody id="ca-body"></tbody></table><div class="op-more" id="ca-more"></div>` : '<div class="op-more">Nenhuma apólice encontrada. Arraste um PDF, ou use “Importar planilha” para carregar sua base.</div>';
+  caAppend();
+}
+function caAppend(){
+  const body = document.getElementById('ca-body'); if(!body) return;
+  const slice = CA.filtered.slice(CA.shown, CA.shown+CA_PAGE);
+  body.insertAdjacentHTML('beforeend', slice.map(r=>{
+    const ef = caEfetivo(r); const cls = ef==='vencida'||ef==='cancelada' ? 'bad' : (ef==='ativa'?'':'warn');
+    const dias = r.data_vencimento ? Math.round((new Date(r.data_vencimento)-new Date(new Date().toDateString()))/86400000) : null;
+    return `<tr class="ca-row" data-id="${r.id}"><td><a href="#" data-openp="${r.pessoa_id}">${escapeHtml(r.crm_pessoas?.nome||'?')}</a></td><td>${escapeHtml(r.seguradora||'—')}</td><td>${escapeHtml(r.tipo_seguro||'—')}</td><td class="mono">${escapeHtml(r.numero_apolice||'—')}</td><td>${fmtDate(r.data_emissao)||'—'} → <b>${fmtDate(r.data_vencimento)||'—'}</b>${dias!==null&&ef==='ativa'&&dias<=60?` <span class="tagx warn">${dias}d</span>`:''}</td><td>${fmtMoney(r.valor_premio)}</td><td><span class="tagx ${cls}">${ef==='vencida'?'Vencida':escapeHtml(caStatusLabel(ef))}</span></td><td><span class="tagx">${escapeHtml(CA_ORIGENS[r.origem_apolice]||r.origem_apolice||'—')}</span></td><td>${r.arquivo_apolice?'📎':''}</td></tr>`; }).join(''));
+  CA.shown += slice.length;
+  const more = document.getElementById('ca-more'); if(more) more.textContent = CA.shown < CA.filtered.length ? `Mostrando ${CA.shown} de ${CA.filtered.length} — role para carregar mais` : `Fim da lista (${CA.filtered.length})`;
+}
+document.getElementById('ca-list').addEventListener('click', e=>{
+  const th = e.target.closest('th.sortable');
+  if(th){ const k = th.dataset.k; CA.sort = {k, dir: CA.sort.k===k ? -CA.sort.dir : 1}; caApply(); return; }
+  const p = e.target.closest('[data-openp]'); if(p){ e.preventDefault(); goToPersonView(p.dataset.openp); return; }
+  const tr = e.target.closest('.ca-row'); if(tr) caEdit(tr.dataset.id);
+});
+document.querySelector('#view-central .pg').addEventListener('scroll', e=>{ const el = e.target; if(el.scrollTop + el.clientHeight > el.scrollHeight - 400 && CA.shown < CA.filtered.length) caAppend(); });
+['ca-f-status','ca-f-seg','ca-f-prod','ca-f-venc'].forEach(id=> document.getElementById(id).addEventListener('change', caApply));
+
+function caEdit(id){
+  const r = CA.data.find(x=>x.id===id); if(!r) return;
+  const box = dlgOpen(`<div class="om-title"><div><h3>${escapeHtml(r.crm_pessoas?.nome||'Apólice')}</h3><div class="om-sub">${escapeHtml(r.seguradora||'')} · ${escapeHtml(r.tipo_seguro||'')} — <a href="#" id="ce-openp" style="color:var(--brand);font-weight:600">abrir cadastro do cliente</a></div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="fgrid">
+      ${fld('ce-seg','Seguradora',r.seguradora)}${fld('ce-prod','Produto / tipo',r.tipo_seguro)}${fld('ce-num','Nº da apólice',r.numero_apolice)}
+      <label class="fl"><span>Contratação</span><select id="ce-contr"><option value="">—</option>${['Individual','Grupo','PJ / Empresarial'].map(o=>`<option ${r.tipo_contratacao===o?'selected':''}>${o}</option>`).join('')}</select></label>
+      ${fld('ce-ini','Início da vigência',r.data_emissao,'date')}${fld('ce-fim','Fim da vigência',r.data_vencimento,'date')}
+      ${fld('ce-prem','Prêmio anual (R$)',r.valor_premio==null?'':String(r.valor_premio),'number')}${fld('ce-cap','Capital / cobertura (R$)',r.valor_cobertura==null?'':String(r.valor_cobertura),'number')}
+      ${fld('ce-com','Comissão (%)',r.comissao_pct==null?'':String(r.comissao_pct),'number')}${fld('ce-pag','Forma de pagamento',r.forma_pagamento)}
+      ${fld('ce-vend','Quem vendeu / origem',r.corretor_origem,'text',true)}
+      <label class="fl"><span>Status</span><select id="ce-status">${CA_STATUS.map(s=>`<option value="${s[0]}" ${r.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
+      ${fld('ce-obs','Observações',r.observacoes,'text',true)}</div>
+      ${r.arquivo_apolice?`<div class="hint" style="margin-top:10px">📎 <a href="#" id="ce-file" style="color:var(--brand);font-weight:600">abrir arquivo da apólice</a></div>`:''}
+      <div class="om-err" id="ce-err"></div></div>
+    <div class="om-foot"><button class="om-cancel" id="ce-del" style="color:var(--red)">Excluir apólice</button><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ce-save">Salvar</button></div>`, true);
+  const g = i=>document.getElementById(i).value.trim(), n = i=> g(i)===''?null:Number(g(i));
+  box.querySelector('#ce-openp').addEventListener('click', ev=>{ ev.preventDefault(); dlgClose(); goToPersonView(r.pessoa_id); });
+  const fl = box.querySelector('#ce-file'); if(fl) fl.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(r.arquivo_apolice),'_blank'); }catch(x){ showToast('Erro: '+x.message); } });
+  box.querySelector('#ce-save').addEventListener('click', async ()=>{
+    const upd = { seguradora:g('ce-seg')||null, tipo_seguro:g('ce-prod')||null, numero_apolice:g('ce-num')||null, tipo_contratacao:g('ce-contr')||null, data_emissao:g('ce-ini')||null, data_vencimento:g('ce-fim')||null,
+      valor_premio:n('ce-prem'), valor_cobertura:n('ce-cap'), comissao_pct:n('ce-com'), forma_pagamento:g('ce-pag')||null, corretor_origem:g('ce-vend')||null, status:g('ce-status'), observacoes:g('ce-obs')||null };
+    const { error } = await sb.from('crm_apolices').update(upd).eq('id', id);
+    if(error){ document.getElementById('ce-err').textContent = 'Erro: '+error.message; return; }
+    Object.assign(r, upd); OP.dirty = true; CA.loaded = false; dlgClose(); showToast('Apólice atualizada'); caApply();
+  });
+  box.querySelector('#ce-del').addEventListener('click', async ()=>{
+    if(!confirm('Excluir esta apólice do banco? Esta ação não pode ser desfeita.')) return;
+    const { error } = await sb.from('crm_apolices').delete().eq('id', id);
+    if(error){ document.getElementById('ce-err').textContent = 'Erro: '+error.message; return; }
+    CA.data = CA.data.filter(x=>x.id!==id); OP.dirty = true; CA.loaded = false; dlgClose(); showToast('Apólice excluída'); caApply();
+  });
+}
+
+// ---- exportar CSV ----
+document.getElementById('ca-export').addEventListener('click', ()=>{
+  const cols = [['Cliente',r=>r.crm_pessoas?.nome],['CPF',r=>r.crm_pessoas?.cpf],['Seguradora',r=>r.seguradora],['Produto',r=>r.tipo_seguro],['Nº apólice',r=>r.numero_apolice],['Contratação',r=>r.tipo_contratacao],
+    ['Início',r=>r.data_emissao],['Fim',r=>r.data_vencimento],['Prêmio anual',r=>r.valor_premio],['Capital',r=>r.valor_cobertura],['Comissão %',r=>r.comissao_pct],['Pagamento',r=>r.forma_pagamento],['Vendedor/origem',r=>r.corretor_origem],['Status',r=>caEfetivo(r)],['Origem',r=>r.origem_apolice],['Observações',r=>r.observacoes]];
+  const esc = v=>{ const t = v==null?'':String(v); return /[;"\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
+  const csv = '﻿' + [cols.map(c=>c[0]).join(';')].concat(CA.filtered.map(r=>cols.map(c=>esc(c[1](r))).join(';'))).join('\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download = 'apolices-callmed-'+ymd(new Date())+'.csv'; a.click();
+});
+
+// ---- importar planilha (CSV / XLSX) ----
+const IMP_FIELDS = [
+  ['nome','Nome do cliente *',/nome|cliente|segurado|titular/i],['cpf','CPF',/cpf|documento/i],['seguradora','Seguradora *',/seguradora|cia|companhia/i],['produto','Produto / ramo *',/produto|ramo|tipo|modalidade|cobertura/i],
+  ['numero','Nº da apólice',/ap[oó]lice|n[úu]mero|numero|nº|proposta/i],['ini','Início da vigência',/in[ií]cio|emiss[ãa]o|vig[êe]ncia.*ini|data.*ini/i],['fim','Fim da vigência',/fim|venc|t[ée]rmino|vig[êe]ncia.*fim/i],
+  ['premio','Prêmio anual (R$)',/pr[êe]mio|valor/i],['capital','Capital / cobertura (R$)',/capital|import[âa]ncia|cobertura.*valor|segurad[oa]/i],['comissao','Comissão (%)',/comiss/i],['vendedor','Vendedor / origem',/vendedor|corretor|origem|indica/i],['status','Status',/status|situa[çc][ãa]o/i]];
+function impCsv(text){
+  const first = text.split('\n')[0]; const sep = (first.match(/;/g)||[]).length >= (first.match(/,/g)||[]).length ? ';' : ',';
+  const rows = []; let cur = [], cell = '', q = false;
+  for(let i=0;i<text.length;i++){ const c = text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){ cell+='"'; i++; } else q=false; } else cell+=c; }
+    else if(c==='"') q = true; else if(c===sep){ cur.push(cell); cell=''; } else if(c==='\n'){ cur.push(cell); rows.push(cur); cur=[]; cell=''; } else if(c!=='\r') cell+=c; }
+  if(cell!=='' || cur.length){ cur.push(cell); rows.push(cur); }
+  return rows.filter(r=>r.some(x=>String(x).trim()!==''));
+}
+function impMoney(v){ if(v==null||v==='') return null; if(typeof v==='number') return v; let t = String(v).replace(/[^\d.,-]/g,''); if(!t) return null;
+  if(t.includes(',') && t.includes('.')) t = t.replace(/\./g,'').replace(',','.'); else if(t.includes(',')) t = t.replace(',','.'); const n = parseFloat(t); return isNaN(n)?null:n; }
+function impDate(v){ if(!v) return null; const t = String(v).trim(); let m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/); if(m) return `${m[3]}-${m[2]}-${m[1]}`; m = t.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = t.match(/^(\d{2})\/(\d{2})\/(\d{2})$/); if(m) return `20${m[3]}-${m[2]}-${m[1]}`; return null; }
+function impStatus(v){ const t = String(v||'').toLowerCase(); if(/cancel/.test(t)) return 'cancelada'; if(/encerr|vencid/.test(t)) return 'encerrada'; if(/proposta|an[aá]lise/.test(t)) return 'proposta'; if(/aguard/.test(t)) return 'aguardando_emissao'; return 'ativa'; }
+let IMP = null;
+document.getElementById('ca-import').addEventListener('click', ()=>{
+  const box = dlgOpen(`<div class="om-title"><div><h3>Importar apólices de uma planilha</h3><div class="om-sub">CSV ou Excel (.xlsx). A primeira linha deve ter os títulos das colunas. O sistema cruza cada linha com os clientes já cadastrados (CPF e nome) para não duplicar.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="dz" id="imp-dz">📊 Arraste a planilha aqui ou clique para escolher<input type="file" id="imp-file" accept=".csv,.xlsx,.xls" hidden></div><div id="imp-step"></div></div>`, true);
+  const dz = box.querySelector('#imp-dz'), inp = box.querySelector('#imp-file');
+  dz.addEventListener('click', ()=>inp.click()); dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); }); dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); impLoad(e.dataTransfer.files[0]); }); inp.addEventListener('change', ()=>impLoad(inp.files[0]));
+});
+async function impLoad(file){
+  if(!file) return; const step = document.getElementById('imp-step'); step.innerHTML = '<div class="op-more">⏳ Lendo planilha...</div>';
+  try{
+    let rows;
+    if(/\.xlsx?$/i.test(file.name)){
+      await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const wb = XLSX.read(await file.arrayBuffer(), {type:'array', cellDates:false}); const ws = wb.Sheets[wb.SheetNames[0]];
+      rows = XLSX.utils.sheet_to_json(ws, {header:1, raw:false, dateNF:'dd/mm/yyyy', defval:''}).filter(r=>r.some(x=>String(x).trim()!==''));
+    } else rows = impCsv(await file.text());
+    if(rows.length<2) throw new Error('A planilha precisa ter título e ao menos uma linha de dados.');
+    const heads = rows[0].map(h=>String(h||'').trim());
+    IMP = { file:file.name, heads, rows:rows.slice(1), map:{} };
+    IMP_FIELDS.forEach(([k,,re])=>{ const i = heads.findIndex(h=>re.test(h)); IMP.map[k] = i; });
+    step.innerHTML = `<div class="hint">Arquivo: <b>${escapeHtml(file.name)}</b> — ${IMP.rows.length} linhas. Confira quais colunas correspondem a cada campo:</div><div class="fgrid" style="margin-top:10px">${IMP_FIELDS.map(([k,l])=>`<label class="fl"><span>${l}</span><select data-imp="${k}"><option value="-1">— não importar —</option>${heads.map((h,i)=>`<option value="${i}" ${IMP.map[k]===i?'selected':''}>${escapeHtml(h||('coluna '+(i+1)))}</option>`).join('')}</select></label>`).join('')}
+      <label class="fl"><span>Perfil dos clientes novos</span><select id="imp-tipo">${tipoOptions('medico')}</select></label></div>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" id="imp-sim" checked> Nome parecido: vincular ao cadastro existente (recomendado)</label>
+      <div style="margin-top:12px"><button class="om-save" id="imp-prev">Conferir antes de importar</button></div><div id="imp-result"></div>`;
+    step.querySelector('#imp-prev').addEventListener('click', impPreview);
+  }catch(e){ step.innerHTML = '<div class="om-err">Erro: '+escapeHtml(e.message||e)+'</div>'; }
+}
+async function impPreview(){
+  document.querySelectorAll('[data-imp]').forEach(s=>{ IMP.map[s.dataset.imp] = parseInt(s.value,10); });
+  const res = document.getElementById('imp-result');
+  if(IMP.map.nome<0 || IMP.map.seguradora<0 || IMP.map.produto<0){ res.innerHTML = '<div class="om-err">Mapeie ao menos: nome do cliente, seguradora e produto.</div>'; return; }
+  res.innerHTML = '<div class="op-more">⏳ Cruzando com os cadastros...</div>';
+  await ensurePessoas(); const vincSim = document.getElementById('imp-sim').checked;
+  const cell = (r,k)=> IMP.map[k]>=0 ? r[IMP.map[k]] : '';
+  const cache = new Map(), items = []; let novos = new Map(), vinc = 0, sim = 0;
+  const existing = new Set((await opFetchAll('crm_apolices','pessoa_id,numero_apolice,seguradora,tipo_seguro,data_emissao',['id'])).map(a=>[a.pessoa_id,a.seguradora,a.numero_apolice||a.tipo_seguro+'|'+a.data_emissao].join('#').toLowerCase()));
+  let dupApo = 0, invalidas = 0;
+  for(const r of IMP.rows){
+    const nome = String(cell(r,'nome')||'').trim(), cpf = String(cell(r,'cpf')||'').trim(), seg = String(cell(r,'seguradora')||'').trim(), prod = String(cell(r,'produto')||'').trim();
+    if(!nome || !seg || !prod){ invalidas++; continue; }
+    const key = (dOnly(cpf).length===11 ? dOnly(cpf) : normNome(nome).join(' '));
+    let pes = cache.get(key);
+    if(pes===undefined){
+      const found = await findPessoas({cpf, nome}); const forte = found.find(isStrong), fraco = found.find(x=>!isStrong(x));
+      if(forte){ pes = {id:forte.id, nome:forte.nome}; vinc++; } else if(fraco && vincSim){ pes = {id:fraco.id, nome:fraco.nome, similar:true}; sim++; } else { pes = {novo:key, nome, cpf}; novos.set(key, pes); }
+      cache.set(key, pes);
+    }
+    const num = String(cell(r,'numero')||'').trim(), ini = impDate(cell(r,'ini'));
+    if(pes.id && existing.has([pes.id,seg,num||prod+'|'+ini].join('#').toLowerCase())){ dupApo++; continue; }
+    items.push({pes, seg, prod, num, ini, fim:impDate(cell(r,'fim')), premio:impMoney(cell(r,'premio')), capital:impMoney(cell(r,'capital')), comissao:impMoney(cell(r,'comissao')), vendedor:String(cell(r,'vendedor')||'').trim(), status:impStatus(cell(r,'status'))});
+  }
+  IMP.items = items; IMP.novos = novos;
+  res.innerHTML = `<div class="reco" style="margin-top:12px"><b>Resultado da conferência</b><br>• ${items.length} apólices prontas para importar<br>• ${vinc} cliente(s) já cadastrados (CPF/nome idêntico) — apólices ligadas a eles${sim?`<br>• ${sim} cliente(s) com nome parecido vinculados ao cadastro existente`:''}<br>• <b>${novos.size}</b> cliente(s) novo(s) serão cadastrados${dupApo?`<br>• ${dupApo} apólice(s) já existiam no banco (ignoradas)`:''}${invalidas?`<br>• ${invalidas} linha(s) sem nome, seguradora ou produto (ignoradas)`:''}</div>
+    ${items.length?`<div style="margin-top:10px"><button class="om-save" id="imp-go">Importar ${items.length} apólices</button></div>`:''}<div class="om-err" id="imp-err"></div>`;
+  const go = document.getElementById('imp-go'); if(go) go.addEventListener('click', impRun);
+}
+async function impRun(){
+  const btn = document.getElementById('imp-go'); btn.disabled = true; const err = document.getElementById('imp-err');
+  try{
+    const tipo = document.getElementById('imp-tipo').value; let feitos = 0;
+    const novos = [...IMP.novos.values()].filter(n=>!n.id);
+    for(let i=0;i<novos.length;i+=100){
+      btn.textContent = `Cadastrando clientes ${Math.min(i+100,novos.length)}/${novos.length}...`;
+      const chunk = novos.slice(i,i+100);
+      const { data, error } = await sb.from('crm_pessoas').insert(chunk.map(n=>{ const r = {nome:n.nome, tipo}; if(n.cpf) r.cpf = n.cpf; return r; })).select('id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026');
+      if(error) throw error;
+      data.forEach((d,j)=>{ chunk[j].id = d.id; OP.pessoas.push(d); });
+    }
+    OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    const rows = IMP.items.map(it=>({ pessoa_id: it.pes.id, numero_apolice:it.num||null, seguradora:it.seg, tipo_seguro:it.prod, data_emissao:it.ini, data_vencimento:it.fim, valor_premio:it.premio, valor_cobertura:it.capital,
+      status:it.status, comissao_pct:it.comissao, corretor_origem:it.vendedor||null, origem_apolice:'importada', dados_extraidos:{importado_de:IMP.file} }));
+    for(let i=0;i<rows.length;i+=200){
+      btn.textContent = `Importando apólices ${Math.min(i+200,rows.length)}/${rows.length}...`;
+      const { error } = await sb.from('crm_apolices').insert(rows.slice(i,i+200)); if(error) throw error; feitos += Math.min(200, rows.length-i);
+    }
+    OP.dirty = true; CA.loaded = false; dlgClose(); showToast(`${feitos} apólices importadas`); renderCentral(true);
+  }catch(e){ err.textContent = 'Erro durante a importação: '+(e.message||e)+' (parte dos dados pode já ter sido gravada — reabra a Central e confira).'; btn.disabled = false; btn.textContent = 'Tentar novamente'; }
 }
 let caQueue = [];
 function caEnqueue(files){ caQueue = caQueue.concat(files); if(!document.getElementById('dlg') || document.getElementById('dlg').style.display!=='flex') caNext(); }
 async function caNext(){
-  const file = caQueue.shift(); if(!file){ window._caFixed = null; renderCentral(); return; }
+  const file = caQueue.shift(); if(!file){ window._caFixed = null; renderCentral(true); return; }
   const box = dlgOpen(`<div class="om-title"><div><h3>Lendo ${escapeHtml(file.name)}...</h3><div class="om-sub">Extraindo texto e identificando os dados da apólice.</div></div></div><div class="dlg-body"><div class="op-more">⏳ Aguarde...</div></div>`, true);
   let f = {};
   try{ f = await docsRead(file); }catch(e){ f = {_erro:e.message}; }
@@ -2141,9 +2343,9 @@ async function caSave(file, f){
       corretor_origem:g('ca-vend')||null, coberturas:covs, dados_extraidos:f }).select('id').single();
     if(error) throw error;
     await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
-    OP.dirty = true;
+    OP.dirty = true; CA.loaded = false;
     window._dlgOnClose = null; dlgClose(); showToast(sel==='novo' ? 'Apólice salva e novo cliente cadastrado' : 'Apólice associada ao cliente');
-    if(caQueue.length) caNext(); else { const fx = window._caFixed; window._caFixed = null; if(fx) goToPersonView(fx.id); else renderCentral(); }
+    if(caQueue.length) caNext(); else { const fx = window._caFixed; window._caFixed = null; if(fx) goToPersonView(fx.id); else renderCentral(true); }
   }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar apólice'; }
 }
 (function(){
@@ -2153,7 +2355,7 @@ async function caSave(file, f){
   dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
   dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); caEnqueue([...e.dataTransfer.files]); });
   inp.addEventListener('change', ()=>{ caEnqueue([...inp.files]); inp.value=''; });
-  let t; document.getElementById('ca-search').addEventListener('input', ()=>{ clearTimeout(t); t = setTimeout(renderCentral, 250); });
+  let t; document.getElementById('ca-search').addEventListener('input', ()=>{ clearTimeout(t); t = setTimeout(caApply, 250); });
 })();
 
 // ---------- ESTUDO (comparativo com nossas seguradoras) ----------
