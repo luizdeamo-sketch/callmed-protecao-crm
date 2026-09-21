@@ -181,7 +181,7 @@
     <div class="field"><label>Email</label><input id="login-email" type="email" autocomplete="username"></div>
     <div class="field"><label>Senha</label><input id="login-pass" type="password" autocomplete="current-password"></div>
     <button class="btn btn-primary" id="btn-login">Entrar</button>
-    <button class="btn-ghost" id="btn-toggle-signup" type="button">Primeira vez? Criar conta</button>
+    <button class="btn-ghost" id="btn-toggle-signup" style="display:none" type="button">Primeira vez? Criar conta</button>
     <button class="btn-ghost" id="btn-forgot" type="button">Esqueci minha senha</button>
     <div class="err" id="login-err"></div>
   </div>
@@ -200,12 +200,13 @@
 <div id="app">
   <header>
     <div class="brand"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><span class="dot"></span></div>
-    <div class="who"><span id="who-email"></span><button id="btn-logout">Sair</button></div>
+    <div class="who"><span id="who-email"></span><button id="btn-backup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btn-logout">Sair</button></div>
   </header>
 
   <nav id="rail">
     <button class="nav-btn active" data-view="operacao">🧭<span>Aliança</span></button>
     <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
+    <button class="nav-btn" data-view="indicadores" title="Indicadores do funil e da produção">📊<span>Indicadores</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
     <button class="nav-btn" data-view="sugestoes" title="Sugestões de melhoria do sistema">💡<span>Sugestões</span></button>
@@ -298,8 +299,17 @@
       </div>
     </div>
 
+    <div id="view-indicadores" class="view">
+      <div class="pg">
+        <div class="pg-head"><h2>📊 Indicadores</h2><span class="sub">Funil contra as metas, tempo parado, produção CallMed e oportunidades.</span>
+          <span style="margin-left:auto;display:flex;gap:8px"><select id="ind-periodo" class="ca-inp" style="width:170px"><option value="semana">Esta semana</option><option value="mes" selected>Este mês</option><option value="30d">Últimos 30 dias</option><option value="tri">Últimos 3 meses</option><option value="tudo">Todo o período</option></select><button class="om-cancel" id="ind-metas">⚙ Metas</button></span></div>
+        <div id="ind-body"><div class="op-more">Carregando...</div></div>
+      </div>
+    </div>
+
     <div id="view-conhecimento" class="view" style="overflow-y:auto; padding:26px 32px;">
-      <h2 style="margin-bottom:18px;">📚 Base de Conhecimento</h2>
+      <h2 style="margin-bottom:6px;">📚 Base de Conhecimento — manual comercial</h2>
+      <div class="op-filters" style="margin-bottom:14px;max-width:700px"><input id="kb-search" placeholder="Buscar script, objeção, playbook..." style="flex:1;width:auto"><select id="kb-cat"><option value="">Todas as categorias</option></select></div>
       <form class="add-form" id="conhecimento-form" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:20px; max-width:700px;">
         <input name="titulo" placeholder="Título" required>
         <input name="categoria" placeholder="Categoria (ex.: objeção, script)">
@@ -551,6 +561,12 @@
   .pv-next{ display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; background:var(--brand-soft); border:1px solid #c9cff0; border-radius:var(--radius-md); padding:10px 14px; margin-top:12px; font-size:13px;}
   .pv-next.late{ background:var(--red-soft); border-color:var(--red-line);} .pv-next.none{ background:var(--amber-soft); border-color:var(--amber-line);}
   .pv-next button{ margin-left:6px;} .lead-txt{ font-size:13.5px; line-height:1.55; margin-bottom:6px;}
+  .ind-kpis{ display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:14px;} @media (max-width:1000px){ .ind-kpis{ grid-template-columns:repeat(2,1fr);} }
+  .ind-k{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; display:flex; flex-direction:column; gap:2px;}
+  .ind-k span{ font-size:11px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; color:var(--ink-faint); letter-spacing:.05em;} .ind-k b{ font-family:'Poppins',sans-serif; font-size:1.35rem;} .ind-k small{ color:var(--ink-faint); font-size:11.5px;}
+  .ind-bar{ height:7px; background:#eceef6; border-radius:99px; overflow:hidden; margin-top:4px;} .ind-bar div{ height:100%; border-radius:99px;}
+  .ind-line{ display:flex; align-items:center; gap:10px; margin:5px 0; font-size:12.5px;} .ind-line span{ width:56px; color:var(--ink-soft);} .ind-line .ind-bar{ flex:1; margin:0;} .ind-line small{ color:var(--ink-faint); width:90px; text-align:right;}
+  #btn-backup{ border:1px solid var(--border); background:var(--surface); border-radius:var(--radius-sm); padding:6px 12px; font-size:12px; margin-right:8px;} #btn-backup:hover{ background:var(--brand-soft);}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -677,7 +693,8 @@ async function checkSession(){ const { data } = await sb.auth.getSession(); if(d
 function boot(){
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
-  sb.auth.getUser().then(({data})=>{ document.getElementById('who-email').textContent = data.user ? data.user.email : ''; });
+  sb.auth.getUser().then(({data})=>{ window._userEmail = data.user ? data.user.email : ''; document.getElementById('who-email').textContent = window._userEmail; ensureUserName(data.user); });
+  backupReminder();
   document.getElementById('ics-url').value = `${SUPABASE_URL}/functions/v1/agenda-ics?token=${ICS_TOKEN}`;
   renderCalendar();
   renderOperacao();
@@ -692,6 +709,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     if(btn.dataset.view === 'operacao') renderOperacao();
     if(btn.dataset.view === 'central') renderCentral();
+    if(btn.dataset.view === 'indicadores') renderIndicadores();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'agenda') renderCalendar();
     if(btn.dataset.view === 'conhecimento') renderConhecimento();
@@ -870,7 +888,7 @@ function pvRender(){
   view.innerHTML = `<div class="person-header"><div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn-ghost" id="btn-op-back">← Aliança</button><h2 style="margin:0">${escapeHtml(p.nome)}</h2></div>
       <div class="tags" style="margin-top:8px"><span class="tag">${TIPOS_PESSOA[p.tipo||'medico']||p.tipo}</span>${p.crm?`<span class="tag">CRM ${escapeHtml(p.crm)}</span>`:''}${p.especialidade?`<span class="tag">${escapeHtml(p.especialidade)}</span>`:''}${pvClassChip(p)}${(p.tags||[]).map(t=>`<span class="tag">🏷 ${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button>${wa?`<a class="om-cancel" style="text-decoration:none" href="${wa}" target="_blank" rel="noopener">💬 WhatsApp</a>`:''}</div>
+      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button>${wa?`<button class="om-cancel" id="pa-wa">💬 WhatsApp com script</button>`:''}</div>
       <div id="pv-next">${pvNextHtml(p)}</div>
     </div></div>
     <div class="pv-tabs">${PV_TABS.map(([k,l])=>`<button class="pv-tab${PV.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
@@ -1257,13 +1275,6 @@ const ETAPAS_FUNIL = [
 ];
 
 // ---------- BASE DE CONHECIMENTO ----------
-async function renderConhecimento(){
-  const { data, error } = await sb.from('crm_base_conhecimento').select('*').order('created_at',{ascending:false});
-  const el = document.getElementById('conhecimento-list');
-  if(error){ el.textContent = 'Erro: '+error.message; return; }
-  el.innerHTML = (data||[]).length===0 ? '<div class="no-rec">Nada cadastrado ainda.</div>' : data.map(k=>`
-    <div class="kb-card"><div class="cat">${escapeHtml(k.categoria||'geral')}</div><h4>${escapeHtml(k.titulo)}</h4><p>${escapeHtml(k.conteudo||'')}</p></div>`).join('');
-}
 document.getElementById('conhecimento-form').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const fd = new FormData(e.target);
@@ -3066,6 +3077,189 @@ async function opCallHotDialog(){
 }
 document.getElementById('op-hoje').addEventListener('click', ()=>opHojeDialog(false));
 document.getElementById('op-callhot').addEventListener('click', opCallHotDialog);
+
+// ---------- INDICADORES ----------
+const METAS_LBL = {contatos_semana:'Contatos por semana',conv_atendimento:'Meta: atendimentos (por 100 contatos)',conv_agendamento:'Meta: agendamentos (por 100)',conv_reuniao:'Meta: reuniões (por 100)',conv_proposta:'Meta: propostas (por 100)',conv_fechamento:'Meta: fechamentos (por 100)',meta_planos_mes:'Meta de apólices novas por mês',ticket_medio:'Ticket médio previsto (R$)',premio_mensal_meta:'Meta de prêmio mensalizado novo (R$/mês)'};
+const IND = { periodo:'mes' };
+function indRange(p){
+  const n = todayD(); let a = new Date(n);
+  if(p==='semana'){ const dow = (n.getDay()+6)%7; a = new Date(n.getTime()-dow*86400000); }
+  else if(p==='mes'){ a = new Date(n.getFullYear(), n.getMonth(), 1); }
+  else if(p==='30d'){ a = new Date(n.getTime()-30*86400000); }
+  else if(p==='tri'){ a = new Date(n.getFullYear(), n.getMonth()-2, 1); }
+  else a = new Date(2000,0,1);
+  return {a, b:new Date(n.getTime()+86400000)};
+}
+const bar = (pct, color)=>`<div class="ind-bar"><div style="width:${Math.max(0,Math.min(100,pct))}%;background:${color||'var(--brand)'}"></div></div>`;
+async function renderIndicadores(){
+  const host = document.getElementById('ind-body'); host.innerHTML = '<div class="op-more">Calculando indicadores...</div>';
+  try{
+    const since = new Date(Date.now()-120*86400000).toISOString();
+    const [metasR, fun, apo, opp, ativ] = await Promise.all([
+      sb.from('crm_metas').select('*'),
+      opFetchAll('crm_funil','pessoa_id,etapa,data_inicio,data_combinada,created_at',['id']),
+      opFetchAll('crm_apolices','id,pessoa_id,tipo_seguro,valor_premio,status,origem_apolice,vinculo_comercial,corretor_origem,data_emissao,data_vencimento,created_at',['id']),
+      opFetchAll('crm_oportunidades','id,pessoa_id,produto,etapa,status,motivo_perda,premio_previsto,responsavel,created_at,fechada_em',['id']),
+      sb.from('crm_atividades').select('data_hora,responsavel,tipo').gte('data_hora', since)]);
+    const M = {}; (metasR.data||[]).forEach(m=>M[m.chave]=Number(m.valor)); IND.metas = M;
+    const {a, b} = indRange(IND.periodo);
+    const dOf = r=> opD(r.data_inicio || r.data_combinada || r.created_at);
+    // 1) funil x metas
+    const porEtapa = {}; ETAPAS_FUNIL.forEach(e=>porEtapa[e.key]=new Set());
+    fun.forEach(r=>{ const d = dOf(r); if(d && d>=a && d<b && porEtapa[r.etapa]) porEtapa[r.etapa].add(r.pessoa_id); });
+    const base = porEtapa.contato.size;
+    const metaKey = {atendimento:'conv_atendimento',agendamento:'conv_agendamento',reuniao:'conv_reuniao',proposta:'conv_proposta',fechamento:'conv_fechamento'};
+    const funilRows = ETAPAS_FUNIL.map(e=>{ const n = porEtapa[e.key].size; const taxa = base ? n/base*100 : null; const meta = metaKey[e.key] ? M[metaKey[e.key]] : null;
+      return `<tr><td><b>${e.label}</b></td><td>${n}</td><td>${e.key==='contato'?'—':(taxa===null?'—':taxa.toFixed(0)+'%')}</td><td>${meta!=null?meta+'%':'—'}</td><td>${meta!=null && taxa!==null?`<span class="tagx ${taxa>=meta?'':'warn'}">${taxa>=meta?'✔ na meta':'abaixo '+(meta-taxa).toFixed(0)+' pp'}</span>`:'—'}</td><td style="width:180px">${taxa!==null?bar(taxa, meta!=null&&taxa<meta?'var(--amber)':'var(--brand)'):''}</td></tr>`; }).join('');
+    // 2) tempo parado por etapa (situação atual)
+    const byP = new Map(); fun.forEach(r=>{ if(!byP.has(r.pessoa_id)) byP.set(r.pessoa_id,[]); byP.get(r.pessoa_id).push({e:r.etapa, d:dOf(r), i:ETAPAS_FUNIL.findIndex(x=>x.key===r.etapa)}); });
+    const stuck = ETAPAS_FUNIL.map(()=>[]); const now0 = todayD();
+    byP.forEach((list,pid)=>{ list.sort((x,y)=>x.d-y.d||x.i-y.i); const last = list[list.length-1]; if(!last||!last.d) return; if(opIsCliente && OP.loaded && opIsCliente(pid)) return; stuck[last.i].push({pid, dias:Math.round((now0-last.d)/DAY)}); });
+    const stuckRows = ETAPAS_FUNIL.map((e,i)=>{ const l = stuck[i]; const avg = l.length ? Math.round(l.reduce((t,x)=>t+x.dias,0)/l.length) : null; const mx = l.length ? Math.max(...l.map(x=>x.dias)) : null;
+      return `<tr><td><b>${e.label}</b></td><td>${l.length}</td><td>${avg===null?'—':avg+' dias'}</td><td>${mx===null?'—':mx+' dias'}</td></tr>`; }).join('');
+    const worst = stuck.flatMap((l,i)=>l.map(x=>({...x, i}))).sort((x,y)=>y.dias-x.dias).slice(0,8);
+    // 3) produção CallMed (apólices novas)
+    const vendas = apo.filter(r=>r.origem_apolice==='nova' && r.vinculo_comercial==='CallMed' && r.status!=='cancelada');
+    const vd = r=> opD(r.data_emissao || String(r.created_at).slice(0,10));
+    const meses = []; for(let k=5;k>=0;k--){ const s0 = new Date(now0.getFullYear(), now0.getMonth()-k, 1), e0 = new Date(now0.getFullYear(), now0.getMonth()-k+1, 1);
+      const l = vendas.filter(r=>{ const d = vd(r); return d>=s0 && d<e0; }); meses.push({s0, n:l.length, prem:l.reduce((t,r)=>t+(Number(r.valor_premio)||0),0)}); }
+    const mesAtual = meses[meses.length-1]; const maxN = Math.max(1, ...meses.map(m=>m.n));
+    const periodoVendas = vendas.filter(r=>{ const d = vd(r); return d>=a && d<b; });
+    const porProd = {}, porResp = {}; periodoVendas.forEach(r=>{ porProd[r.tipo_seguro||'—'] = (porProd[r.tipo_seguro||'—']||0)+1; const k = r.corretor_origem||'—'; porResp[k] = (porResp[k]||0)+1; });
+    // 4) oportunidades
+    const ganhas = opp.filter(o=>o.status==='ganha').length, perdidas = opp.filter(o=>o.status==='perdida').length, abertas = opp.filter(o=>o.status==='aberta');
+    const mot = {}; opp.filter(o=>o.status==='perdida'||o.status==='pausada').forEach(o=>{ mot[o.motivo_perda||'—'] = (mot[o.motivo_perda||'—']||0)+1; });
+    const motRows = Object.entries(mot).sort((x,y)=>y[1]-x[1]);
+    const oppProd = {}; opp.forEach(o=>{ const k = o.produto; oppProd[k] = oppProd[k]||{a:0,g:0,p:0}; if(o.status==='aberta') oppProd[k].a++; if(o.status==='ganha') oppProd[k].g++; if(o.status==='perdida') oppProd[k].p++; });
+    const pipe = abertas.reduce((t,o)=>t+(Number(o.premio_previsto)||0),0);
+    // 5) renovações
+    const ren = apo.filter(r=>r.status!=='cancelada' && r.data_vencimento).map(r=>({r, dd:daysTo(String(r.data_vencimento).slice(0,10))})).filter(x=>x.dd!==null);
+    const r30 = ren.filter(x=>x.dd>=0&&x.dd<=30).length, r60 = ren.filter(x=>x.dd>30&&x.dd<=60).length, venc = ren.filter(x=>x.dd<0 && x.r.status==='ativa').length;
+    // 6) atividades por responsável (semana)
+    const sem = indRange('semana'); const atv = {}; (ativ.data||[]).forEach(x=>{ const d = new Date(x.data_hora); if(d>=sem.a && d<sem.b){ const k = x.responsavel||'—'; atv[k] = (atv[k]||0)+1; } });
+    const atvTot = Object.values(atv).reduce((t,v)=>t+v,0);
+    host.innerHTML = `
+      <div class="ind-kpis">
+        <div class="ind-k"><span>Apólices novas no mês</span><b>${mesAtual.n}</b><small>meta ${M.meta_planos_mes||'—'}</small>${bar(M.meta_planos_mes?mesAtual.n/M.meta_planos_mes*100:0,'var(--green)')}</div>
+        <div class="ind-k"><span>Prêmio novo no mês</span><b>${fmtMoney(mesAtual.prem)}</b><small>meta ${fmtMoney(M.premio_mensal_meta)}</small>${bar(M.premio_mensal_meta?mesAtual.prem/M.premio_mensal_meta*100:0,'var(--green)')}</div>
+        <div class="ind-k"><span>Contatos na semana</span><b>${atvTot}</b><small>meta ${M.contatos_semana||'—'}</small>${bar(M.contatos_semana?atvTot/M.contatos_semana*100:0)}</div>
+        <div class="ind-k"><span>Pipeline aberto</span><b>${fmtMoney(pipe)}</b><small>${abertas.length} oportunidades</small></div>
+        <div class="ind-k"><span>Renovações 30 / 60 dias</span><b>${r30} / ${r60}</b><small>${venc} vencida(s) ativa(s)</small></div>
+      </div>
+      <div class="pv-grid">
+        <div class="es-box"><div class="ql">Funil × metas <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">(pessoas que entraram em cada etapa no período)</small></div>
+          <table class="ca-table"><thead><tr><th>Etapa</th><th>Pessoas</th><th>Taxa s/ contatos</th><th>Meta</th><th>Situação</th><th></th></tr></thead><tbody>${funilRows}</tbody></table></div>
+        <div class="es-box"><div class="ql">Tempo parado por etapa <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">(leads hoje em cada etapa)</small></div>
+          <table class="ca-table"><thead><tr><th>Etapa</th><th>Leads</th><th>Média parado</th><th>Maior</th></tr></thead><tbody>${stuckRows}</tbody></table>
+          ${worst.length?`<div class="ql" style="margin-top:10px">Mais tempo parados</div>${worst.map(w=>{ const p = OP.pessoas.find(x=>x.id===w.pid); return p?`<div class="rec"><a href="#" data-openp="${p.id}" style="font-weight:600;color:var(--brand)">${escapeHtml(p.nome)}</a> <small>· ${ETAPAS_FUNIL[w.i].label}</small><span style="float:right" class="tagx ${w.dias>14?'bad':'warn'}">${w.dias}d</span></div>`:''; }).join('')}`:''}</div>
+      </div>
+      <div class="pv-grid">
+        <div class="es-box"><div class="ql">Produção CallMed — novas apólices (6 meses)</div>
+          ${meses.map(m=>`<div class="ind-line"><span>${OP_MESES[m.s0.getMonth()]}/${String(m.s0.getFullYear()).slice(2)}</span>${bar(m.n/maxN*100,'var(--green)')}<b>${m.n}</b><small>${fmtMoney(m.prem)}</small></div>`).join('')}
+          <div class="hint">Só conta apólice “Nova CallMed” com vínculo CallMed. Apólice existente/importada não é venda.</div>
+          <div class="ql" style="margin-top:10px">No período selecionado</div>
+          <div>${Object.entries(porProd).map(([k,v])=>`<span class="tagx" style="margin:2px">${escapeHtml(k)}: ${v}</span>`).join('')||'<span class="hint">Sem vendas no período.</span>'}</div>
+          <div style="margin-top:6px">${Object.entries(porResp).map(([k,v])=>`<span class="tagx" style="margin:2px;background:var(--green-soft);color:var(--green)">${escapeHtml(k)}: ${v}</span>`).join('')}</div></div>
+        <div class="es-box"><div class="ql">Oportunidades</div>
+          <div class="ind-kpis" style="grid-template-columns:repeat(3,1fr);margin:0 0 10px"><div class="ind-k"><span>Ganhas</span><b>${ganhas}</b></div><div class="ind-k"><span>Perdidas</span><b>${perdidas}</b></div><div class="ind-k"><span>Conversão</span><b>${ganhas+perdidas?Math.round(ganhas/(ganhas+perdidas)*100)+'%':'—'}</b></div></div>
+          <table class="ca-table"><thead><tr><th>Produto</th><th>Abertas</th><th>Ganhas</th><th>Perdidas</th></tr></thead><tbody>${Object.entries(oppProd).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${v.a}</td><td>${v.g}</td><td>${v.p}</td></tr>`).join('')||'<tr><td colspan="4">Sem oportunidades ainda.</td></tr>'}</tbody></table>
+          ${motRows.length?`<div class="ql" style="margin-top:10px">Motivos de perda / pausa</div>${motRows.map(([k,v])=>`<div class="ind-line"><span style="width:190px">${escapeHtml(k)}</span>${bar(v/motRows[0][1]*100,'var(--red)')}<b>${v}</b></div>`).join('')}`:''}</div>
+      </div>`;
+    host.querySelectorAll('[data-openp]').forEach(x=>x.addEventListener('click', e=>{ e.preventDefault(); goToPersonView(x.dataset.openp); }));
+  }catch(e){ host.innerHTML = '<div class="om-err">Erro ao calcular: '+escapeHtml(e.message||String(e))+'</div>'; }
+}
+document.getElementById('ind-periodo').addEventListener('change', e=>{ IND.periodo = e.target.value; renderIndicadores(); });
+document.getElementById('ind-metas').addEventListener('click', async ()=>{
+  const { data } = await sb.from('crm_metas').select('*'); const M = {}; (data||[]).forEach(m=>M[m.chave]=m.valor);
+  const box = dlgOpen(`<div class="om-title"><div><h3>Metas do funil e da produção</h3><div class="om-sub">Outubro é ciclo de validação — ajuste conforme aprender.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="fgrid">${Object.entries(METAS_LBL).map(([k,l])=>fld('mt-'+k,l,M[k]==null?'':String(M[k]),'number')).join('')}</div><div class="om-err" id="mt-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="mt-save">Salvar metas</button></div>`);
+  box.querySelector('#mt-save').addEventListener('click', async ()=>{
+    const rows = Object.keys(METAS_LBL).map(k=>({chave:k, valor:Number(document.getElementById('mt-'+k).value)||0, atualizado_em:new Date().toISOString()}));
+    const { error } = await sb.from('crm_metas').upsert(rows); if(error){ document.getElementById('mt-err').textContent = 'Erro: '+error.message; return; } dlgClose(); showToast('Metas salvas'); renderIndicadores(); });
+});
+
+// ---------- IDENTIFICAÇÃO DO USUÁRIO, BACKUP, WHATSAPP COM SCRIPT, BASE COM BUSCA ----------
+function sgWhoSync(n){
+  const sel = document.getElementById('sg-who'); if(!sel || !n) return;
+  if(![...sel.options].some(o=>o.value===n||o.text===n)){ const o = document.createElement('option'); o.textContent = n; sel.insertBefore(o, sel.firstChild); }
+  sel.value = n;
+}
+function userNameDialog(force){
+  const cur = (()=>{ try{ return localStorage.getItem('crm_nome')||''; }catch(e){ return ''; } })();
+  const box = dlgOpen(`<div class="om-title"><div><h3>Como você quer aparecer no sistema?</h3><div class="om-sub">Seu nome fica registrado nas atividades, próximas ações, diagnósticos e sugestões que você fizer — assim o histórico mostra quem fez o quê.</div></div>${force?'':'<button data-close>✕</button>'}</div>
+    <div class="dlg-body">${fld('un-nome','Seu nome',cur||((window._userEmail||'').split('@')[0]))}<div class="om-err" id="un-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-save" id="un-save">Salvar</button></div>`);
+  box.querySelector('#un-save').addEventListener('click', async ()=>{
+    const n = document.getElementById('un-nome').value.trim(); if(n.length<2){ document.getElementById('un-err').textContent = 'Digite seu nome.'; return; }
+    try{ localStorage.setItem('crm_nome', n); }catch(e){} try{ await sb.auth.updateUser({data:{nome:n}}); }catch(e){}
+    sgWhoSync(n); dlgClose(); showToast('Olá, '+n+'!'); });
+}
+async function ensureUserName(user){
+  let n = null; try{ n = localStorage.getItem('crm_nome'); }catch(e){}
+  if(!n && user && user.user_metadata && user.user_metadata.nome){ n = user.user_metadata.nome; try{ localStorage.setItem('crm_nome', n); }catch(e){} }
+  if(n){ sgWhoSync(n); return; }
+  userNameDialog(true);
+}
+document.getElementById('who-email').style.cursor = 'pointer';
+document.getElementById('who-email').title = 'Clique para trocar o nome exibido';
+document.getElementById('who-email').addEventListener('click', ()=>userNameDialog(false));
+
+// ---- backup ----
+const BACKUP_TABLES = ['crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal'];
+async function backupNow(){
+  const btn = document.getElementById('btn-backup'); btn.disabled = true; const out = {exportado_em:new Date().toISOString(), tabelas:{}};
+  try{
+    for(let i=0;i<BACKUP_TABLES.length;i++){ const t = BACKUP_TABLES[i]; btn.textContent = `⏳ ${i+1}/${BACKUP_TABLES.length}`; out.tabelas[t] = await opFetchAll(t,'*',['id']).catch(async ()=>{ const r = await sb.from(t).select('*'); return r.data||[]; }); }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(out)],{type:'application/json'})); a.download = 'backup-crm-callmed-'+ymdToday()+'.json'; a.click();
+    try{ localStorage.setItem('crm_backup_em', String(Date.now())); }catch(e){}
+    showToast('Backup baixado ('+Object.values(out.tabelas).reduce((t,l)=>t+l.length,0)+' registros)');
+  }catch(e){ showToast('Erro no backup: '+(e.message||e)); }
+  btn.disabled = false; btn.textContent = '⬇ Backup';
+}
+document.getElementById('btn-backup').addEventListener('click', backupNow);
+function backupReminder(){
+  try{ const t = parseInt(localStorage.getItem('crm_backup_em')||'0',10); const dias = t ? Math.floor((Date.now()-t)/86400000) : null;
+    if(dias===null || dias>=7) setTimeout(()=>showToast(dias===null?'💾 Você ainda não fez backup — botão “Backup” no topo.':'💾 Último backup há '+dias+' dias.'), 4000); }catch(e){}
+}
+
+// ---- WhatsApp com script da Base ----
+async function pvWaDialog(){
+  const p = PV.person; const wa = waLink(p.telefone); if(!wa){ showToast('Este contato não tem telefone válido.'); return; }
+  const { data } = await sb.from('crm_base_conhecimento').select('*').order('created_at',{ascending:false});
+  const scripts = data||[]; const first = (p.nome||'').split(' ')[0];
+  const fill = (t)=> String(t||'').replace(/\[NOME\]/gi, first).replace(/^["“]|["”]$/g,'');
+  const box = dlgOpen(`<div class="om-title"><div><h3>💬 WhatsApp — ${escapeHtml(p.nome)}</h3><div class="om-sub">Escolha um script da Base, ajuste o texto e abra a conversa.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><label class="fl"><span>Script da Base de Conhecimento</span><select id="wa-script"><option value="">— mensagem em branco —</option>${scripts.map((s,i)=>`<option value="${i}">${escapeHtml((s.categoria||'geral')+' · '+s.titulo)}</option>`).join('')}</select></label>
+      <label class="fl" style="margin-top:10px"><span>Mensagem (edite antes de enviar)</span><textarea id="wa-text" rows="8" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
+      <div class="hint">[NOME] é trocado pelo primeiro nome. Campos entre colchetes (dia, horário, contexto) você preenche.</div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="wa-open">Abrir WhatsApp</button></div>`, true);
+  box.querySelector('#wa-script').addEventListener('change', e=>{ const s = scripts[parseInt(e.target.value,10)]; document.getElementById('wa-text').value = s ? fill(s.conteudo) : ''; });
+  box.querySelector('#wa-open').addEventListener('click', async ()=>{ const txt = document.getElementById('wa-text').value.trim(); window.open(wa + (txt?'?text='+encodeURIComponent(txt):''), '_blank');
+    // registra a intenção de contato na linha do tempo
+    try{ await sb.from('crm_atividades').insert({pessoa_id:p.id, tipo:'whatsapp', resumo:'WhatsApp aberto'+(txt?': '+txt.slice(0,140):''), responsavel:curUserName(), proxima_acao:p.proxima_acao||null, proxima_data:p.proxima_data||null, proximo_responsavel:p.proximo_responsavel||null}); }catch(e){}
+    dlgClose(); if(PV.tab==='historico') pvHistorico(document.getElementById('pv-body'), p); });
+}
+document.addEventListener('click', e=>{ if(e.target.id==='pa-wa') pvWaDialog(); });
+
+// ---- Base de conhecimento com busca ----
+async function renderConhecimento(){
+  const { data, error } = await sb.from('crm_base_conhecimento').select('*').order('created_at',{ascending:false});
+  const el = document.getElementById('conhecimento-list');
+  if(error){ el.textContent = 'Erro: '+error.message; return; }
+  window._kb = data||[]; kbDraw();
+}
+function kbDraw(){
+  const el = document.getElementById('conhecimento-list'); const q = (document.getElementById('kb-search').value||'').toLowerCase();
+  const cats = [...new Set((window._kb||[]).map(k=>k.categoria||'geral'))].sort();
+  const cf = document.getElementById('kb-cat').value; const catSel = document.getElementById('kb-cat'); const cur = catSel.value;
+  catSel.innerHTML = '<option value="">Todas as categorias</option>'+cats.map(c=>`<option ${c===cur?'selected':''}>${escapeHtml(c)}</option>`).join('');
+  const rows = (window._kb||[]).filter(k=>(!cf || (k.categoria||'geral')===cf) && (!q || (k.titulo||'').toLowerCase().includes(q) || (k.conteudo||'').toLowerCase().includes(q) || (k.categoria||'').toLowerCase().includes(q)));
+  el.innerHTML = rows.length===0 ? '<div class="no-rec">Nada encontrado.</div>' : rows.map(k=>`<div class="kb-card"><div class="cat">${escapeHtml(k.categoria||'geral')}</div><h4>${escapeHtml(k.titulo)}</h4><p>${escapeHtml(k.conteudo||'').replace(/\n/g,'<br>')}</p><button class="om-cancel" data-copy="${k.id}" style="margin-top:8px;padding:4px 10px;font-size:12px">📋 Copiar texto</button></div>`).join('');
+  el.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click', ()=>{ const k = (window._kb||[]).find(x=>x.id===b.dataset.copy); if(k){ navigator.clipboard.writeText(k.conteudo||''); showToast('Texto copiado'); } }));
+}
+document.getElementById('kb-search').addEventListener('input', kbDraw);
+document.getElementById('kb-cat').addEventListener('change', kbDraw);
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
