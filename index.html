@@ -222,6 +222,7 @@
         </div>
         <div class="op-filters">
           <input id="op-search" placeholder="Buscar nome, CRM ou especialidade...">
+          <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option></select>
           <select id="op-f-situacao">
             <option value="">Todas as situações</option>
             <option value="cliente">Clientes (com apólice)</option>
@@ -910,7 +911,7 @@ async function openPerson(id){
       <div>
         <h2>${escapeHtml(person.nome)}</h2>
         <div class="tags">
-          <span class="tag">${person.tipo||'medico'}</span>
+          <span class="tag">${TIPOS_PESSOA[person.tipo||'medico']||person.tipo}</span>
           ${person.crm?`<span class="tag">CRM ${escapeHtml(person.crm)}</span>`:''}
           ${person.especialidade?`<span class="tag">${escapeHtml(person.especialidade)}</span>`:''}
         </div>
@@ -938,7 +939,7 @@ async function openPerson(id){
         </div>` : `<div class="activity-strip empty">Sem atividade de plantões registrada em 2026 na base CallMed Plantões.</div>`}
       </div>
     </div>
-    <div class="person-actions"><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button></div>
+    <div class="person-actions"><label class="fl" style="flex-direction:row;align-items:center;gap:8px"><span>Perfil</span><select id="pa-tipo">${tipoOptions(person.tipo||'medico')}</select></label><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button></div>
     <div class="block" id="estudos-block"></div>
     <div class="block" id="hist-block"></div>
     <div id="blocks-container"></div>
@@ -1339,6 +1340,9 @@ const OP_EXPANDED_W = 11;
 const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
              plant:new Map(), dirty:false, start:new Date(2026,9,1), sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null };
 const OP_PAGE = 120;
+const TIPOS_PESSOA = {medico:'Médico', profissional_saude:'Outro profissional de saúde', empresa:'Empresa / PJ', outro:'Outro (não médico)'};
+const isMedico = (p)=> (p.tipo||'medico')==='medico';
+const tipoOptions = (sel)=> Object.entries(TIPOS_PESSOA).map(([k,l])=>`<option value="${k}" ${sel===k?'selected':''}>${l}</option>`).join('');
 const DAY = 86400000;
 const opEnd = ()=> new Date(OP.start.getFullYear(), OP.start.getMonth()+12, 1);
 const opMKey = (d)=> d.getFullYear()+'-'+d.getMonth();
@@ -1450,7 +1454,7 @@ async function renderOperacao(force){
   OP.loading = true;
   try{
     if(!OP.loaded){
-      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,total_pago_plantoes_2026',['nome','id']);
+      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,total_pago_plantoes_2026',['nome','id']);
     }
     await opLoadFunilApo();
     const wasLoaded = OP.loaded;
@@ -1475,9 +1479,12 @@ function opApplyFilters(keep, scrollToList){
   const sort = document.getElementById('op-sort').value;
   const sf = OP.sumFilter;
   const fpl = document.getElementById('op-f-plantao').value;
+  const fperfil = document.getElementById('op-f-perfil').value;
   const nowD = new Date(); nowD.setHours(0,0,0,0);
   let list = OP.pessoas.filter(p=>{
     if(q && !((p.nome||'').toLowerCase().includes(q) || (p.crm||'').toLowerCase().includes(q) || (p.especialidade||'').toLowerCase().includes(q))) return false;
+    if(fperfil==='medico' && !isMedico(p)) return false;
+    if(fperfil==='nao_medico' && isMedico(p)) return false;
     const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id);
     if(sit==='cliente' && !cli) return false;
     if(sit==='funil' && !(idx>=0 && !cli)) return false;
@@ -1517,10 +1524,10 @@ function opRenderChip(){
 }
 
 function opRenderKpis(){
-  let cli = 0, fun = 0;
-  OP.pessoas.forEach(p=>{ if(opIsCliente(p.id)) cli++; else if(opCurEtapaIdx(p.id)>=0) fun++; });
+  let med = 0, nao = 0, cli = 0, fun = 0;
+  OP.pessoas.forEach(p=>{ if(isMedico(p)) med++; else nao++; if(opIsCliente(p.id)) cli++; else if(opCurEtapaIdx(p.id)>=0) fun++; });
   document.getElementById('op-kpis').innerHTML =
-    `<span class="op-kpi"><b>${OP.pessoas.length}</b> médicos</span><span class="op-kpi"><b>${fun}</b> em funil</span><span class="op-kpi"><b>${cli}</b> clientes</span><span class="op-kpi">exibindo <b>${OP.filtered.length}</b></span>`;
+    `<span class="op-kpi"><b>${med}</b> médicos</span>${nao?`<span class="op-kpi" style="background:var(--amber-soft)"><b style="color:var(--amber-ink)">${nao}</b> não médicos</span>`:''}<span class="op-kpi"><b>${fun}</b> em funil</span><span class="op-kpi"><b>${cli}</b> clientes</span><span class="op-kpi">exibindo <b>${OP.filtered.length}</b></span>`;
 }
 
 function opGridCss(){
@@ -1612,7 +1619,7 @@ function opRowHtml(p){
     const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}`;
     lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
   });
-  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
+  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
 }
 
 function opAppendRows(n){
@@ -1754,7 +1761,7 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 });
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
-['op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
+['op-f-perfil','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
 document.getElementById('btn-op-back').addEventListener('click', ()=> document.querySelector('.nav-btn[data-view="operacao"]').click());
 document.getElementById('op-prev').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()-1, OP.start.getMonth(), 1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
 document.getElementById('op-next').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()+1, OP.start.getMonth(), 1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
@@ -1922,6 +1929,7 @@ function openNovoCliente(prefill, onSaved){
       <div id="nc-files" class="nc-files"></div>
       <div class="fgrid">
         ${NC_FIELDS.map(([k,l,t])=>fld('nc-'+k,l,prefill[k],t,k==='nome')).join('')}
+        <label class="fl"><span>Perfil do cliente *</span><select id="nc-tipo">${tipoOptions(prefill.tipo||'medico')}</select></label>
         <label class="fl"><span>Sexo</span><select id="nc-sexo"><option value="">—</option><option value="M">Masculino</option><option value="F">Feminino</option></select></label>
         <label class="fl"><span>Estado civil</span><select id="nc-estado_civil"><option value="">—</option><option>solteiro</option><option>casado</option><option>união estável</option><option>divorciado</option><option>viúvo</option></select></label>
         <label class="fl"><span>Origem do cliente</span><select id="nc-origem"><option value="">—</option><option>CallMed Plantões</option><option>Indicação</option><option>Instagram</option><option>Evento</option><option>Outro</option></select></label>
@@ -1972,9 +1980,9 @@ async function ncSave(){
   if(!v('nome')){ err.textContent = 'Informe o nome do cliente.'; return; }
   const btn = document.getElementById('nc-save'); btn.disabled = true; btn.textContent = 'Salvando...';
   try{
-    const row = { nome:v('nome'), tipo:'medico' };
+    const row = { nome:v('nome'), tipo:v('tipo')||'medico' };
     ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou'].forEach(k=>{ if(v(k)) row[k] = v(k); });
-    const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,total_pago_plantoes_2026').single();
+    const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,total_pago_plantoes_2026').single();
     if(error) throw error;
     for(const file of (window._ncFiles||[])){
       try{ const path = await docsUpload(file, 'clientes/'+data.id);
@@ -2030,7 +2038,7 @@ function caForm(file, f, found){
         <label class="pk"><input type="radio" name="ca-pes" value="novo" ${opts && top?'':(opts?'':'checked')}><span><b>Cadastrar como novo cliente</b> ${f.nome?'— '+escapeHtml(f.nome):''}</span></label>
         <label class="pk"><input type="radio" name="ca-pes" value="buscar"><span><b>Buscar outro cliente</b></span></label>
         <div id="ca-busca" style="display:none"><input id="ca-busca-q" class="ca-inp" placeholder="Nome, CPF ou CRM..."><div id="ca-busca-res"></div></div>
-        <div class="fgrid" id="ca-novo" style="display:none">${fld('ca-n-nome','Nome do cliente',f.nome,'text',true)}${fld('ca-n-cpf','CPF',f.cpf)}${fld('ca-n-crm','CRM',f.crm)}</div></div>
+        <div class="fgrid" id="ca-novo" style="display:none">${fld('ca-n-nome','Nome do cliente',f.nome,'text',true)}${fld('ca-n-cpf','CPF',f.cpf)}${fld('ca-n-crm','CRM',f.crm)}<label class="fl"><span>Perfil do cliente</span><select id="ca-n-tipo">${tipoOptions(f.crm?'medico':'outro')}</select></label></div></div>
       <div class="q"><div class="ql">3. Dados da apólice</div><div class="fgrid">
         ${fld('ca-seg','Seguradora *',f.seguradora)}${fld('ca-prod','Produto / tipo *',f.tipo_seguro)}
         ${fld('ca-num','Nº da apólice',f.numero_apolice)}
@@ -2071,8 +2079,8 @@ async function caSave(file, f){
   try{
     let pessoaId = (sel && sel!=='novo') ? sel : null;
     if(sel==='novo'){
-      const row = {nome:g('ca-n-nome'), tipo:'medico'}; if(g('ca-n-cpf')) row.cpf = g('ca-n-cpf'); if(g('ca-n-crm')) row.crm = g('ca-n-crm');
-      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,total_pago_plantoes_2026').single(); if(error) throw error;
+      const row = {nome:g('ca-n-nome'), tipo:g('ca-n-tipo')||'medico'}; if(g('ca-n-cpf')) row.cpf = g('ca-n-cpf'); if(g('ca-n-crm')) row.crm = g('ca-n-crm');
+      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,total_pago_plantoes_2026').single(); if(error) throw error;
       pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
     }
     const path = await docsUpload(file, tipo==='estudo'||tipo==='concorrente' ? 'estudos' : 'apolices');
@@ -2322,6 +2330,13 @@ async function renderPessoaHistorico(person){
   host.innerHTML = `<div class="block-head"><h3>🕒 Histórico com a CallMed</h3><span class="count mono">${ev.length}</span></div>
     <div class="block-body open">${ev.map(x=>`<div class="rec"><span class="k">${fmtDate(x.d)}</span>${x.i} ${x.t}</div>`).join('')}</div>`;
 }
+document.addEventListener('change', async e=>{
+  if(e.target.id!=='pa-tipo') return; const p = window._curPerson; if(!p) return;
+  const { error } = await sb.from('crm_pessoas').update({tipo:e.target.value}).eq('id', p.id);
+  if(error){ showToast('Erro: '+error.message); return; }
+  p.tipo = e.target.value; const op = OP.pessoas.find(x=>x.id===p.id); if(op) op.tipo = p.tipo;
+  showToast('Perfil atualizado para: '+TIPOS_PESSOA[p.tipo]);
+});
 document.addEventListener('click', e=>{
   if(e.target.id==='pa-estudo'){ const p = window._curPerson; if(p) estudoDialog({id:p.id, nome:p.nome}); }
   if(e.target.id==='pa-apolice'){ const p = window._curPerson; if(!p) return;
