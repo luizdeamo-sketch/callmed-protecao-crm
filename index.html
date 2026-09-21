@@ -386,9 +386,10 @@
         <div class="pg-head"><h2>💡 Sugestões de melhoria</h2><span class="sub">Ideias, problemas e pedidos para o sistema. Tudo fica registrado no histórico.</span></div>
         <div class="es-box">
           <div class="sg-row" style="margin-bottom:8px"><span class="ql" style="margin:0">Registrando como</span><select id="sg-who"><option>Amanda</option><option>Luiz</option><option>Outro</option></select></div>
-          <textarea id="sg-text" rows="4" placeholder="Escreva livremente, ou clique em 🎤 e narre a sua ideia — o sistema transcreve para você."></textarea>
+          <textarea id="sg-text" rows="4" placeholder="Escreva livremente, ou clique em 🎤 e narre a sua ideia. Dá para colar um print (Ctrl+V) ou arrastar arquivos para cá."></textarea>
+          <div id="sg-files" class="sg-files"></div>
           <div class="sg-row" style="margin-top:8px">
-            <button id="sg-mic" class="om-cancel">🎤 Gravar / ditar</button><span id="sg-mic-st" style="font-size:12px;color:var(--red)"></span>
+            <button id="sg-mic" class="om-cancel">🎤 Gravar / ditar</button><button id="sg-attach" class="om-cancel">📎 Anexar print / PDF / arquivo</button><input type="file" id="sg-file" multiple hidden><span id="sg-mic-st" style="font-size:12px;color:var(--red)"></span>
             <select id="sg-tipo"></select><select id="sg-tela"></select>
             <select id="sg-prio"><option value="normal">Prioridade normal</option><option value="alta">Prioridade alta</option><option value="baixa">Prioridade baixa</option></select>
             <span style="flex:1"></span><button id="sg-send" class="om-save">Enviar sugestão</button>
@@ -582,6 +583,14 @@
   .sg-text{ font-size:13.5px; line-height:1.55;} .sg-audio{ margin-top:8px; font-size:12.5px;} .sg-audio a{ color:var(--brand); font-weight:600;}
   .sg-resp{ margin-top:8px; background:var(--green-soft); border-radius:var(--radius-sm); padding:8px 12px; font-size:12.5px;}
   .sg-actions{ display:flex; gap:8px; margin-top:10px;} .sg-hist{ margin-top:8px;}
+  .sg-files{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+  .sg-fchip{ display:flex; align-items:center; gap:8px; border:1px solid var(--border); border-radius:var(--radius-sm); padding:4px 8px; font-size:12px; background:var(--surface-2);}
+  .sg-fchip img{ width:38px; height:38px; object-fit:cover; border-radius:5px;} .sg-fchip .nm{ max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .sg-fchip button{ border:none; background:transparent; cursor:pointer; color:var(--ink-faint);}
+  #sg-text.over{ border-color:var(--brand); background:var(--brand-soft);}
+  .sg-atts{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; align-items:center;}
+  .sg-thumb{ max-width:220px; max-height:150px; border:1px solid var(--border); border-radius:8px; display:block; background:#f2f3f9; min-width:60px; min-height:40px;}
+  .sg-file{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 10px; font-size:12.5px; color:var(--brand); text-decoration:none; font-weight:600;}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -2660,11 +2669,13 @@ function sgDraw(){
     return `<div class="sg-card" data-id="${r.id}">
       <div class="sg-top"><b>${escapeHtml(r.autor||'—')}</b><span class="sg-meta">${fmtDateTime(r.created_at)}</span><span class="tagx">${escapeHtml(SG_TIPOS[r.tipo]||r.tipo||'')}</span>${r.tela?`<span class="tagx">${escapeHtml(r.tela)}</span>`:''}${r.prioridade==='alta'?'<span class="tagx bad">Prioridade alta</span>':''}${r.origem==='voz'?'<span class="tagx">🎤 por voz</span>':''}<span style="flex:1"></span><span class="sg-status" style="background:${st[2]}">${st[1]}</span></div>
       <div class="sg-text">${escapeHtml(r.texto).replace(/\n/g,'<br>')}</div>
+      ${(r.anexos&&r.anexos.length)?`<div class="sg-atts">${r.anexos.map(a=>/^image\//.test(a.mime||'')?`<a href="#" data-att="${escapeHtml(a.path)}" title="${escapeHtml(a.nome||'')}"><img class="sg-thumb" data-thumb="${escapeHtml(a.path)}" alt="${escapeHtml(a.nome||'print')}"></a>`:`<a href="#" class="sg-file" data-att="${escapeHtml(a.path)}">📄 ${escapeHtml(a.nome||'arquivo')}</a>`).join('')}</div>`:''}
       ${r.audio_path?`<div class="sg-audio"><a href="#" data-act="audio">▶ ouvir o áudio original</a></div>`:''}
       ${r.resposta?`<div class="sg-resp"><b>Resposta:</b> ${escapeHtml(r.resposta).replace(/\n/g,'<br>')}</div>`:''}
       <div class="sg-actions"><button class="om-cancel" data-act="status">Alterar status / responder</button><button class="btn-ghost" data-act="hist">Histórico (${hist.length})</button></div>
       <div class="sg-hist" style="display:none">${hist.length ? hist.slice().reverse().map(h=>`<div class="rec"><span class="k">${fmtDateTime(h.em)}</span><b>${escapeHtml(h.por||'—')}</b>: ${escapeHtml(sgLabel(h.de)[1])} → <b>${escapeHtml(sgLabel(h.para)[1])}</b>${h.nota?'<br>'+escapeHtml(h.nota):''}</div>`).join('') : '<div class="no-rec">Sem movimentações ainda.</div>'}</div>
     </div>`; }).join('') : '<div class="op-more">Nenhuma sugestão nesta seleção.</div>';
+  sgThumbs();
 }
 document.getElementById('sg-chips').addEventListener('click', e=>{ const b = e.target.closest('.sg-chip'); if(!b) return; SG.filter = b.dataset.f; sgDraw(); });
 document.getElementById('sg-q').addEventListener('input', e=>{ SG.q = e.target.value; sgDraw(); });
@@ -2713,22 +2724,59 @@ async function sgMicToggle(){
 document.getElementById('sg-mic').addEventListener('click', sgMicToggle);
 document.getElementById('sg-send').addEventListener('click', async ()=>{
   if(SG.recording) await sgMicToggle();
-  const ta = document.getElementById('sg-text'), texto = ta.value.trim(); if(!texto){ showToast('Escreva ou dite a sugestão primeiro.'); return; }
+  const ta = document.getElementById('sg-text'); let texto = ta.value.trim(); if(!texto && !SG.files.length){ showToast('Escreva, dite ou anexe algo primeiro.'); return; } if(!texto) texto = '(ver anexos)';
   const btn = document.getElementById('sg-send'); btn.disabled = true; btn.textContent = 'Enviando...';
   try{
     await new Promise(r=>setTimeout(r,400));
     let audio_path = null;
     if(SG.audioBlob){ try{ const f = new File([SG.audioBlob], 'sugestao-'+Date.now()+'.webm', {type:SG.audioBlob.type||'audio/webm'}); audio_path = await docsUpload(f,'sugestoes'); }catch(e){ console.warn(e); } }
     const autor = document.getElementById('sg-who').value;
-    const { error } = await sb.from('crm_sugestoes').insert({ autor, texto, origem: (SG.voz||audio_path)?'voz':'texto', tipo:document.getElementById('sg-tipo').value, tela:document.getElementById('sg-tela').value||null,
+    const anexos = [];
+    for(const f of SG.files){ const path = await docsUpload(f, 'sugestoes'); anexos.push({path, nome:f.name, mime:f.type, tamanho:f.size}); }
+    const { error } = await sb.from('crm_sugestoes').insert({ autor, texto, anexos, origem: (SG.voz||audio_path)?'voz':'texto', tipo:document.getElementById('sg-tipo').value, tela:document.getElementById('sg-tela').value||null,
       prioridade:document.getElementById('sg-prio').value, audio_path, historico:[{em:new Date().toISOString(), por:autor, de:'nova', para:'nova', nota:'Sugestão registrada'}] });
     if(error) throw error;
-    ta.value = ''; SG.audioBlob = null; SG.voz = false; const p = document.getElementById('sg-audio-prev'); p.hidden = true; p.removeAttribute('src');
+    ta.value = ''; SG.files = []; sgRenderFiles(); SG.audioBlob = null; SG.voz = false; const p = document.getElementById('sg-audio-prev'); p.hidden = true; p.removeAttribute('src');
     showToast('Sugestão registrada — obrigado!'); renderSugestoes();
   }catch(e){ showToast('Erro: '+(e.message||e)); }
   btn.disabled = false; btn.textContent = 'Enviar sugestão';
 });
 sgInit();
+
+// ---- anexos (print, PDF, arquivos) ----
+SG.files = [];
+async function sgThumbs(){
+  const imgs = [...document.querySelectorAll('#sg-list img[data-thumb]')]; if(!imgs.length) return;
+  const paths = [...new Set(imgs.map(i=>i.dataset.thumb))];
+  const { data } = await sb.storage.from('crm-docs').createSignedUrls(paths, 3600);
+  const map = new Map((data||[]).map(d=>[d.path, d.signedUrl]));
+  imgs.forEach(i=>{ const u = map.get(i.dataset.thumb); if(u) i.src = u; });
+}
+document.getElementById('sg-list').addEventListener('click', async e=>{
+  const a = e.target.closest('[data-att]'); if(!a) return; e.preventDefault();
+  try{ window.open(await docsSignedUrl(a.dataset.att), '_blank'); }catch(x){ showToast('Erro: '+x.message); }
+});
+function sgRenderFiles(){
+  document.getElementById('sg-files').innerHTML = SG.files.map((f,i)=>`<div class="sg-fchip">${/^image\//.test(f.type)?`<img src="${URL.createObjectURL(f)}">`:'<span class="ico">📄</span>'}<span class="nm">${escapeHtml(f.name)}</span><button data-rm="${i}" title="Remover">✕</button></div>`).join('');
+}
+function sgAddFiles(list){
+  [...list].forEach(f=>{ if(f.size > 25*1024*1024){ showToast(f.name+' passa de 25 MB e não foi anexado.'); return; } SG.files.push(f); });
+  sgRenderFiles();
+}
+document.getElementById('sg-attach').addEventListener('click', ()=>document.getElementById('sg-file').click());
+document.getElementById('sg-file').addEventListener('change', e=>{ sgAddFiles(e.target.files); e.target.value=''; });
+document.getElementById('sg-files').addEventListener('click', e=>{ const b = e.target.closest('[data-rm]'); if(!b) return; SG.files.splice(parseInt(b.dataset.rm,10),1); sgRenderFiles(); });
+const sgTa = document.getElementById('sg-text');
+sgTa.addEventListener('paste', e=>{
+  const items = [...(e.clipboardData?.items||[])].filter(i=>i.kind==='file');
+  if(!items.length) return;
+  e.preventDefault();
+  sgAddFiles(items.map((it,n)=>{ const f = it.getAsFile(); const ext = (f.type.split('/')[1]||'png').replace('jpeg','jpg'); return f.name && f.name!=='image.png' ? f : new File([f], `print-${Date.now()}-${n+1}.${ext}`, {type:f.type}); }));
+  showToast('Print anexado');
+});
+sgTa.addEventListener('dragover', e=>{ e.preventDefault(); sgTa.classList.add('over'); });
+sgTa.addEventListener('dragleave', ()=>sgTa.classList.remove('over'));
+sgTa.addEventListener('drop', e=>{ e.preventDefault(); sgTa.classList.remove('over'); sgAddFiles(e.dataTransfer.files); });
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
