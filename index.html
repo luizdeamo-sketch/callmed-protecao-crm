@@ -224,6 +224,8 @@
         <div class="op-filters">
           <input id="op-search" placeholder="Buscar por nome, CPF, CRM ou telefone...">
           <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option></select>
+          <select id="op-f-class"><option value="">Classificação: todas</option><option value="call_hot">Call Hot</option><option value="quente">Quente</option><option value="frio">Frio</option></select>
+          <select id="op-f-tag"><option value="">Qualquer tag</option></select>
           <select id="op-f-situacao">
             <option value="">Todas as situações</option>
             <option value="cliente">Clientes (com apólice)</option>
@@ -243,7 +245,7 @@
           <span id="op-range"></span>
           <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button><button id="op-today" title="Começar no mês atual">Mês atual</button>
           <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
-          <button id="op-newcli" class="om-save" style="margin-left:auto">＋ Novo cliente</button>
+          <button id="op-import" class="om-cancel" style="margin-left:auto">⬆ Importar contatos</button><button id="op-newcli" class="om-save">＋ Novo cliente</button>
           <span id="op-chip"></span>
         </div>
       </div>
@@ -968,6 +970,7 @@ async function openPerson(id){
           ${person.crm?`<span class="tag">CRM ${escapeHtml(person.crm)}</span>`:''}
           ${person.especialidade?`<span class="tag">${escapeHtml(person.especialidade)}</span>`:''}
         </div>
+        <div class="tags" style="margin:8px 0">${person.classificacao?`<span class="tag" style="background:${person.classificacao==='call_hot'?'#fde8e8':(person.classificacao==='quente'?'var(--amber-soft)':'var(--brand-soft)')}">${person.classificacao==='call_hot'?'🔥 ':''}${CLASSIF[person.classificacao]}</span>`:''}${(person.tags||[]).map(t=>`<span class="tag">🏷 ${escapeHtml(t)}</span>`).join('')}</div>
         <div class="core-fields">
           <div class="cf"><label>CPF</label><div class="v mono">${escapeHtml(person.cpf||'—')}</div></div>
           <div class="cf"><label>Telefone</label><div class="v">${escapeHtml(person.telefone||'—')}</div></div>
@@ -982,6 +985,10 @@ async function openPerson(id){
           <div class="cf"><label>CNPJ</label><div class="v mono">${escapeHtml(person.cnpj||'—')}</div></div>
           <div class="cf"><label>PIX</label><div class="v mono">${escapeHtml(person.pix||'—')}</div></div>
           <div class="cf"><label>Banco</label><div class="v">${escapeHtml(person.banco||'—')}${person.agencia?(' · ag. '+escapeHtml(person.agencia)):''}</div></div>
+          <div class="cf"><label>Profissão / Regime</label><div class="v">${escapeHtml(person.profissao||'—')}${person.regime_trabalho?(' · '+escapeHtml(person.regime_trabalho)):''}</div></div>
+          <div class="cf"><label>Endereço</label><div class="v">${escapeHtml([person.logradouro,person.numero,person.complemento,person.bairro,person.cidade,person.uf,person.cep].filter(Boolean).join(', ')||'—')}</div></div>
+          <div class="cf"><label>Campanha / Parceiro</label><div class="v">${escapeHtml(person.campanha||'—')}${person.parceiro?(' · '+escapeHtml(person.parceiro)):''}</div></div>
+          <div class="cf"><label>Observações</label><div class="v">${escapeHtml(person.observacoes||'—')}</div></div>
         </div>
         ${(person.qtde_plantoes_2026||person.valor_plantoes_2026) ? `
         <div class="activity-strip">
@@ -992,7 +999,7 @@ async function openPerson(id){
         </div>` : `<div class="activity-strip empty">Sem atividade de plantões registrada em 2026 na base CallMed Plantões.</div>`}
       </div>
     </div>
-    <div class="person-actions"><label class="fl" style="flex-direction:row;align-items:center;gap:8px"><span>Perfil</span><select id="pa-tipo">${tipoOptions(person.tipo||'medico')}</select></label><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button></div>
+    <div class="person-actions"><label class="fl" style="flex-direction:row;align-items:center;gap:8px"><span>Perfil</span><select id="pa-tipo">${tipoOptions(person.tipo||'medico')}</select></label><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button></div>
     <div class="block" id="estudos-block"></div>
     <div class="block" id="hist-block"></div>
     <div id="blocks-container"></div>
@@ -1507,7 +1514,7 @@ async function renderOperacao(force){
   OP.loading = true;
   try{
     if(!OP.loaded){
-      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,total_pago_plantoes_2026',['nome','id']);
+      OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026',['nome','id']);
     }
     await opLoadFunilApo();
     const wasLoaded = OP.loaded;
@@ -1516,6 +1523,7 @@ async function renderOperacao(force){
     if(fe.options.length<=1) ETAPAS_FUNIL.forEach(e=>{ const o=document.createElement('option'); o.value=e.key; o.textContent='Etapa atual: '+e.label; fe.appendChild(o); });
     const fp = document.getElementById('op-f-produto');
     if(fp.options.length<=1) OP_PRODUTOS.forEach(p=>{ const o=document.createElement('option'); o.value=p.k; o.textContent='Tem: '+p.l; fp.appendChild(o); });
+    opFillTagFilter();
     opApplyFilters(wasLoaded);
   }catch(e){
     host.innerHTML = '<div class="op-more">Erro ao carregar: '+escapeHtml(e.message||String(e))+'</div>';
@@ -1532,7 +1540,7 @@ function opApplyFilters(keep, scrollToList){
   const sort = document.getElementById('op-sort').value;
   const sf = OP.sumFilter;
   const fpl = document.getElementById('op-f-plantao').value;
-  const fperfil = document.getElementById('op-f-perfil').value;
+  const fperfil = document.getElementById('op-f-perfil').value, fclass = document.getElementById('op-f-class').value, ftag = document.getElementById('op-f-tag').value;
   const nowD = new Date(); nowD.setHours(0,0,0,0);
   let list = OP.pessoas.filter(p=>{
     if(q){ const qd = dOnly(q); const okTxt = (p.nome||'').toLowerCase().includes(q) || (p.crm||'').toLowerCase().includes(q) || (p.especialidade||'').toLowerCase().includes(q);
@@ -1540,6 +1548,8 @@ function opApplyFilters(keep, scrollToList){
       if(!okTxt && !okNum) return false; }
     if(fperfil==='medico' && !isMedico(p)) return false;
     if(fperfil==='nao_medico' && isMedico(p)) return false;
+    if(fclass && p.classificacao!==fclass) return false;
+    if(ftag && !(p.tags||[]).includes(ftag)) return false;
     const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id);
     if(sit==='cliente' && !cli) return false;
     if(sit==='funil' && !(idx>=0 && !cli)) return false;
@@ -1689,7 +1699,7 @@ function opRowHtml(p){
     const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}`;
     lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
   });
-  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
+  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${p.classificacao==='call_hot'?' · <span class="pl-tag hot" style="color:var(--red)">🔥 Call Hot</span>':(p.classificacao==='quente'?' · <span class="pl-tag warm">Quente</span>':'')}${(p.tags&&p.tags.length)?' · 🏷 '+escapeHtml(p.tags.join(', ')):''}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
 }
 
 function opAppendRows(n){
@@ -1832,7 +1842,7 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 });
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
-['op-f-perfil','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
+['op-f-perfil','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
 document.getElementById('btn-op-back').addEventListener('click', ()=> document.querySelector('.nav-btn[data-view="operacao"]').click());
 const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
 document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
@@ -1934,6 +1944,7 @@ function docsExtract(text){
     if(nm2){ const n = nm2[1].replace(/\s+/g,' ').trim(); if(n.split(' ').length>=2 && !/\b(CPF|DATA|REGISTRO|FILIA)/i.test(n)) f.nome = titleCase(n); } }
   const crm = t.match(/CRM[\s\-\/:]*(?:[A-Z]{2}[\s\-\/:]*)?(\d{4,7})/i); if(crm) f.crm = crm[1];
   const em = t.match(/[\w.+-]+@[\w-]+\.[\w.-]+/); if(em) f.email = em[0].toLowerCase();
+  const cepm = t.match(/\bCEP[:\s]*(\d{5}-?\d{3})\b/i) || t.match(/\b(\d{5}-\d{3})\b/); if(cepm) f.cep = cepm[1];
   const ph = t.match(/\(?\b(\d{2})\)?[\s.-]?(9?\d{4})[\s.-]?(\d{4})\b/); if(ph && !/^(19|20)\d{2}$/.test(ph[1]+ph[2].slice(0,2))) f.telefone = `(${ph[1]}) ${ph[2]}-${ph[3]}`;
   const nasc = t.match(/(?:nasc\w*|data\s*de\s*nascimento)[^\d]{0,70}(\d{2}\/\d{2}\/\d{4})/i); if(nasc) f.data_nascimento = brToIso(nasc[1]);
   const sx = t.match(/sexo[:\s]*(masculino|feminino|\bM\b|\bF\b)/i); if(sx) f.sexo = /^m/i.test(sx[1]) ? 'M' : 'F';
@@ -1977,7 +1988,7 @@ function normNome(x){
   return String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z\s]/g,' ').split(/\s+/).filter(t=>t && !NOME_STOP.has(t));
 }
 async function ensurePessoas(){
-  if(!OP.pessoas.length){ OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,total_pago_plantoes_2026',['nome','id']); }
+  if(!OP.pessoas.length){ OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026',['nome','id']); }
 }
 async function findPessoas({cpf, crm, nome, telefone}){
   await ensurePessoas();
@@ -2037,6 +2048,8 @@ function openNovoCliente(prefill, onSaved){
         <label class="fl"><span>Origem do cliente</span><select id="nc-origem"><option value="">—</option><option>CallMed Plantões</option><option>Indicação</option><option>Instagram</option><option>Evento</option><option>Outro</option></select></label>
         ${fld('nc-quem_indicou','Quem indicou *','')}
         <label class="chk" style="align-self:end;padding-bottom:8px"><input type="checkbox" id="nc-sem-ind"> Sem indicação (contato direto / base própria)</label>
+        ${fld('nc-sobrenome','Sobrenome (opcional — junto ao nome)','')}
+        ${pfExtraFieldsHtml('nc-')}
       </div>
       <div id="nc-dup"></div><div class="om-err" id="nc-err"></div>
     </div>
@@ -2050,12 +2063,13 @@ function openNovoCliente(prefill, onSaved){
   inp.addEventListener('change', ()=>{ ncAddFiles([...inp.files]); inp.value=''; });
   ['nc-cpf','nc-crm','nc-nome'].forEach(id=> box.querySelector('#'+id).addEventListener('change', ncCheckDup));
   box.querySelector('#nc-save').addEventListener('click', ncSave);
+  box.querySelector('#nc-cep').addEventListener('change', ()=>cepFill('nc-'));
   box.querySelector('#nc-nome').addEventListener('change', async ()=>{ if(!NC.pessoaId && window._ncFiles.length && ncVal('nome')) await ncAfterRead(); });
   if(prefill.nome || prefill.cpf) ncCheckDup();
 }
 const NC = { pessoaId:null, existing:null };
-const NC_LBL = {nome:'nome',cpf:'CPF',crm:'CRM',data_nascimento:'nascimento',telefone:'telefone',email:'e-mail',especialidade:'especialidade',cnpj:'CNPJ',razao_social:'razão social',sexo:'sexo',estado_civil:'estado civil'};
-const NC_SAVE_KEYS = ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou'];
+const NC_LBL = {cep:'CEP',nome:'nome',cpf:'CPF',crm:'CRM',data_nascimento:'nascimento',telefone:'telefone',email:'e-mail',especialidade:'especialidade',cnpj:'CNPJ',razao_social:'razão social',sexo:'sexo',estado_civil:'estado civil'};
+const NC_SAVE_KEYS = ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou','profissao','regime_trabalho','cep','logradouro','numero','complemento','bairro','cidade','uf','campanha','parceiro','classificacao','observacoes'];
 const ncVal = (id)=>{ const el = document.getElementById('nc-'+id); return el ? el.value.trim() : ''; };
 function ncBanner(html, cls){ const b = document.getElementById('nc-banner'); if(b) b.innerHTML = html ? `<div class="${cls||'dup'}">${html}</div>` : ''; }
 
@@ -2091,12 +2105,13 @@ async function ncAfterRead(){
   await ncCreateLead();
 }
 function ncRow(){
-  const row = { nome:ncVal('nome'), tipo:ncVal('tipo')||'medico' };
+  const row = { nome:(ncVal('nome')+' '+ncVal('sobrenome')).trim(), tipo:ncVal('tipo')||'medico' };
   NC_SAVE_KEYS.forEach(k=>{ if(ncVal(k)) row[k] = ncVal(k); });
+  const tg = pfTags('nc-'); if(tg.length) row.tags = tg;
   return row;
 }
 async function ncCreateLead(){
-  const { data, error } = await sb.from('crm_pessoas').insert(ncRow()).select('id,nome,crm,especialidade,tipo,cpf,telefone,total_pago_plantoes_2026').single();
+  const { data, error } = await sb.from('crm_pessoas').insert(ncRow()).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026').single();
   if(error){ ncBanner('Não consegui criar o lead automaticamente: '+escapeHtml(error.message)); return; }
   NC.pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
   await ncRegisterDocs(data.id);
@@ -2147,10 +2162,10 @@ async function ncSave(){
     let data;
     const row = ncRow(); if(document.getElementById('nc-sem-ind').checked && !row.quem_indicou) row.quem_indicou = 'Sem indicação (contato direto)';
     if(NC.pessoaId){
-      const r = await sb.from('crm_pessoas').update(row).eq('id', NC.pessoaId).select('id,nome,crm,especialidade,tipo,cpf,telefone,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
+      const r = await sb.from('crm_pessoas').update(row).eq('id', NC.pessoaId).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
       const i = OP.pessoas.findIndex(x=>x.id===data.id); if(i>=0) OP.pessoas[i] = data;
     } else {
-      const r = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
+      const r = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
       OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
     }
     await ncRegisterDocs(data.id);
@@ -2360,7 +2375,7 @@ async function impRun(){
     for(let i=0;i<novos.length;i+=100){
       btn.textContent = `Cadastrando clientes ${Math.min(i+100,novos.length)}/${novos.length}...`;
       const chunk = novos.slice(i,i+100);
-      const { data, error } = await sb.from('crm_pessoas').insert(chunk.map(n=>{ const r = {nome:n.nome, tipo}; if(n.cpf) r.cpf = n.cpf; return r; })).select('id,nome,crm,especialidade,tipo,cpf,telefone,total_pago_plantoes_2026');
+      const { data, error } = await sb.from('crm_pessoas').insert(chunk.map(n=>{ const r = {nome:n.nome, tipo}; if(n.cpf) r.cpf = n.cpf; return r; })).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026');
       if(error) throw error;
       data.forEach((d,j)=>{ chunk[j].id = d.id; OP.pessoas.push(d); });
     }
@@ -2467,7 +2482,7 @@ async function caSave(file, f){
     let pessoaId = (sel && sel!=='novo') ? sel : null;
     if(sel==='novo'){
       const row = {nome:g('ca-n-nome'), tipo:g('ca-n-tipo')||'medico'}; if(g('ca-n-cpf')) row.cpf = g('ca-n-cpf'); if(g('ca-n-crm')) row.crm = g('ca-n-crm');
-      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,total_pago_plantoes_2026').single(); if(error) throw error;
+      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026').single(); if(error) throw error;
       pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
     }
     const path = await docsUpload(file, tipo==='estudo'||tipo==='concorrente' ? 'estudos' : 'apolices');
@@ -2870,6 +2885,163 @@ sgTa.addEventListener('paste', e=>{
 sgTa.addEventListener('dragover', e=>{ e.preventDefault(); sgTa.classList.add('over'); });
 sgTa.addEventListener('dragleave', ()=>sgTa.classList.remove('over'));
 sgTa.addEventListener('drop', e=>{ e.preventDefault(); sgTa.classList.remove('over'); sgAddFiles(e.dataTransfer.files); });
+
+// ---------- CADASTRO: campos completos, tags, classificação, edição e importação de contatos ----------
+const PF_EXTRA = [['profissao','Profissão'],['regime_trabalho','Regime de trabalho'],['cep','CEP'],['logradouro','Logradouro'],['numero','Número'],['complemento','Complemento'],['bairro','Bairro'],['cidade','Cidade'],['uf','UF'],['campanha','Campanha'],['parceiro','Parceiro']];
+const CLASSIF = {frio:'Frio', quente:'Quente', call_hot:'Call Hot'};
+const classifOptions = (sel)=> '<option value="">—</option>' + Object.entries(CLASSIF).map(([k,l])=>`<option value="${k}" ${sel===k?'selected':''}>${l}</option>`).join('');
+const TAGS_SUGERIDAS = ['Contato','Atendimento','Agendamento','Reunião','Diagnóstico','Proposta','Fechamento'];
+function pfExtraFieldsHtml(prefix, v){
+  v = v || {};
+  return PF_EXTRA.map(([k,l])=>fld(prefix+k, l, v[k])).join('') +
+    `<label class="fl"><span>Classificação</span><select id="${prefix}classificacao">${classifOptions(v.classificacao)}</select></label>` +
+    `<label class="fl full"><span>Tags (separe por vírgula — ex.: ${TAGS_SUGERIDAS.slice(0,3).join(', ')})</span><input id="${prefix}tags" type="text" value="${escapeHtml((v.tags||[]).join(', '))}"></label>` +
+    `<label class="fl full"><span>Observações</span><input id="${prefix}observacoes" type="text" value="${escapeHtml(v.observacoes||'')}"></label>`;
+}
+function pfTags(prefix){ const t = (document.getElementById(prefix+'tags')||{}).value||''; return t.split(',').map(x=>x.trim()).filter(Boolean); }
+async function cepFill(prefix){
+  const el = document.getElementById(prefix+'cep'); if(!el) return; const c = dOnly(el.value); if(c.length!==8) return;
+  try{ const r = await fetch(`https://viacep.com.br/ws/${c}/json/`); const d = await r.json(); if(d.erro) return;
+    [['logradouro',d.logradouro],['bairro',d.bairro],['cidade',d.localidade],['uf',d.uf]].forEach(([k,val])=>{ const e = document.getElementById(prefix+k); if(e && !e.value && val){ e.value = val; e.classList.add('auto'); } });
+  }catch(e){}
+}
+
+// ---- editar cadastro ----
+function openEditPessoa(p){
+  const box = dlgOpen(`<div class="om-title"><div><h3>Editar cadastro</h3><div class="om-sub">${escapeHtml(p.nome)}</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="fgrid">
+      ${fld('pe-nome','Nome completo *',p.nome,'text',true)}${fld('pe-cpf','CPF',p.cpf)}${fld('pe-crm','CRM',p.crm)}
+      ${fld('pe-data_nascimento','Data de nascimento',p.data_nascimento,'date')}${fld('pe-telefone','Telefone',p.telefone)}${fld('pe-email','E-mail',p.email)}${fld('pe-especialidade','Especialidade',p.especialidade)}
+      ${fld('pe-cnpj','CNPJ (PJ)',p.cnpj)}${fld('pe-razao_social','Razão social',p.razao_social)}
+      <label class="fl"><span>Perfil do cliente</span><select id="pe-tipo">${tipoOptions(p.tipo||'medico')}</select></label>
+      <label class="fl"><span>Gênero</span><select id="pe-sexo"><option value="">—</option><option value="M" ${p.sexo==='M'?'selected':''}>Masculino</option><option value="F" ${p.sexo==='F'?'selected':''}>Feminino</option></select></label>
+      <label class="fl"><span>Estado civil</span><select id="pe-estado_civil"><option value="">—</option>${['solteiro','casado','união estável','divorciado','viúvo'].map(o=>`<option ${p.estado_civil===o?'selected':''}>${o}</option>`).join('')}</select></label>
+      ${fld('pe-origem','Origem',p.origem)}${fld('pe-quem_indicou','Quem indicou',p.quem_indicou)}
+      ${pfExtraFieldsHtml('pe-', p)}
+    </div><div class="om-err" id="pe-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="pe-save">Salvar</button></div>`, true);
+  box.querySelector('#pe-cep').addEventListener('change', ()=>cepFill('pe-'));
+  box.querySelector('#pe-save').addEventListener('click', async ()=>{
+    const g = id=>document.getElementById('pe-'+id).value.trim(); if(!g('nome')){ document.getElementById('pe-err').textContent = 'O nome é obrigatório.'; return; }
+    const upd = { nome:g('nome'), tipo:g('tipo')||'medico', tags:pfTags('pe-') };
+    ['cpf','crm','data_nascimento','telefone','email','especialidade','cnpj','razao_social','sexo','estado_civil','origem','quem_indicou','classificacao','observacoes'].concat(PF_EXTRA.map(x=>x[0])).forEach(k=>{ upd[k] = g(k)||null; });
+    const { error } = await sb.from('crm_pessoas').update(upd).eq('id', p.id);
+    if(error){ document.getElementById('pe-err').textContent = 'Erro: '+error.message; return; }
+    const op = OP.pessoas.find(x=>x.id===p.id); if(op) Object.assign(op, upd);
+    dlgClose(); showToast('Cadastro atualizado'); opFillTagFilter(); openPerson(p.id);
+  });
+}
+document.addEventListener('click', async e=>{
+  if(e.target.id==='pa-editar'){ const p = window._curPerson; if(!p) return; const { data } = await sb.from('crm_pessoas').select('*').eq('id', p.id).single(); if(data) openEditPessoa(data); }
+});
+
+// ---- filtro por tag na Aliança ----
+function opFillTagFilter(){
+  const el = document.getElementById('op-f-tag'); if(!el) return; const cur = el.value;
+  const all = new Set(); OP.pessoas.forEach(p=>(p.tags||[]).forEach(t=>all.add(t)));
+  el.innerHTML = '<option value="">Qualquer tag</option>' + [...all].sort((a,b)=>a.localeCompare(b,'pt-BR')).map(t=>`<option>${escapeHtml(t)}</option>`).join(''); el.value = cur;
+}
+
+// ---- importar contatos em massa (Excel/CSV) ----
+const CT_FIELDS = [
+  ['nome','Nome *',/^nome|^cliente|^contato/i],['sobrenome','Sobrenome',/sobrenome/i],['cpf','CPF',/cpf/i],['data_nascimento','Data de nascimento',/nasc/i],['sexo','Gênero',/g[êe]nero|sexo/i],
+  ['profissao','Profissão',/profiss/i],['crm','CRM',/^crm/i],['especialidade','Especialidade',/especial/i],['regime_trabalho','Regime de trabalho',/regime/i],
+  ['telefone','Telefone',/telefone|celular|whats|fone/i],['email','E-mail',/e-?mail/i],['cep','CEP',/^cep/i],['logradouro','Logradouro',/logradouro|rua|endere[çc]o/i],['numero','Número',/^n[úu]mero|^n[ºo]$/i],
+  ['complemento','Complemento',/complemento/i],['bairro','Bairro',/bairro/i],['cidade','Cidade',/cidade|munic/i],['uf','Estado (UF)',/^estado|^uf$/i],
+  ['origem','Origem',/^origem/i],['quem_indicou','Quem indicou',/indic/i],['campanha','Campanha',/campanha/i],['parceiro','Parceiro',/parceiro/i],['observacoes','Observação',/observa/i],
+  ['classificacao','Classificação (Frio/Quente/Call Hot)',/classifica|temperatura/i],['tags','Tags (separadas por ; ou ,)',/tag/i]];
+const CT_TEMPLATE_HEADS = ['Nome*','Sobrenome','CPF','Data de nascimento','Gênero','Profissão','CRM','Especialidade','Regime de trabalho','Telefone','E-mail','CEP','Logradouro','Número','Complemento','Bairro','Cidade','Estado','Origem','Quem indicou','Campanha','Parceiro','Observação','Classificação','Tags'];
+let CT = null;
+document.getElementById('op-import').addEventListener('click', ()=>{
+  const box = dlgOpen(`<div class="om-title"><div><h3>Importar contatos em massa</h3><div class="om-sub">Excel (.xlsx) ou CSV. Só o nome é obrigatório; colunas que você não tiver podem ficar de fora. O sistema cruza cada linha com o cadastro (CPF, CRM e nome) para não duplicar.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div style="margin-bottom:10px"><button class="om-cancel" id="ct-modelo">⬇ Baixar modelo de planilha (Excel)</button></div>
+    <div class="dz" id="ct-dz">📊 Arraste a planilha aqui ou clique para escolher<input type="file" id="ct-file" accept=".csv,.xlsx,.xls" hidden></div><div id="ct-step"></div></div>`, true);
+  const dz = box.querySelector('#ct-dz'), inp = box.querySelector('#ct-file');
+  dz.addEventListener('click', ()=>inp.click()); dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); }); dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); ctLoad(e.dataTransfer.files[0]); }); inp.addEventListener('change', ()=>ctLoad(inp.files[0]));
+  box.querySelector('#ct-modelo').addEventListener('click', async ()=>{
+    try{ await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const ws = XLSX.utils.aoa_to_sheet([CT_TEMPLATE_HEADS, ['Maria','Souza Lima','529.982.247-25','12/03/1985','Feminino','Médica','123456','Anestesiologia','CLT','(11) 98765-4321','maria@exemplo.com','01310-100','Av. Paulista','1000','Sala 12','Bela Vista','São Paulo','SP','Indicação','Carla','Lançamento Set/26','','Pediu retorno após dia 15','Quente','Contato; Atendimento']]);
+      ws['!cols'] = CT_TEMPLATE_HEADS.map(h=>({wch:Math.max(14,h.length+4)}));
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Contatos'); XLSX.writeFile(wb, 'modelo-contatos-callmed.xlsx');
+    }catch(e){ showToast('Não consegui gerar o modelo: '+e.message); }
+  });
+});
+async function ctLoad(file){
+  if(!file) return; const step = document.getElementById('ct-step'); step.innerHTML = '<div class="op-more">⏳ Lendo planilha...</div>';
+  try{
+    let rows;
+    if(/\.xlsx?$/i.test(file.name)){ await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const wb = XLSX.read(await file.arrayBuffer(), {type:'array'}); rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, raw:false, dateNF:'dd/mm/yyyy', defval:''}); }
+    else rows = impCsv(await file.text());
+    rows = rows.filter(r=>r.some(x=>String(x).trim()!==''));
+    if(rows.length<2) throw new Error('A planilha precisa ter os títulos na primeira linha e ao menos um contato.');
+    const heads = rows[0].map(h=>String(h||'').replace(/\*/g,'').trim());
+    CT = { file:file.name, heads, rows:rows.slice(1), map:{} };
+    const used = new Set();
+    CT_FIELDS.forEach(([k,,re])=>{ const i = heads.findIndex((h,ix)=>!used.has(ix) && re.test(h)); CT.map[k] = i; if(i>=0) used.add(i); });
+    step.innerHTML = `<div class="hint">Arquivo: <b>${escapeHtml(file.name)}</b> — ${CT.rows.length} linhas. Confira as colunas (o que não tiver, deixe “não importar”):</div>
+      <div class="fgrid" style="margin-top:10px">${CT_FIELDS.map(([k,l])=>`<label class="fl"><span>${l}</span><select data-ct="${k}"><option value="-1">— não importar —</option>${heads.map((h,i)=>`<option value="${i}" ${CT.map[k]===i?'selected':''}>${escapeHtml(h||('coluna '+(i+1)))}</option>`).join('')}</select></label>`).join('')}
+      <label class="fl"><span>Perfil dos contatos novos</span><select id="ct-tipo">${tipoOptions('medico')}</select></label></div>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" id="ct-upd" checked> Contato já existente: preencher só os campos que estão vazios no cadastro (recomendado)</label>
+      <div style="margin-top:12px"><button class="om-save" id="ct-prev">Conferir antes de importar</button></div><div id="ct-result"></div>`;
+    step.querySelector('#ct-prev').addEventListener('click', ctPreview);
+  }catch(e){ step.innerHTML = '<div class="om-err">Erro: '+escapeHtml(e.message||e)+'</div>'; }
+}
+function ctNormRow(r){
+  const c = (k)=> CT.map[k]>=0 ? String(r[CT.map[k]]||'').trim() : '';
+  const o = {}; CT_FIELDS.forEach(([k])=>{ const v = c(k); if(v) o[k] = v; });
+  if(o.sobrenome){ o.nome = ((o.nome||'')+' '+o.sobrenome).trim(); } delete o.sobrenome;
+  if(o.data_nascimento){ const d = impDate(o.data_nascimento); if(d) o.data_nascimento = d; else delete o.data_nascimento; }
+  if(o.sexo){ o.sexo = /^f/i.test(o.sexo) ? 'F' : (/^m/i.test(o.sexo) ? 'M' : null); if(!o.sexo) delete o.sexo; }
+  if(o.classificacao){ const t = o.classificacao.toLowerCase(); o.classificacao = /hot/.test(t) ? 'call_hot' : (/quente/.test(t) ? 'quente' : (/frio/.test(t) ? 'frio' : null)); if(!o.classificacao) delete o.classificacao; }
+  if(o.tags){ o.tags = o.tags.split(/[;,]/).map(x=>x.trim()).filter(Boolean); }
+  if(o.uf) o.uf = o.uf.toUpperCase().slice(0,2);
+  return o;
+}
+async function ctPreview(){
+  document.querySelectorAll('[data-ct]').forEach(s=>{ CT.map[s.dataset.ct] = parseInt(s.value,10); });
+  const res = document.getElementById('ct-result');
+  if(CT.map.nome<0){ res.innerHTML = '<div class="om-err">Indique qual coluna é o nome.</div>'; return; }
+  res.innerHTML = '<div class="op-more">⏳ Cruzando com os cadastros...</div>'; await ensurePessoas();
+  const novos = [], existentes = [], revisar = [], semNome = []; const seenKey = new Set();
+  for(const r of CT.rows){
+    const o = ctNormRow(r); if(!o.nome){ semNome.push(r); continue; }
+    const found = await findPessoas({cpf:o.cpf, crm:o.crm, nome:o.nome, telefone:o.telefone});
+    const forte = found.find(isStrong), fraco = found.find(x=>!isStrong(x));
+    const key = (dOnly(o.cpf).length===11 ? dOnly(o.cpf) : normNome(o.nome).join(' '));
+    if(seenKey.has(key)){ continue; } seenKey.add(key);
+    if(forte) existentes.push({o, id:forte.id, nome:forte.nome}); else if(fraco) revisar.push({o, fraco}); else novos.push(o);
+  }
+  CT.novos = novos; CT.existentes = existentes;
+  res.innerHTML = `<div class="reco" style="margin-top:12px"><b>Resultado da conferência</b><br>• <b>${novos.length}</b> contato(s) novo(s) serão cadastrados<br>• ${existentes.length} já existem (CPF/CRM/nome idêntico) — ${document.getElementById('ct-upd').checked?'serão completados nos campos vazios':'serão ignorados'}${revisar.length?`<br>• <b>${revisar.length}</b> com nome parecido ou telefone igual a outro cadastro — <b>ficam de fora</b> para você revisar: ${revisar.slice(0,6).map(x=>escapeHtml(x.o.nome)+' ≈ '+escapeHtml(x.fraco.nome)).join('; ')}${revisar.length>6?'…':''}`:''}${semNome.length?`<br>• ${semNome.length} linha(s) sem nome (ignoradas)`:''}</div>
+    ${(novos.length||existentes.length)?`<div style="margin-top:10px"><button class="om-save" id="ct-go">Importar agora</button></div>`:''}<div class="om-err" id="ct-err"></div>`;
+  const go = document.getElementById('ct-go'); if(go) go.addEventListener('click', ctRun);
+}
+async function ctRun(){
+  const btn = document.getElementById('ct-go'), err = document.getElementById('ct-err'); btn.disabled = true;
+  try{
+    const tipo = document.getElementById('ct-tipo').value, upd = document.getElementById('ct-upd').checked;
+    const COLS = 'id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,total_pago_plantoes_2026';
+    for(let i=0;i<CT.novos.length;i+=100){
+      btn.textContent = `Cadastrando ${Math.min(i+100,CT.novos.length)}/${CT.novos.length}...`;
+      const chunk = CT.novos.slice(i,i+100).map(o=>({...o, tipo}));
+      const { data, error } = await sb.from('crm_pessoas').insert(chunk).select(COLS); if(error) throw error; data.forEach(d=>OP.pessoas.push(d));
+    }
+    let atualizados = 0;
+    if(upd){
+      for(let i=0;i<CT.existentes.length;i++){
+        const {o, id} = CT.existentes[i]; const cur = OP.pessoas.find(p=>p.id===id)||{};
+        const { data: full } = await sb.from('crm_pessoas').select('*').eq('id', id).single(); if(!full) continue;
+        const patch = {}; Object.keys(o).forEach(k=>{ if(k==='nome'||k==='tags') return; if(full[k]===null || full[k]===undefined || full[k]==='') patch[k] = o[k]; });
+        if(o.tags && o.tags.length){ const merged = [...new Set([...(full.tags||[]), ...o.tags])]; if(merged.length!==(full.tags||[]).length) patch.tags = merged; }
+        if(Object.keys(patch).length){ btn.textContent = `Completando cadastros ${i+1}/${CT.existentes.length}...`; const { error } = await sb.from('crm_pessoas').update(patch).eq('id', id); if(!error){ atualizados++; Object.assign(cur, patch); } }
+      }
+    }
+    OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR')); opFillTagFilter();
+    dlgClose(); showToast(`${CT.novos.length} contatos novos cadastrados${upd?` · ${atualizados} existentes completados`:''}`); opApplyFilters(true);
+  }catch(e){ err.textContent = 'Erro durante a importação: '+(e.message||e); btn.disabled = false; btn.textContent = 'Tentar novamente'; }
+}
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
