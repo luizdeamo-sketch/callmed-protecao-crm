@@ -254,18 +254,7 @@
 
     <div id="op-modal"></div>
 
-    <div id="view-pessoas" class="view">
-      <div id="sidebar">
-        <button class="btn-ghost" id="btn-op-back">← Voltar para a Aliança</button>
-        <div id="search-box"><input id="search-input" placeholder="Buscar por nome, CPF ou CRM..."></div>
-        <div id="list-status">Carregando...</div>
-        <div id="person-list"></div>
-      </div>
-      <div id="main">
-        <div id="empty-state">Selecione um médico na lista à esquerda.</div>
-        <div id="person-view" style="display:none;"></div>
-      </div>
-    </div>
+    <div id="view-pessoas" class="view"><div id="main"><div id="person-view"></div></div></div>
 
     <div id="view-agenda" class="view">
       <div id="agenda-main">
@@ -306,48 +295,6 @@
         </form>
         <div class="day-events" id="day-events"></div>
       </div>
-    </div>
-
-    <div id="view-funil" class="view">
-      <div class="kanban-head">
-        <h2>Funil comercial</h2>
-        <div style="color:var(--ink-faint); font-size:12.5px; margin-top:4px;">Pipeline semanal de vendas — Contato → Atendimento → Agendamento → Reunião → Diagnóstico → Proposta → Fechamento → Follow-up. Clique num card para abrir o médico.</div>
-      </div>
-      <div class="kanban-board" id="funil-board"></div>
-    </div>
-
-    <div id="view-jornada" class="view">
-      <div class="kanban-head">
-        <h2>Jornada dos médicos</h2>
-        <div style="color:var(--ink-faint); font-size:12.5px; margin-top:4px;">As 8 etapas do Playbook Comercial (ciclo de vida do relacionamento) — clique num card para abrir o médico.</div>
-      </div>
-      <div class="kanban-board" id="kanban-board"></div>
-    </div>
-
-    <div id="view-hoje" class="view" style="overflow-y:auto; padding:26px 32px;">
-      <h2 style="margin-bottom:18px;">☀️ Hoje</h2>
-      <div class="grid-2col">
-        <div>
-          <h3 style="font-size:1rem; margin-bottom:10px;">Tarefas de hoje</h3>
-          <form class="add-form" id="tarefa-form" style="grid-template-columns:1fr; margin-bottom:14px;">
-            <input name="descricao" placeholder="Nova tarefa..." required>
-            <select name="prioridade"><option value="media">Prioridade média</option><option value="alta">Alta</option><option value="baixa">Baixa</option></select>
-            <select name="categoria"><option value="vendas">Vendas</option><option value="pos_venda">Pós-venda</option><option value="administrativo">Administrativo</option><option value="relacionamento">Relacionamento</option><option value="adn">ADN</option></select>
-            <button type="submit">+ Adicionar tarefa</button>
-          </form>
-          <div id="tarefas-list"></div>
-        </div>
-        <div>
-          <h3 style="font-size:1rem; margin-bottom:10px;">Lembretes pendentes</h3>
-          <div id="lembretes-list"></div>
-        </div>
-      </div>
-    </div>
-
-    <div id="view-apolices" class="view" style="overflow-y:auto; padding:26px 32px;">
-      <h2 style="margin-bottom:6px;">📄 Apólices</h2>
-      <div style="color:var(--ink-faint); font-size:12.5px; margin-bottom:18px;">Ordenado por vencimento mais próximo — priorize renovação.</div>
-      <div id="apolices-list"></div>
     </div>
 
     <div id="view-conhecimento" class="view" style="overflow-y:auto; padding:26px 32px;">
@@ -595,6 +542,14 @@
   .sg-atts{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; align-items:center;}
   .sg-thumb{ max-width:220px; max-height:150px; border:1px solid var(--border); border-radius:8px; display:block; background:#f2f3f9; min-width:60px; min-height:40px;}
   .sg-file{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 10px; font-size:12.5px; color:var(--brand); text-decoration:none; font-weight:600;}
+  #view-pessoas.active{ display:block; overflow-y:auto;} #main{ padding:20px 28px;} #person-view{ max-width:1120px;}
+  .pv-tabs{ display:flex; gap:4px; border-bottom:1px solid var(--border); margin:14px 0 16px; overflow-x:auto;}
+  .pv-tab{ border:none; background:transparent; padding:10px 16px; font-size:13.5px; font-weight:600; color:var(--ink-soft); cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap;}
+  .pv-tab:hover{ color:var(--brand);} .pv-tab.on{ color:var(--brand); border-bottom-color:var(--brand);}
+  .pv-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; align-items:start;} @media (max-width:900px){ .pv-grid{ grid-template-columns:1fr;} }
+  .pv-next{ display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; background:var(--brand-soft); border:1px solid #c9cff0; border-radius:var(--radius-md); padding:10px 14px; margin-top:12px; font-size:13px;}
+  .pv-next.late{ background:var(--red-soft); border-color:var(--red-line);} .pv-next.none{ background:var(--amber-soft); border-color:var(--amber-line);}
+  .pv-next button{ margin-left:6px;} .lead-txt{ font-size:13.5px; line-height:1.55; margin-bottom:6px;}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -723,7 +678,6 @@ function boot(){
   document.getElementById('app').classList.add('active');
   sb.auth.getUser().then(({data})=>{ document.getElementById('who-email').textContent = data.user ? data.user.email : ''; });
   document.getElementById('ics-url').value = `${SUPABASE_URL}/functions/v1/agenda-ics?token=${ICS_TOKEN}`;
-  loadPeople('');
   renderCalendar();
   renderOperacao();
 }
@@ -738,11 +692,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'operacao') renderOperacao();
     if(btn.dataset.view === 'central') renderCentral();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
-    if(btn.dataset.view === 'funil') renderFunil();
-    if(btn.dataset.view === 'jornada') renderKanban();
     if(btn.dataset.view === 'agenda') renderCalendar();
-    if(btn.dataset.view === 'hoje') renderHoje();
-    if(btn.dataset.view === 'apolices') renderApolices();
     if(btn.dataset.view === 'conhecimento') renderConhecimento();
     if(btn.dataset.view === 'ata') renderAta();
   });
@@ -761,31 +711,6 @@ document.getElementById('btn-copy-ics').addEventListener('click', ()=>{
   showToast('Link copiado!');
 });
 
-// ---------- PEOPLE LIST ----------
-async function loadPeople(query){
-  const statusEl = document.getElementById('list-status');
-  const listEl = document.getElementById('person-list');
-  statusEl.textContent = 'Carregando...';
-  let q = sb.from('crm_pessoas').select('id,nome,cpf,crm,especialidade,tipo').order('nome').limit(150);
-  if(query){ q = q.or(`nome.ilike.%${query}%,cpf.ilike.%${query}%,crm.ilike.%${query}%`); }
-  const { data, error } = await q;
-  if(error){ statusEl.textContent = 'Erro: ' + error.message; return; }
-  statusEl.textContent = data.length + (query ? ' resultado(s)' : ' médicos (mostrando primeiros 150 — busque para refinar)');
-  listEl.innerHTML = '';
-  data.forEach(p=>{
-    const row = document.createElement('div');
-    row.className = 'person-row' + (p.id===currentPersonId ? ' active' : '');
-    row.innerHTML = `<div class="nm">${escapeHtml(p.nome)}</div><div class="meta">${p.crm ? 'CRM '+escapeHtml(p.crm) : ''} ${p.especialidade ? '· '+escapeHtml(p.especialidade) : ''}</div>`;
-    row.addEventListener('click', ()=> openPerson(p.id));
-    listEl.appendChild(row);
-  });
-}
-document.getElementById('search-input').addEventListener('input', (e)=>{
-  clearTimeout(searchTimer);
-  const val = e.target.value.trim();
-  searchTimer = setTimeout(()=> loadPeople(val), 300);
-});
-
 // ---------- BLOCKS CONFIG (mapeia os blocos do Playbook + reunião 14/09) ----------
 const BLOCKS = [
   { table:'crm_redes_sociais', label:'Redes Sociais / Pesquisa', icon:'🔎',
@@ -799,13 +724,6 @@ const BLOCKS = [
              {name:'contexto',label:'Contexto',type:'text'},
              {name:'pessoa_referencia',label:'Pessoa de referência',type:'text'} ],
     render:r=>`<span class="k">${fmtDate(r.data_contato)}</span>${escapeHtml(r.contexto||'')}${r.pessoa_referencia?('<br><span class="k">REF</span>'+escapeHtml(r.pessoa_referencia)):''}` },
-  { table:'crm_protecao_atual', label:'Proteção Atual', icon:'🛡️',
-    fields:[ {name:'seguradora',label:'Seguradora',type:'text'},
-             {name:'produto',label:'Produto',type:'text'},
-             {name:'cobertura',label:'Cobertura',type:'text'},
-             {name:'status',label:'Status',type:'select',options:['ativa','cancelada','nao_possui','em_analise']},
-             {name:'data_ultima_revisao',label:'Última revisão',type:'date'} ],
-    render:r=>`<b>${escapeHtml(r.seguradora||'—')}</b> · ${escapeHtml(r.produto||'')} <span class="k">${r.status||''}</span>${r.data_ultima_revisao?(' · revisado '+fmtDate(r.data_ultima_revisao)):''}` },
   { table:'crm_diagnostico', label:'Diagnóstico (ADN completo)', icon:'🩺',
     fields:[
       {name:'status',label:'Status da ADN',type:'select',options:['em_aberto','parcial','completo']},
@@ -891,41 +809,6 @@ const BLOCKS = [
       extra.forEach(([k,v])=>{ if(v!==null && v!==undefined && v!=='') out += `<br><span class="k">${k.toUpperCase()}</span>${escapeHtml(String(v))}`; });
       return out;
     } },
-  { table:'crm_apolices', label:'Apólices (detalhado)', icon:'📄',
-    fields:[ {name:'numero_apolice',label:'Nº da apólice',type:'text'},
-             {name:'seguradora',label:'Seguradora',type:'text'},
-             {name:'tipo_seguro',label:'Tipo de seguro',type:'text'},
-             {name:'data_emissao',label:'Emissão',type:'date'},
-             {name:'data_vencimento',label:'Vencimento',type:'date'},
-             {name:'valor_premio',label:'Prêmio (R$)',type:'number'},
-             {name:'valor_cobertura',label:'Cobertura (R$)',type:'number'},
-             {name:'status',label:'Status',type:'select',options:['ativa','cancelada','vencida','em_analise']},
-             {name:'observacoes',label:'Observações',type:'text'} ],
-    render:r=>`<b>${escapeHtml(r.seguradora||'—')}</b> · ${escapeHtml(r.tipo_seguro||'')} <span class="k">${r.status||''}</span><br><span class="k">Nº</span>${escapeHtml(r.numero_apolice||'—')} · <span class="k">VENCE</span>${fmtDate(r.data_vencimento)} · <span class="k">COBERTURA</span>R$ ${r.valor_cobertura||'—'}` },
-  { table:'crm_transcricoes', label:'Transcrições', icon:'📝',
-    fields:[ {name:'resumo_ia',label:'Resumo',type:'text'},
-             {name:'texto_transcricao',label:'Texto completo',type:'text'},
-             {name:'duracao_minutos',label:'Duração (min)',type:'number'} ],
-    render:r=>`<span class="k">${fmtDateTime(r.data_hora)}</span>${r.duracao_minutos?(' · '+r.duracao_minutos+'min'):''}${r.resumo_ia?('<br>'+escapeHtml(r.resumo_ia)):(r.texto_transcricao?('<br>'+escapeHtml(r.texto_transcricao.slice(0,180))+'…'):'<br><i>Sem resumo ainda — pipeline de IA não conectado.</i>')}` },
-  { table:'crm_funil', label:'Funil comercial', icon:'📶',
-    fields:[ {name:'etapa',label:'Etapa',type:'select',options:['contato','atendimento','agendamento','reuniao','diagnostico','proposta','fechamento','follow_up']},
-             {name:'origem_contato',label:'Origem do contato',type:'text',placeholder:'Carla, WhatsApp, indicação...'},
-             {name:'proximo_passo',label:'Próximo passo',type:'text'},
-             {name:'data_combinada',label:'Data combinada',type:'date'},
-             {name:'motivo_perda',label:'Motivo (se perdido)',type:'text'} ],
-    render:r=>`<b>${escapeHtml(r.etapa||'—')}</b>${r.origem_contato?(' <span class="k">ORIGEM</span>'+escapeHtml(r.origem_contato)):''}${r.proximo_passo?(' → '+escapeHtml(r.proximo_passo)):''}${r.data_combinada?(' <span class="k">'+fmtDate(r.data_combinada)+'</span>'):''}${r.motivo_perda?('<br><span class="k">MOTIVO PERDA</span>'+escapeHtml(r.motivo_perda)):''}` },
-  { table:'crm_jornada', label:'Jornada', icon:'🧭',
-    fields:[ {name:'etapa',label:'Etapa',type:'select',options:['priorizar','contatar','abordar','construir','fechar','implantar','fidelizar','expandir_indicar']},
-             {name:'proximo_passo',label:'Próximo passo',type:'text'},
-             {name:'data_combinada',label:'Data combinada',type:'date'} ],
-    render:r=>`<b>${escapeHtml(r.etapa||'—')}</b>${r.proximo_passo?(' → '+escapeHtml(r.proximo_passo)):''}${r.data_combinada?(' <span class="k">'+fmtDate(r.data_combinada)+'</span>'):''}` },
-  { table:'crm_comercial', label:'Comercial', icon:'💼',
-    fields:[ {name:'proposta',label:'Proposta',type:'text'},
-             {name:'valor',label:'Valor (R$)',type:'number'},
-             {name:'objecao',label:'Objeção',type:'text'},
-             {name:'decisao',label:'Decisão',type:'select',options:['em_andamento','ganho','perdido']},
-             {name:'motivo_perda',label:'Motivo perda',type:'text'} ],
-    render:r=>`<b>${escapeHtml(r.proposta||'—')}</b> R$ ${r.valor||'—'} <span class="k">${r.decisao||''}</span>${r.objecao?('<br><span class="k">OBJEÇÃO</span>'+escapeHtml(r.objecao)):''}` },
   { table:'crm_pos_venda', label:'Pós-venda', icon:'✅',
     fields:[ {name:'implantacao_status',label:'Status implantação',type:'text'},
              {name:'pendencias',label:'Pendências',type:'text'},
@@ -942,87 +825,297 @@ const BLOCKS = [
              {name:'fonte_sinal',label:'Fonte do sinal',type:'text'},
              {name:'acao_tomada',label:'Ação tomada',type:'text'} ],
     render:r=>`<b>${escapeHtml(r.tipo_evento||'—')}</b> ${fmtDate(r.data_evento)}${r.acao_tomada?('<br><span class="k">AÇÃO</span>'+escapeHtml(r.acao_tomada)):''}` },
-  { table:'crm_interacoes', label:'Interações / Gravações', icon:'🎙️',
-    fields:[ {name:'tipo',label:'Tipo',type:'select',options:['ligacao','visita','whatsapp','email','outro']},
-             {name:'resumo',label:'Resumo',type:'text'},
-             {name:'gravacao_url',label:'URL da gravação',type:'text'} ],
-    render:r=>`<b>${r.tipo||'—'}</b> <span class="k">${fmtDate(r.data)}</span>${r.resumo?('<br>'+escapeHtml(r.resumo)):''}` },
 ];
 
-// ---------- PERSON DETAIL ----------
+// ---------- CADASTRO DO CLIENTE (5 seções) ----------
+const PV = { person:null, tab:'resumo' };
+const PV_TABS = [['resumo','Resumo'],['historico','Histórico'],['protecao','Proteção'],['relacionamento','Relacionamento'],['plantoes','CallMed Plantões']];
+const ACOES = ['Realizar primeiro contato','Fazer nova tentativa','Agendar reunião','Confirmar reunião','Realizar diagnóstico','Preparar proposta','Apresentar proposta','Realizar follow-up','Tratar objeção','Solicitar documentação','Concluir fechamento','Reativar contato','Outra'];
+const MOTIVOS = ['Sem interesse','Já possui proteção','Preço','Cobertura','Momento financeiro','Precisa pensar','Precisa falar com outra pessoa','Não respondeu','Não foi possível contato','Fora do perfil','Fechou com outra corretora','Outro'];
+const MOTIVOS_PAUSA = ['Precisa pensar','Momento financeiro','Não respondeu','Não foi possível contato'];
+const TIPOS_ATIV = [['ligacao','📞 Ligação'],['whatsapp','💬 WhatsApp'],['email','✉️ E-mail'],['reuniao','🤝 Reunião'],['visita','🚗 Visita'],['proposta','📑 Proposta'],['outro','📝 Outro']];
+const RESULTADOS = ['Conversou','Sem resposta','Agendou','Enviou material','Demonstrou interesse','Sem interesse','Outro'];
+const OPP_PRODUTOS = ['Vida','Vida em grupo','RC Profissional','DIT / renda','Saúde','Odontológico','Previdência','Patrimonial / Empresarial','Residencial','Automóvel','Prestamista','D&O','Outro'];
+const OPP_STATUS = [['aberta','Aberta'],['ganha','Ganha'],['perdida','Perdida'],['pausada','Pausada']];
+const DIAG_ESSENCIAL = [['status','Status do diagnóstico','select',['em_aberto','parcial','completo']],['renda_mensal_valor_exato','Renda mensal (R$)','number'],['despesas_mensais','Despesas mensais (R$)','number'],['dependentes','Nº de dependentes','number'],
+  ['dependentes_idades','Idade dos dependentes','text'],['valor_bens_totais','Patrimônio total bruto (R$)','number'],['patrimonio_financeiro','Patrimônio financeiro (R$)','number'],['dividas_valor','Dívidas / financiamentos (R$)','number'],
+  ['tem_plano_saude','Plano de saúde?','boolean'],['valor_cheque_mensal','Quanto pode investir em proteção (R$/mês)','number'],['objetivo_seguro_vida','Objetivo do seguro de vida','text'],['preocupacoes','Maior preocupação','text']];
+const DIAG_SAUDE = ['peso','altura','fuma','tem_doenca_grave','qual_doenca_grave','usa_medicamentos_continuos','quais_medicamentos','pratica_esportes','quais_esportes','usa_motocicleta','ja_ficou_internado','motivo_internacao','realizou_cirurgia','motivo_cirurgia','historico_familiar_doencas'];
+
+function curUserName(){ try{ return localStorage.getItem('crm_nome') || localStorage.getItem('sg_who') || (window._userEmail||'').split('@')[0] || 'Equipe'; }catch(e){ return 'Equipe'; } }
+const waLink = (tel)=>{ const d = dOnly(tel); if(d.length<10) return null; return 'https://wa.me/'+(d.length<=11?'55'+d:d); };
+const ymdToday = ()=> ymd(new Date());
+const daysTo = (s)=> s ? Math.round((new Date(s+'T00:00:00') - new Date(new Date().toDateString()))/86400000) : null;
+
 async function openPerson(id){
   currentPersonId = id;
-  document.querySelectorAll('.person-row').forEach(el=>el.classList.remove('active'));
-  document.getElementById('empty-state').style.display = 'none';
-  const viewEl = document.getElementById('person-view');
-  viewEl.style.display = 'block';
-  viewEl.innerHTML = '<div style="padding-top:40px;color:var(--ink-faint);">Carregando...</div>';
-
+  const view = document.getElementById('person-view');
+  view.innerHTML = '<div style="padding:40px;color:var(--ink-faint);">Carregando...</div>';
   const { data: person, error } = await sb.from('crm_pessoas').select('*').eq('id', id).single();
-  if(error){ viewEl.innerHTML = 'Erro: ' + error.message; return; }
+  if(error){ view.innerHTML = 'Erro: ' + escapeHtml(error.message); return; }
+  PV.person = person; window._curPerson = person; PV.tab = 'resumo';
+  pvRender();
+}
+function pvClassChip(p){ return p.classificacao ? `<span class="tag" style="background:${p.classificacao==='call_hot'?'#fde8e8':(p.classificacao==='quente'?'var(--amber-soft)':'var(--brand-soft)')}">${p.classificacao==='call_hot'?'🔥 ':''}${CLASSIF[p.classificacao]}</span>` : ''; }
+function pvNextHtml(p){
+  const d = daysTo(p.proxima_data); const late = d!==null && d<0, today = d===0;
+  return `<div class="pv-next${late?' late':''}${!p.proxima_acao?' none':''}"><div><b>Próxima ação:</b> ${p.proxima_acao?escapeHtml(p.proxima_acao):'<i>nenhuma definida</i>'}
+    ${p.proxima_data?` · <b>${fmtDate(p.proxima_data)}</b>${late?' <span class="tagx bad">atrasada '+(-d)+'d</span>':(today?' <span class="tagx warn">hoje</span>':'')}`:''}${p.proximo_responsavel?' · '+escapeHtml(p.proximo_responsavel):''}</div>
+    <div><button class="om-cancel" id="pv-next-edit">Definir próxima ação</button><button class="om-save" id="pv-next-log">Registrar atividade</button></div></div>`;
+}
+function pvRender(){
+  const p = PV.person, view = document.getElementById('person-view');
+  const wa = waLink(p.telefone);
+  view.innerHTML = `<div class="person-header"><div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn-ghost" id="btn-op-back">← Aliança</button><h2 style="margin:0">${escapeHtml(p.nome)}</h2></div>
+      <div class="tags" style="margin-top:8px"><span class="tag">${TIPOS_PESSOA[p.tipo||'medico']||p.tipo}</span>${p.crm?`<span class="tag">CRM ${escapeHtml(p.crm)}</span>`:''}${p.especialidade?`<span class="tag">${escapeHtml(p.especialidade)}</span>`:''}${pvClassChip(p)}${(p.tags||[]).map(t=>`<span class="tag">🏷 ${escapeHtml(t)}</span>`).join('')}</div>
+      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button>${wa?`<a class="om-cancel" style="text-decoration:none" href="${wa}" target="_blank" rel="noopener">💬 WhatsApp</a>`:''}</div>
+      <div id="pv-next">${pvNextHtml(p)}</div>
+    </div></div>
+    <div class="pv-tabs">${PV_TABS.map(([k,l])=>`<button class="pv-tab${PV.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
+    <div id="pv-body"></div>`;
+    pvShowTab(PV.tab);
+}
+function pvGoto(tab){ PV.tab = tab; document.querySelectorAll('.pv-tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab)); pvShowTab(tab); }
+function pvShowTab(tab){
+  const body = document.getElementById('pv-body'); const p = PV.person;
+  if(tab==='resumo') pvResumo(body, p);
+  if(tab==='historico') pvHistorico(body, p);
+  if(tab==='protecao') pvProtecao(body, p);
+  if(tab==='relacionamento') pvRelacionamento(body, p);
+  if(tab==='plantoes') pvPlantoes(body, p);
+}
+document.getElementById('person-view').addEventListener('click', e=>{
+  const t = e.target.closest('.pv-tab'); if(t){ pvGoto(t.dataset.tab); return; }
+  if(e.target.id==='pv-next-edit') pvNextDialog();
+  if(e.target.id==='pv-next-log') pvGoto('historico');
+});
+function pvRefreshNext(){ const el = document.getElementById('pv-next'); if(el) el.innerHTML = pvNextHtml(PV.person); }
 
-  viewEl.innerHTML = `
-    <div class="person-header">
-      <div>
-        <h2>${escapeHtml(person.nome)}</h2>
-        <div class="tags">
-          <span class="tag">${TIPOS_PESSOA[person.tipo||'medico']||person.tipo}</span>
-          ${person.crm?`<span class="tag">CRM ${escapeHtml(person.crm)}</span>`:''}
-          ${person.especialidade?`<span class="tag">${escapeHtml(person.especialidade)}</span>`:''}
-        </div>
-        <div class="tags" style="margin:8px 0">${person.classificacao?`<span class="tag" style="background:${person.classificacao==='call_hot'?'#fde8e8':(person.classificacao==='quente'?'var(--amber-soft)':'var(--brand-soft)')}">${person.classificacao==='call_hot'?'🔥 ':''}${CLASSIF[person.classificacao]}</span>`:''}${(person.tags||[]).map(t=>`<span class="tag">🏷 ${escapeHtml(t)}</span>`).join('')}</div>
-        <div class="core-fields">
-          <div class="cf"><label>CPF</label><div class="v mono">${escapeHtml(person.cpf||'—')}</div></div>
-          <div class="cf"><label>Telefone</label><div class="v">${escapeHtml(person.telefone||'—')}</div></div>
-          <div class="cf"><label>Email</label><div class="v">${escapeHtml(person.email||'—')}</div></div>
-          <div class="cf"><label>Vínculo CallMed</label><div class="v">${escapeHtml(person.vinculo_callmed||'—')}</div></div>
-          <div class="cf"><label>Canal preferido</label><div class="v">${escapeHtml(person.canal_preferido||'—')}</div></div>
-          <div class="cf"><label>Score Lead</label><div class="v">${person.score_lead ?? '—'}/100</div></div>
-          <div class="cf"><label>Score Cliente</label><div class="v">${person.score_cliente ?? '—'}/100</div></div>
-          <div class="cf"><label>Origem</label><div class="v">${escapeHtml(person.origem||'—')}${person.quem_indicou?(' · indicado por '+escapeHtml(person.quem_indicou)):''}</div></div>
-          <div class="cf"><label>Status do Lead</label><div class="v">${escapeHtml(person.status_lead||'—')}</div></div>
-          <div class="cf"><label>Razão Social</label><div class="v">${escapeHtml(person.razao_social||'—')}</div></div>
-          <div class="cf"><label>CNPJ</label><div class="v mono">${escapeHtml(person.cnpj||'—')}</div></div>
-          <div class="cf"><label>PIX</label><div class="v mono">${escapeHtml(person.pix||'—')}</div></div>
-          <div class="cf"><label>Banco</label><div class="v">${escapeHtml(person.banco||'—')}${person.agencia?(' · ag. '+escapeHtml(person.agencia)):''}</div></div>
-          <div class="cf"><label>Profissão / Regime</label><div class="v">${escapeHtml(person.profissao||'—')}${person.regime_trabalho?(' · '+escapeHtml(person.regime_trabalho)):''}</div></div>
-          <div class="cf"><label>Endereço</label><div class="v">${escapeHtml([person.logradouro,person.numero,person.complemento,person.bairro,person.cidade,person.uf,person.cep].filter(Boolean).join(', ')||'—')}</div></div>
-          <div class="cf"><label>Campanha / Parceiro</label><div class="v">${escapeHtml(person.campanha||'—')}${person.parceiro?(' · '+escapeHtml(person.parceiro)):''}</div></div>
-          <div class="cf"><label>Observações</label><div class="v">${escapeHtml(person.observacoes||'—')}</div></div>
-        </div>
-        ${(person.qtde_plantoes_2026||person.valor_plantoes_2026) ? `
-        <div class="activity-strip">
-          <div class="astat"><span class="an">${person.qtde_plantoes_2026 ?? '—'}</span><span class="al">Plantões em 2026</span></div>
-          <div class="astat"><span class="an">R$ ${Number(person.valor_plantoes_2026||0).toLocaleString('pt-BR',{maximumFractionDigits:0})}</span><span class="al">Valor gerado</span></div>
-          <div class="astat"><span class="an">R$ ${Number(person.total_pago_plantoes_2026||0).toLocaleString('pt-BR',{maximumFractionDigits:0})}</span><span class="al">Total pago</span></div>
-          <div class="astat-note">Atividade real na CallMed Plantões · cadastro de ${fmtDate(person.cadastro_atualizado_em)}</div>
-        </div>` : `<div class="activity-strip empty">Sem atividade de plantões registrada em 2026 na base CallMed Plantões.</div>`}
-      </div>
-    </div>
-    <div class="person-actions"><label class="fl" style="flex-direction:row;align-items:center;gap:8px"><span>Perfil</span><select id="pa-tipo">${tipoOptions(person.tipo||'medico')}</select></label><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button></div>
-    <div class="block" id="estudos-block"></div>
-    <div class="block" id="hist-block"></div>
-    <div id="blocks-container"></div>
-  `;
-  window._curPerson = person;
-  renderPessoaEstudos(person); renderPessoaHistorico(person);
-  const container = document.getElementById('blocks-container');
-  for(const block of BLOCKS){
-    const section = document.createElement('div');
-    section.className = 'block';
-    section.innerHTML = `
-      <div class="block-head" data-table="${block.table}">
-        <h3>${block.icon} ${block.label}</h3>
-        <span class="count mono" id="count-${block.table}">…</span>
-      </div>
-      <div class="block-body" id="body-${block.table}"></div>
-    `;
+// ---- próxima ação ----
+function pvNextDialog(){
+  const p = PV.person;
+  const box = dlgOpen(`<div class="om-title"><div><h3>Próxima ação</h3><div class="om-sub">${escapeHtml(p.nome)}</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="fgrid">
+      <label class="fl full"><span>Ação</span><select id="pn-acao"><option value="">—</option>${ACOES.map(a=>`<option ${p.proxima_acao===a?'selected':''}>${a}</option>`).join('')}</select></label>
+      ${fld('pn-data','Data',p.proxima_data||'','date')}${fld('pn-resp','Responsável',p.proximo_responsavel||curUserName())}
+    </div><div class="om-err" id="pn-err"></div></div>
+    <div class="om-foot"><button class="om-cancel" id="pn-clear" style="color:var(--red)">Limpar</button><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="pn-save">Salvar</button></div>`);
+  const save = async (upd)=>{ const { error } = await sb.from('crm_pessoas').update(upd).eq('id', p.id); if(error){ document.getElementById('pn-err').textContent = 'Erro: '+error.message; return; } Object.assign(p, upd); dlgClose(); pvRefreshNext(); showToast('Próxima ação atualizada'); };
+  box.querySelector('#pn-save').addEventListener('click', ()=>{ const a = document.getElementById('pn-acao').value, d = document.getElementById('pn-data').value, r = document.getElementById('pn-resp').value.trim();
+    if(a && (!d || !r)){ document.getElementById('pn-err').textContent = 'Informe data e responsável.'; return; } save({proxima_acao:a||null, proxima_data:d||null, proximo_responsavel:a?r:null}); });
+  box.querySelector('#pn-clear').addEventListener('click', ()=> save({proxima_acao:null, proxima_data:null, proximo_responsavel:null}));
+}
+
+// ---- RESUMO ----
+function pvField(label, val, mono){ return `<div class="cf"><label>${label}</label><div class="v${mono?' mono':''}">${val || '—'}</div></div>`; }
+async function pvResumo(body, p){
+  const wa = waLink(p.telefone);
+  const end = [p.logradouro,p.numero,p.complemento,p.bairro,p.cidade,p.uf,p.cep].filter(Boolean).join(', ');
+  body.innerHTML = `<div class="pv-grid">
+    <div class="es-box"><div class="ql">Dados</div><div class="core-fields">
+      ${pvField('CPF', escapeHtml(p.cpf||''), true)}${pvField('Telefone', p.telefone?escapeHtml(p.telefone)+(wa?` <a href="${wa}" target="_blank" rel="noopener" title="Abrir WhatsApp">💬</a>`:''):'')}${pvField('E-mail', escapeHtml(p.email||''))}
+      ${pvField('Nascimento', p.data_nascimento?fmtDate(p.data_nascimento):'')}${pvField('Profissão / Regime', escapeHtml(p.profissao||'')+(p.regime_trabalho?' · '+escapeHtml(p.regime_trabalho):''))}
+      ${pvField('Origem', escapeHtml(p.origem||'')+(p.quem_indicou?' · indicado por '+escapeHtml(p.quem_indicou):''))}${pvField('Campanha / Parceiro', escapeHtml(p.campanha||'')+(p.parceiro?' · '+escapeHtml(p.parceiro):''))}
+      ${pvField('Endereço', escapeHtml(end))}${pvField('CNPJ / Razão social', escapeHtml(p.cnpj||'')+(p.razao_social?' · '+escapeHtml(p.razao_social):''))}${pvField('Observações', escapeHtml(p.observacoes||''))}
+    </div></div>
+    <div class="es-box" id="pv-lead"><div class="ql">Quem é o Lead?</div><div class="op-more">Carregando...</div></div>
+  </div>
+  <div class="es-box" id="pv-opps-resumo"></div>`;
+  pvLead(p); pvOppsResumo(p);
+}
+async function pvLead(p){
+  const host = document.getElementById('pv-lead'); if(!host) return;
+  const [ativ, ev] = await Promise.all([
+    sb.from('crm_atividades').select('data_hora,tipo,resumo').eq('pessoa_id',p.id).not('resumo','is',null).order('data_hora',{ascending:false}).limit(5),
+    sb.from('crm_eventos_vida').select('tipo_evento,data_evento,acao_tomada').eq('pessoa_id',p.id).order('data_evento',{ascending:false}).limit(5)]);
+  const datas = (p.datas_relevantes||[]).slice().sort((a,b)=>String(a.data).localeCompare(String(b.data)));
+  host.innerHTML = `<div class="ql">Quem é o Lead?</div>
+    ${p.quem_e_lead?`<div class="lead-txt">${escapeHtml(p.quem_e_lead).replace(/\n/g,'<br>')}</div>`:'<div class="hint">Nada descrito ainda. Escreva abaixo — ex.: gosta de jogar bola, filho Ricardo (12), esposa Joana.</div>'}
+    ${(ativ.data||[]).length?`<div class="ql" style="margin-top:12px">Últimas conversas</div>${ativ.data.map(a=>`<div class="rec"><span class="k">${fmtDate(a.data_hora)}</span>${escapeHtml(a.resumo)}</div>`).join('')}`:''}
+    ${(ev.data||[]).length?`<div class="ql" style="margin-top:12px">Eventos de vida</div>${ev.data.map(a=>`<div class="rec"><span class="k">${fmtDate(a.data_evento)}</span>${escapeHtml(a.tipo_evento||'')}</div>`).join('')}`:''}
+    <div class="ql" style="margin-top:12px">Datas relevantes (geram lembrete)</div>
+    ${datas.length?datas.map((d,i)=>`<div class="rec"><span class="k">${fmtDate(d.data)}</span>${escapeHtml(d.descricao)} <small style="color:var(--ink-faint)">· avisar ${d.antecedencia||7} dia(s) antes</small> <a href="#" data-deldata="${i}" style="color:var(--red);float:right">remover</a></div>`).join(''):'<div class="hint">Nenhuma.</div>'}
+    <div class="sg-row" style="margin-top:8px"><input id="ld-data" type="date" class="ca-inp" style="width:150px"><input id="ld-desc" class="ca-inp" placeholder="Ex.: viagem para a Disney" style="flex:1;min-width:160px"><input id="ld-ant" type="number" class="ca-inp" value="7" style="width:70px" title="Dias de antecedência"><button class="om-cancel" id="ld-add">+ Data</button></div>
+    <div class="ql" style="margin-top:12px">Anotações sobre o lead</div>
+    <textarea id="ld-txt" rows="3" style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-family:inherit;font-size:13px">${escapeHtml(p.quem_e_lead||'')}</textarea>
+    <div style="margin-top:6px"><button class="om-save" id="ld-save">Salvar anotações</button></div>`;
+  host.querySelector('#ld-save').addEventListener('click', async ()=>{ const v = document.getElementById('ld-txt').value.trim()||null; const { error } = await sb.from('crm_pessoas').update({quem_e_lead:v}).eq('id',p.id); if(error){ showToast('Erro: '+error.message); return; } p.quem_e_lead = v; showToast('Anotações salvas'); pvLead(p); });
+  host.querySelector('#ld-add').addEventListener('click', async ()=>{ const d = document.getElementById('ld-data').value, t = document.getElementById('ld-desc').value.trim(); if(!d||!t){ showToast('Informe data e descrição.'); return; }
+    const arr = (p.datas_relevantes||[]).concat([{data:d, descricao:t, antecedencia:parseInt(document.getElementById('ld-ant').value,10)||7}]);
+    const { error } = await sb.from('crm_pessoas').update({datas_relevantes:arr}).eq('id',p.id); if(error){ showToast('Erro: '+error.message); return; } p.datas_relevantes = arr; pvLead(p); });
+  host.querySelectorAll('[data-deldata]').forEach(a=>a.addEventListener('click', async e=>{ e.preventDefault(); const arr = (p.datas_relevantes||[]).slice(); arr.splice(parseInt(a.dataset.deldata,10),1);
+    const { error } = await sb.from('crm_pessoas').update({datas_relevantes:arr}).eq('id',p.id); if(!error){ p.datas_relevantes = arr; pvLead(p); } }));
+}
+async function pvOppsResumo(p){
+  const host = document.getElementById('pv-opps-resumo'); if(!host) return;
+  const { data } = await sb.from('crm_oportunidades').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false});
+  const abertas = (data||[]).filter(o=>o.status==='aberta');
+  host.innerHTML = `<div class="ql">Oportunidades abertas (${abertas.length})</div>${abertas.length?abertas.map(o=>`<span class="tagx" style="margin-right:6px">${escapeHtml(o.produto)} · ${escapeHtml((ETAPAS_FUNIL.find(e=>e.key===o.etapa)||{label:o.etapa}).label)}</span>`).join(''):'<span class="hint">Nenhuma. Crie na aba Proteção.</span>'} <a href="#" id="go-prot" style="font-size:12px;color:var(--brand);font-weight:600;margin-left:8px">gerenciar →</a>`;
+  host.querySelector('#go-prot').addEventListener('click', e=>{ e.preventDefault(); pvGoto('protecao'); });
+}
+
+// ---- HISTÓRICO (linha do tempo única + registrar atividade) ----
+async function pvHistorico(body, p){
+  const opps = (await sb.from('crm_oportunidades').select('id,produto,status').eq('pessoa_id',p.id).eq('status','aberta')).data || [];
+  body.innerHTML = `<div class="es-box"><div class="ql">Registrar atividade</div><div class="fgrid">
+      <label class="fl"><span>Tipo</span><select id="at-tipo">${TIPOS_ATIV.map(t=>`<option value="${t[0]}">${t[1]}</option>`).join('')}</select></label>
+      ${fld('at-data','Data e hora',new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16),'datetime-local')}
+      <label class="fl"><span>Oportunidade (opcional)</span><select id="at-opp"><option value="">—</option>${opps.map(o=>`<option value="${o.id}">${escapeHtml(o.produto)}</option>`).join('')}</select></label>
+      <label class="fl"><span>Resultado</span><select id="at-res"><option value="">—</option>${RESULTADOS.map(r=>`<option>${r}</option>`).join('')}</select></label>
+      <label class="fl full"><span>Resumo do que aconteceu</span><textarea id="at-resumo" rows="3" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
+      <label class="fl full"><span>E agora? Próxima ação (obrigatória)</span><select id="at-acao"><option value="">Selecione...</option>${ACOES.map(a=>`<option>${a}</option>`).join('')}<option value="__encerrar__">✖ Encerrar (oportunidade / lead)</option></select></label>
+      <div id="at-next" class="fgrid full" style="grid-column:1/-1">${fld('at-pdata','Data da próxima ação','','date')}${fld('at-presp','Responsável',curUserName())}</div>
+      <div id="at-close" class="fgrid full" style="grid-column:1/-1;display:none"><label class="fl"><span>Motivo</span><select id="at-motivo"><option value="">Selecione...</option>${MOTIVOS.map(m=>`<option>${m}</option>`).join('')}</select></label>${fld('at-reat','Data de reativação (para pausas)','','date')}</div>
+    </div><div class="om-err" id="at-err"></div><div style="margin-top:8px"><button class="om-save" id="at-save">Salvar atividade</button></div></div>
+    <div class="es-box"><div class="ql">Linha do tempo</div><div id="pv-timeline"><div class="op-more">Carregando...</div></div></div>`;
+  const acaoEl = body.querySelector('#at-acao');
+  acaoEl.addEventListener('change', ()=>{ const enc = acaoEl.value==='__encerrar__'; body.querySelector('#at-next').style.display = enc?'none':'grid'; body.querySelector('#at-close').style.display = enc?'grid':'none'; });
+  body.querySelector('#at-save').addEventListener('click', ()=>pvSaveAtividade(p));
+  pvTimeline(p);
+}
+async function pvSaveAtividade(p){
+  const g = id=>document.getElementById(id).value.trim(), err = document.getElementById('at-err'); err.textContent = '';
+  const resumo = g('at-resumo'), resultado = g('at-res'), acao = g('at-acao'); const encerrar = acao==='__encerrar__';
+  if(!resumo && !resultado){ err.textContent = 'Descreva o que aconteceu ou informe o resultado.'; return; }
+  if(!acao){ err.textContent = 'Defina a próxima ação (ou escolha “Encerrar”) — toda atividade precisa terminar com um próximo passo.'; return; }
+  let motivo = null, reat = null, pAcao = null, pData = null, pResp = null;
+  if(encerrar){ motivo = g('at-motivo'); if(!motivo){ err.textContent = 'Informe o motivo do encerramento.'; return; }
+    if(MOTIVOS_PAUSA.includes(motivo)){ reat = g('at-reat'); if(!reat){ err.textContent = 'Esse motivo é uma pausa: informe a data de reativação.'; return; } pAcao = 'Reativar contato'; pData = reat; pResp = curUserName(); } }
+  else { pAcao = acao; pData = g('at-pdata'); pResp = g('at-presp'); if(!pData || !pResp){ err.textContent = 'Informe a data e o responsável da próxima ação.'; return; } }
+  const oppId = g('at-opp') || null;
+  const dt = g('at-data') ? new Date(g('at-data')).toISOString() : new Date().toISOString();
+  const { error } = await sb.from('crm_atividades').insert({ pessoa_id:p.id, oportunidade_id:oppId, tipo:g('at-tipo'), data_hora:dt, resumo:resumo||null, resultado:resultado||null, responsavel:curUserName(),
+    proxima_acao:encerrar?null:pAcao, proxima_data:encerrar?null:pData, proximo_responsavel:encerrar?null:pResp, motivo_perda:motivo, data_reativacao:reat });
+  if(error){ err.textContent = 'Erro: '+error.message; return; }
+  const upd = { proxima_acao:pAcao, proxima_data:pData, proximo_responsavel:pResp };
+  await sb.from('crm_pessoas').update(upd).eq('id', p.id); Object.assign(p, upd);
+  if(encerrar && oppId){ await sb.from('crm_oportunidades').update({ status: reat?'pausada':'perdida', motivo_perda:motivo, data_reativacao:reat, fechada_em: reat?null:new Date().toISOString(), updated_at:new Date().toISOString() }).eq('id', oppId); }
+  showToast('Atividade registrada'); pvRefreshNext(); pvHistorico(document.getElementById('pv-body'), p);
+  if(motivo==='Já possui proteção' && confirm('O cliente já possui proteção. Quer registrar a apólice atual para estudo agora?')) estudoDialog({id:p.id, nome:p.nome});
+}
+async function pvTimeline(p){
+  const host = document.getElementById('pv-timeline'); if(!host) return;
+  const q = (t,c)=>sb.from(t).select(c).eq('pessoa_id',p.id);
+  const [ativ, fun, est, apo, doc, inter, trans] = await Promise.all([q('crm_atividades','*'), q('crm_funil','etapa,data_inicio,data_combinada,observacao,created_at'), q('crm_estudos','seguradora_atual,tipo_seguro,created_at'), q('crm_apolices','seguradora,tipo_seguro,data_emissao,origem_apolice,vinculo_comercial,created_at'), q('crm_documentos','nome_arquivo,categoria,created_at'), q('crm_interacoes','*'), q('crm_transcricoes','*')]);
+  const ev = [];
+  if(p.created_at) ev.push({d:p.created_at, i:'🆕', t:'Cadastro criado no CRM'});
+  (ativ.data||[]).forEach(a=>ev.push({d:a.data_hora, i:(TIPOS_ATIV.find(t=>t[0]===a.tipo)||[0,'📝'])[1].split(' ')[0], t:`<b>${escapeHtml((TIPOS_ATIV.find(t=>t[0]===a.tipo)||[0,a.tipo])[1].replace(/^\S+\s/,''))}</b>${a.resultado?' — '+escapeHtml(a.resultado):''}${a.resumo?'<br>'+escapeHtml(a.resumo):''}${a.motivo_perda?'<br><span class="tagx bad">Encerrado: '+escapeHtml(a.motivo_perda)+'</span>':''}${a.proxima_acao?'<br><span class="k">PRÓXIMA</span>'+escapeHtml(a.proxima_acao)+' · '+fmtDate(a.proxima_data)+' · '+escapeHtml(a.proximo_responsavel||''):''}`, who:a.responsavel}));
+  (fun.data||[]).forEach(r=>{ const lb = (ETAPAS_FUNIL.find(e=>e.key===r.etapa)||{label:r.etapa}).label; ev.push({d:r.data_inicio||r.data_combinada||r.created_at, i:'📶', t:`Funil: <b>${lb}</b>${r.observacao?' — '+escapeHtml(r.observacao):''}`}); });
+  (est.data||[]).forEach(r=>ev.push({d:r.created_at, i:'🔍', t:`Estudo aberto — ${escapeHtml(r.tipo_seguro||'apólice')} ${escapeHtml(r.seguradora_atual||'')}`}));
+  (apo.data||[]).forEach(r=>ev.push({d:r.data_emissao||r.created_at, i:'📄', t:`Apólice ${escapeHtml(r.tipo_seguro||'')} — ${escapeHtml(r.seguradora||'')} <span class="tagx">${r.origem_apolice==='nova'?'Nova CallMed':'Existente'}</span>`}));
+  (doc.data||[]).forEach(r=>ev.push({d:r.created_at, i:'📎', t:`Documento anexado: ${escapeHtml(r.nome_arquivo||'')}`}));
+  (inter.data||[]).forEach(r=>ev.push({d:r.data||r.created_at, i:'🎙️', t:`${escapeHtml(r.tipo||'Interação')}${r.resumo?' — '+escapeHtml(r.resumo):''}`}));
+  (trans.data||[]).forEach(r=>ev.push({d:r.data_hora||r.created_at, i:'📝', t:`Transcrição${r.resumo_ia?' — '+escapeHtml(r.resumo_ia):''}`}));
+  ev.sort((a,b)=> new Date(b.d)-new Date(a.d));
+  host.innerHTML = ev.length ? ev.map(x=>`<div class="rec"><span class="k">${fmtDateTime(x.d)}</span>${x.i} ${x.t}${x.who?` <small style="color:var(--ink-faint)">· ${escapeHtml(x.who)}</small>`:''}</div>`).join('') : '<div class="no-rec">Sem registros ainda.</div>';
+}
+
+// ---- PROTEÇÃO (oportunidades, apólices, estudos, diagnóstico) ----
+async function pvProtecao(body, p){
+  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
+  pvOportunidades(p); pvApolices(p); renderPessoaEstudos(p); pvDiagnostico(p);
+}
+async function pvOportunidades(p){
+  const host = document.getElementById('pp-opps'); if(!host) return;
+  const { data, error } = await sb.from('crm_oportunidades').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false});
+  const rows = data||[];
+  host.innerHTML = `<div class="ql">Oportunidades por produto <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— a mesma pessoa pode gerar várias (Vida, RC, previdência, empresa…)</small></div>
+    ${error?'<div class="om-err">'+escapeHtml(error.message)+'</div>':''}
+    ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Etapa</th><th>Status</th><th>Prêmio previsto</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr data-opp="${o.id}"><td><b>${escapeHtml(o.produto)}</b></td><td>${escapeHtml((ETAPAS_FUNIL.find(e=>e.key===o.etapa)||{label:o.etapa}).label)}</td><td><span class="tagx ${o.status==='perdida'?'bad':(o.status==='ganha'?'':(o.status==='pausada'?'warn':''))}">${escapeHtml((OPP_STATUS.find(s=>s[0]===o.status)||[0,o.status])[1])}</span>${o.motivo_perda?'<br><small>'+escapeHtml(o.motivo_perda)+'</small>':''}</td><td>${fmtMoney(o.premio_previsto)}</td><td>${escapeHtml(o.responsavel||'—')}</td><td><a href="#" data-edit-opp="${o.id}">editar</a></td></tr>`).join('')}</tbody></table>`:'<div class="hint">Nenhuma oportunidade ainda.</div>'}
+    <div class="sg-row" style="margin-top:10px"><select id="op-new-prod" class="ca-inp" style="width:190px">${OPP_PRODUTOS.map(o=>`<option>${o}</option>`).join('')}</select><select id="op-new-etapa" class="ca-inp" style="width:150px">${ETAPAS_FUNIL.map(e=>`<option value="${e.key}">${e.label}</option>`).join('')}</select><input id="op-new-prem" type="number" class="ca-inp" placeholder="Prêmio previsto (R$)" style="width:170px"><button class="om-save" id="op-new-add">+ Nova oportunidade</button></div>`;
+  host.querySelector('#op-new-add').addEventListener('click', async ()=>{
+    const { error } = await sb.from('crm_oportunidades').insert({ pessoa_id:p.id, produto:document.getElementById('op-new-prod').value, etapa:document.getElementById('op-new-etapa').value, premio_previsto:document.getElementById('op-new-prem').value?Number(document.getElementById('op-new-prem').value):null, responsavel:curUserName() });
+    if(error){ showToast('Erro: '+error.message); return; } showToast('Oportunidade criada'); pvOportunidades(p); });
+  host.querySelectorAll('[data-edit-opp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); pvOppDialog(p, rows.find(r=>r.id===a.dataset.editOpp)); }));
+}
+function pvOppDialog(p, o){
+  const box = dlgOpen(`<div class="om-title"><div><h3>${escapeHtml(o.produto)}</h3><div class="om-sub">${escapeHtml(p.nome)}</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="fgrid">
+      <label class="fl"><span>Etapa</span><select id="oe-etapa">${ETAPAS_FUNIL.map(e=>`<option value="${e.key}" ${o.etapa===e.key?'selected':''}>${e.label}</option>`).join('')}</select></label>
+      <label class="fl"><span>Status</span><select id="oe-status">${OPP_STATUS.map(s=>`<option value="${s[0]}" ${o.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
+      ${fld('oe-prem','Prêmio previsto (R$)',o.premio_previsto==null?'':String(o.premio_previsto),'number')}${fld('oe-resp','Responsável',o.responsavel)}
+      <label class="fl"><span>Motivo (se perdida/pausada)</span><select id="oe-motivo"><option value="">—</option>${MOTIVOS.map(m=>`<option ${o.motivo_perda===m?'selected':''}>${m}</option>`).join('')}</select></label>${fld('oe-reat','Data de reativação',o.data_reativacao||'','date')}
+      ${fld('oe-obs','Observações',o.observacoes,'text',true)}
+    </div><div class="om-err" id="oe-err"></div></div>
+    <div class="om-foot"><button class="om-cancel" id="oe-del" style="color:var(--red)">Excluir</button><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="oe-save">Salvar</button></div>`);
+  box.querySelector('#oe-save').addEventListener('click', async ()=>{
+    const g = i=>document.getElementById(i).value.trim(); const st = g('oe-status');
+    if((st==='perdida'||st==='pausada') && !g('oe-motivo')){ document.getElementById('oe-err').textContent = 'Informe o motivo.'; return; }
+    if(st==='pausada' && !g('oe-reat')){ document.getElementById('oe-err').textContent = 'Pausa exige data de reativação.'; return; }
+    const upd = { etapa:g('oe-etapa'), status:st, premio_previsto:g('oe-prem')?Number(g('oe-prem')):null, responsavel:g('oe-resp')||null, motivo_perda:g('oe-motivo')||null, data_reativacao:g('oe-reat')||null, observacoes:g('oe-obs')||null,
+      fechada_em:(st==='ganha'||st==='perdida')?new Date().toISOString():null, updated_at:new Date().toISOString() };
+    const { error } = await sb.from('crm_oportunidades').update(upd).eq('id', o.id); if(error){ document.getElementById('oe-err').textContent = 'Erro: '+error.message; return; }
+    dlgClose(); showToast('Oportunidade atualizada'); pvOportunidades(p); });
+  box.querySelector('#oe-del').addEventListener('click', async ()=>{ if(!confirm('Excluir esta oportunidade?')) return; await sb.from('crm_oportunidades').delete().eq('id', o.id); dlgClose(); pvOportunidades(p); });
+}
+async function pvApolices(p){
+  const host = document.getElementById('pp-apo'); if(!host) return;
+  const { data } = await sb.from('crm_apolices').select('*').eq('pessoa_id',p.id).order('data_vencimento',{ascending:true});
+  const rows = data||[]; const have = new Set(); rows.forEach(a=>(a.coberturas||[]).forEach(c=>have.add(c)));
+  const cap = rows.filter(a=>a.status!=='cancelada' && /vida/i.test(a.tipo_seguro||'')).reduce((t,a)=>t+(Number(a.valor_cobertura)||0),0);
+  host.innerHTML = `<div class="ql">Apólices do cliente (${rows.length})</div>
+    ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Seguradora</th><th>Vigência</th><th>Prêmio</th><th>Origem / vínculo</th><th>Status</th></tr></thead><tbody>${rows.map(a=>{ const d = daysTo(a.data_vencimento); return `<tr><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${escapeHtml(a.seguradora||'—')}</td><td>${fmtDate(a.data_emissao)||'—'} → <b>${fmtDate(a.data_vencimento)||'—'}</b>${d!==null&&d>=0&&d<=60?` <span class="tagx warn">${d}d</span>`:''}</td><td>${fmtMoney(a.valor_premio)}</td><td>${escapeHtml(CA_ORIGENS[a.origem_apolice]||a.origem_apolice||'—')} · ${escapeHtml(a.vinculo_comercial||'—')}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td></tr>`; }).join('')}</tbody></table>`:'<div class="hint">Nenhuma apólice vinculada. Use “Anexar apólice” no topo ou a Central de Apólices.</div>'}
+    <div class="ql" style="margin-top:12px">Proteção atual (coberturas nas apólices)</div>
+    <div class="chks">${['morte','ipa','invalidez_doenca','doencas_graves','dit','funeral','renda','sucessao','previdencia'].map(k=>`<span class="tagx" style="${have.has(k)?'':'background:#f2f3f9;color:var(--ink-faint);text-decoration:line-through'}">${covLabel(k)}</span>`).join(' ')}</div>
+    ${cap?`<div class="hint">Capital de vida já segurado: <b>${fmtMoney(cap)}</b></div>`:''}`;
+}
+function pvDiagField(k, v, def){
+  const val = v==null ? '' : v;
+  if(def[2]==='boolean') return `<label class="fl"><span>${def[1]}</span><select data-dg="${k}"><option value="">—</option><option value="true" ${val===true?'selected':''}>Sim</option><option value="false" ${val===false?'selected':''}>Não</option></select></label>`;
+  if(def[2]==='select') return `<label class="fl"><span>${def[1]}</span><select data-dg="${k}"><option value="">—</option>${def[3].map(o=>`<option ${val===o?'selected':''}>${o}</option>`).join('')}</select></label>`;
+  return `<label class="fl"><span>${def[1]}</span><input data-dg="${k}" type="${def[2]==='number'?'number':'text'}" step="any" value="${escapeHtml(String(val))}"></label>`;
+}
+async function pvDiagnostico(p){
+  const host = document.getElementById('pp-diag'); if(!host) return;
+  const { data } = await sb.from('crm_diagnostico').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false}).limit(1);
+  const row = (data||[])[0] || {};
+  const all = BLOCKS.find(b=>b.table==='crm_diagnostico').fields;
+  const defOf = (name)=>{ const f = all.find(x=>x.name===name); return f ? [name, f.label, f.type, f.options] : [name, name, 'text']; };
+  const essKeys = DIAG_ESSENCIAL.map(d=>d[0]);
+  const avanc = all.filter(f=>!essKeys.includes(f.name) && !DIAG_SAUDE.includes(f.name) && f.name!=='preenchido_por');
+  const imc = (row.peso && row.altura) ? (Number(row.peso)/(Number(row.altura)*Number(row.altura))).toFixed(1) : null;
+  host.innerHTML = `<div class="ql">Diagnóstico de proteção</div>
+    <div class="fgrid">${DIAG_ESSENCIAL.map(d=>pvDiagField(d[0], row[d[0]], d)).join('')}</div>
+    <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">🔒 Saúde e subscrição <small style="color:var(--ink-faint);font-weight:400">— dado sensível: preencher só quando necessário para cotação (LGPD)</small></summary>
+      <div class="fgrid" style="margin-top:8px">${DIAG_SAUDE.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div>${imc?`<div class="hint">IMC calculado: <b>${imc}</b></div>`:''}</details>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Avançado <small style="color:var(--ink-faint);font-weight:400">— objetivos, trabalho, patrimônio detalhado</small></summary>
+      <div class="fgrid" style="margin-top:8px">${avanc.map(f=>pvDiagField(f.name, row[f.name], [f.name,f.label,f.type,f.options])).join('')}</div></details>
+    <div style="margin-top:10px"><button class="om-save" id="dg-save">Salvar diagnóstico</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
+  host.querySelector('#dg-save').addEventListener('click', async ()=>{
+    const payload = { preenchido_por:curUserName() };
+    host.querySelectorAll('[data-dg]').forEach(el=>{ const k = el.dataset.dg; let v = el.value; if(v===''){ payload[k] = null; return; } if(el.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true'; else if(el.type==='number') v = parseFloat(v); payload[k] = v; });
+    const res = row.id ? await sb.from('crm_diagnostico').update(payload).eq('id', row.id) : await sb.from('crm_diagnostico').insert({...payload, pessoa_id:p.id});
+    if(res.error){ showToast('Erro: '+res.error.message); return; } showToast('Diagnóstico salvo'); pvDiagnostico(p); });
+}
+
+// ---- RELACIONAMENTO ----
+const REL_TABLES = ['crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento'];
+function pvRelacionamento(body, p){
+  body.innerHTML = '<div id="blocks-container"></div>'; const container = document.getElementById('blocks-container');
+  REL_TABLES.map(t=>BLOCKS.find(b=>b.table===t)).filter(Boolean).forEach(block=>{
+    const section = document.createElement('div'); section.className = 'block';
+    section.innerHTML = `<div class="block-head" data-table="${block.table}"><h3>${block.icon} ${block.label}</h3><span class="count mono" id="count-${block.table}">…</span></div><div class="block-body open" id="body-${block.table}"></div>`;
     container.appendChild(section);
-    section.querySelector('.block-head').addEventListener('click', ()=>{
-      document.getElementById('body-'+block.table).classList.toggle('open');
-    });
-    loadBlockData(block, id);
-  }
+    section.querySelector('.block-head').addEventListener('click', ()=> document.getElementById('body-'+block.table).classList.toggle('open'));
+    loadBlockData(block, p.id);
+  });
+}
+
+// ---- CALLMED PLANTÕES ----
+async function pvPlantoes(body, p){
+  body.innerHTML = '<div class="op-more">Carregando...</div>';
+  const { data: r } = await sb.from('crm_plantoes_resumo').select('*').eq('pessoa_id', p.id).maybeSingle();
+  const casa = (ini)=>{ if(!ini) return '—'; const a = new Date(ini), n = new Date(); let m = (n.getFullYear()-a.getFullYear())*12 + n.getMonth()-a.getMonth(); if(n.getDate()<a.getDate()) m--; const y = Math.floor(m/12), mm = m%12; return `${y?y+(y===1?' ano':' anos'):''}${y&&mm?' e ':''}${mm||!y?mm+(mm===1?' mês':' meses'):''}`; };
+  const med12 = r && r.meses_12m ? (r.qtde_12m/r.meses_12m) : null, val12 = r && r.meses_12m ? (Number(r.valor_12m)/r.meses_12m) : null;
+  body.innerHTML = `<div class="es-box"><div class="ql">Atividade na CallMed Plantões</div>${r?`<div class="activity-strip" style="margin-top:0">
+      <div class="astat"><span class="an">${r.ultimo_plantao?fmtDate(r.ultimo_plantao):'—'}</span><span class="al">Último plantão</span></div>
+      <div class="astat"><span class="an">${r.qtde_mes_atual||0} · ${fmtMoney(r.valor_mes_atual)}</span><span class="al">Mês atual (inclui agendados)</span></div>
+      <div class="astat"><span class="an">${r.qtde_mes_ref||0} · ${fmtMoney(r.valor_mes_ref)}</span><span class="al">Último mês fechado</span></div>
+      <div class="astat"><span class="an">${r.qtde_12m||0} · ${fmtMoney(r.valor_12m)}</span><span class="al">Últimos 12 meses</span></div></div>
+    <div class="core-fields" style="margin-top:12px">${pvField('Média de plantões por mês (12 meses)', med12!==null?med12.toFixed(1):'—')}${pvField('Média recebida por mês (12 meses)', val12!==null?fmtMoney(val12):'—')}${pvField('Tempo com a CallMed', casa(r.primeiro_plantao))}${pvField('Primeiro plantão', fmtDate(r.primeiro_plantao))}${pvField('Total histórico', (r.total_qtde||0)+' plantões · '+fmtMoney(r.total_valor))}${pvField('Meses com atividade', r.meses_ativos)}</div>`
+      : `<div class="hint">Sem plantões nos últimos 12 meses no banco carregado (ou este contato não veio da CallMed Plantões).</div>${(p.qtde_plantoes_2026||p.total_pago_plantoes_2026)?`<div class="activity-strip"><div class="astat"><span class="an">${p.qtde_plantoes_2026??'—'}</span><span class="al">Plantões em 2026</span></div><div class="astat"><span class="an">${fmtMoney(p.total_pago_plantoes_2026)}</span><span class="al">Total pago</span></div></div>`:''}`}</div>
+    <div class="es-box"><div class="ql">Dados de pagamento e cadastro (CallMed Plantões)</div><div class="core-fields">${pvField('PIX', escapeHtml(p.pix||''), true)}${pvField('Banco', escapeHtml(p.banco||'')+(p.agencia?' · ag. '+escapeHtml(p.agencia):''))}${pvField('CNPJ', escapeHtml(p.cnpj||''), true)}${pvField('Razão social', escapeHtml(p.razao_social||''))}${pvField('Código interno', escapeHtml(p.codigo_interno_plantoes||''))}${pvField('Cadastro atualizado em', fmtDate(p.cadastro_atualizado_em))}</div></div>`;
 }
 
 async function loadBlockData(block, personId){
@@ -1156,159 +1249,11 @@ document.getElementById('agenda-form').addEventListener('submit', async (e)=>{
   renderCalendar();
 });
 
-// ---------- KANBAN (Funil comercial) ----------
 const ETAPAS_FUNIL = [
   {key:'contato', label:'Contato'}, {key:'atendimento', label:'Atendimento'}, {key:'agendamento', label:'Agendamento'},
   {key:'reuniao', label:'Reunião'}, {key:'diagnostico', label:'Diagnóstico'}, {key:'proposta', label:'Proposta'},
   {key:'fechamento', label:'Fechamento'}, {key:'follow_up', label:'Follow-up'},
 ];
-async function renderFunil(){
-  const board = document.getElementById('funil-board');
-  board.innerHTML = ETAPAS_FUNIL.map(et=>`
-    <div class="kanban-col" data-etapa="${et.key}">
-      <div class="kanban-col-head"><div class="lbl">${et.label}</div><div class="cnt" id="fcnt-${et.key}">…</div></div>
-      <div class="kanban-col-body" id="fcol-${et.key}"></div>
-    </div>`).join('');
-
-  const { data, error } = await sb.from('crm_funil').select('pessoa_id,etapa,origem_contato,proximo_passo,data_combinada,atualizado_em,crm_pessoas(id,nome,especialidade)')
-    .order('atualizado_em', {ascending:false});
-  if(error){ showToast('Erro no funil: ' + error.message); return; }
-
-  const seen = new Set();
-  const latestByPessoa = [];
-  (data||[]).forEach(r=>{
-    if(seen.has(r.pessoa_id)) return;
-    seen.add(r.pessoa_id);
-    latestByPessoa.push(r);
-  });
-
-  ETAPAS_FUNIL.forEach(et=>{
-    const items = latestByPessoa.filter(r=>r.etapa===et.key);
-    document.getElementById('fcnt-'+et.key).textContent = items.length;
-    const colEl = document.getElementById('fcol-'+et.key);
-    colEl.innerHTML = items.length===0 ? '<div class="kanban-empty">Vazio</div>' : items.map(r=>`
-      <div class="kanban-card" data-pid="${r.crm_pessoas?.id}">
-        <div class="nm">${escapeHtml(r.crm_pessoas?.nome||'?')}</div>
-        ${r.origem_contato?`<div class="np">via ${escapeHtml(r.origem_contato)}</div>`:''}
-        ${r.proximo_passo?`<div class="np">→ ${escapeHtml(r.proximo_passo)}</div>`:''}
-        ${r.data_combinada?`<div class="dt">${fmtDate(r.data_combinada)}</div>`:''}
-      </div>`).join('');
-    colEl.querySelectorAll('.kanban-card').forEach(card=>{
-      card.addEventListener('click', ()=> goToPersonView(card.dataset.pid));
-    });
-  });
-}
-
-// ---------- KANBAN (Jornada) ----------
-const ETAPAS = [
-  {key:'priorizar', label:'Priorizar'}, {key:'contatar', label:'Contatar'}, {key:'abordar', label:'Abordar'},
-  {key:'construir', label:'Construir'}, {key:'fechar', label:'Fechar'}, {key:'implantar', label:'Implantar'},
-  {key:'fidelizar', label:'Fidelizar'}, {key:'expandir_indicar', label:'Expandir/Indicar'},
-];
-async function renderKanban(){
-  const board = document.getElementById('kanban-board');
-  board.innerHTML = ETAPAS.map(et=>`
-    <div class="kanban-col" data-etapa="${et.key}">
-      <div class="kanban-col-head"><div class="lbl">${et.label}</div><div class="cnt" id="kcnt-${et.key}">…</div></div>
-      <div class="kanban-col-body" id="kcol-${et.key}"></div>
-    </div>`).join('');
-
-  const { data, error } = await sb.from('crm_jornada').select('pessoa_id,etapa,proximo_passo,data_combinada,atualizado_em,crm_pessoas(id,nome,especialidade)')
-    .order('atualizado_em', {ascending:false});
-  if(error){ showToast('Erro na jornada: ' + error.message); return; }
-
-  const seen = new Set();
-  const latestByPessoa = [];
-  (data||[]).forEach(r=>{
-    if(seen.has(r.pessoa_id)) return;
-    seen.add(r.pessoa_id);
-    latestByPessoa.push(r);
-  });
-
-  ETAPAS.forEach(et=>{
-    const items = latestByPessoa.filter(r=>r.etapa===et.key);
-    document.getElementById('kcnt-'+et.key).textContent = items.length;
-    const colEl = document.getElementById('kcol-'+et.key);
-    colEl.innerHTML = items.length===0 ? '<div class="kanban-empty">Vazio</div>' : items.map(r=>`
-      <div class="kanban-card" data-pid="${r.crm_pessoas?.id}">
-        <div class="nm">${escapeHtml(r.crm_pessoas?.nome||'?')}</div>
-        ${r.proximo_passo?`<div class="np">→ ${escapeHtml(r.proximo_passo)}</div>`:''}
-        ${r.data_combinada?`<div class="dt">${fmtDate(r.data_combinada)}</div>`:''}
-      </div>`).join('');
-    colEl.querySelectorAll('.kanban-card').forEach(card=>{
-      card.addEventListener('click', ()=> goToPersonView(card.dataset.pid));
-    });
-  });
-}
-
-// ---------- HOJE (tarefas + lembretes) ----------
-async function renderHoje(){
-  const today = ymd(new Date());
-  const [{ data: tarefas, error: e1 }, { data: lembretes, error: e2 }] = await Promise.all([
-    sb.from('crm_tarefas_diarias').select('*, crm_pessoas(nome)').eq('data', today).order('created_at'),
-    sb.from('crm_lembretes').select('*, crm_pessoas(nome)').eq('status','pendente').lte('data_hora', new Date(Date.now()+7*86400000).toISOString()).order('data_hora'),
-  ]);
-  const tList = document.getElementById('tarefas-list');
-  if(e1){ tList.textContent = 'Erro: '+e1.message; }
-  else {
-    tList.innerHTML = (tarefas||[]).length===0 ? '<div class="no-rec">Nenhuma tarefa para hoje.</div>' : tarefas.map(t=>`
-      <div class="today-card ${t.concluida?'done':''}">
-        <div class="txt"><div>${escapeHtml(t.descricao)}</div><div class="meta">${t.categoria||''} ${t.crm_pessoas?.nome?(' · '+escapeHtml(t.crm_pessoas.nome)):''} · ${t.prioridade}</div></div>
-        <button data-id="${t.id}" data-done="${!t.concluida}">${t.concluida?'Reabrir':'Concluir'}</button>
-      </div>`).join('');
-    tList.querySelectorAll('button[data-id]').forEach(b=>{
-      b.addEventListener('click', async ()=>{
-        await sb.from('crm_tarefas_diarias').update({concluida: b.dataset.done==='true'}).eq('id', b.dataset.id);
-        renderHoje();
-      });
-    });
-  }
-  const lList = document.getElementById('lembretes-list');
-  if(e2){ lList.textContent = 'Erro: '+e2.message; }
-  else {
-    lList.innerHTML = (lembretes||[]).length===0 ? '<div class="no-rec">Nenhum lembrete nos próximos 7 dias.</div>' : lembretes.map(l=>`
-      <div class="today-card">
-        <div class="txt"><div>${escapeHtml(l.mensagem||l.tipo)}</div><div class="meta">${l.tipo} ${l.crm_pessoas?.nome?(' · '+escapeHtml(l.crm_pessoas.nome)):''} · ${fmtDateTime(l.data_hora)}</div></div>
-        <button data-id="${l.id}">Concluir</button>
-      </div>`).join('');
-    lList.querySelectorAll('button[data-id]').forEach(b=>{
-      b.addEventListener('click', async ()=>{
-        await sb.from('crm_lembretes').update({status:'concluido'}).eq('id', b.dataset.id);
-        renderHoje();
-      });
-    });
-  }
-}
-document.getElementById('tarefa-form').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const fd = new FormData(e.target);
-  const { error } = await sb.from('crm_tarefas_diarias').insert({
-    descricao: fd.get('descricao'), prioridade: fd.get('prioridade'), categoria: fd.get('categoria'), data: ymd(new Date()),
-  });
-  if(error){ showToast('Erro: '+error.message); return; }
-  e.target.reset(); renderHoje();
-});
-
-// ---------- APÓLICES (vencimento) ----------
-async function renderApolices(){
-  const { data, error } = await sb.from('crm_apolices').select('*, crm_pessoas(nome)').order('data_vencimento', {ascending:true, nullsFirst:false});
-  const el = document.getElementById('apolices-list');
-  if(error){ el.textContent = 'Erro: '+error.message; return; }
-  if(!data || data.length===0){ el.innerHTML = '<div class="no-rec">Nenhuma apólice detalhada cadastrada ainda. Adicione pelo perfil do médico, bloco "Apólices (detalhado)".</div>'; return; }
-  const now = new Date();
-  el.innerHTML = data.map(a=>{
-    let cls = '';
-    if(a.data_vencimento){
-      const diff = (new Date(a.data_vencimento) - now) / 86400000;
-      if(diff <= 7) cls = 'venc-7'; else if(diff <= 30) cls = 'venc-30';
-    }
-    return `<div class="apolice-row ${cls}">
-      <div><div class="nm">${escapeHtml(a.crm_pessoas?.nome||'?')} — ${escapeHtml(a.seguradora||'')} ${escapeHtml(a.tipo_seguro||'')}</div>
-      <div class="sub">Nº ${escapeHtml(a.numero_apolice||'—')} · Cobertura R$ ${a.valor_cobertura||'—'} · <span class="mono">${a.status}</span></div></div>
-      <div class="mono" style="font-size:12.5px;">${a.data_vencimento?('Vence '+fmtDate(a.data_vencimento)):'sem data'}</div>
-    </div>`;
-  }).join('');
-}
 
 // ---------- BASE DE CONHECIMENTO ----------
 async function renderConhecimento(){
@@ -1843,7 +1788,6 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
 ['op-f-perfil','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
-document.getElementById('btn-op-back').addEventListener('click', ()=> document.querySelector('.nav-btn[data-view="operacao"]').click());
 const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
 document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
 document.getElementById('op-next').addEventListener('click', ()=>opShift(1));
@@ -2714,23 +2658,6 @@ async function renderPessoaEstudos(person){
       <div style="margin-top:10px"><button class="om-save" id="pe-new">＋ Novo estudo para ${escapeHtml(person.nome.split(' ')[0])}</button></div></div>`;
   host.querySelectorAll('[data-est]').forEach(d=>d.addEventListener('click', ()=> showEstudoView(person.id, d.dataset.est)));
   host.querySelector('#pe-new').addEventListener('click', ()=> estudoDialog({id:person.id, nome:person.nome}));
-}
-async function renderPessoaHistorico(person){
-  const host = document.getElementById('hist-block'); if(!host) return;
-  const [fun, est, apo, doc] = await Promise.all([
-    sb.from('crm_funil').select('etapa,data_inicio,data_combinada,observacao,created_at').eq('pessoa_id', person.id),
-    sb.from('crm_estudos').select('seguradora_atual,tipo_seguro,created_at').eq('pessoa_id', person.id),
-    sb.from('crm_apolices').select('seguradora,tipo_seguro,data_emissao,origem_apolice,created_at').eq('pessoa_id', person.id),
-    sb.from('crm_documentos').select('nome_arquivo,categoria,created_at').eq('pessoa_id', person.id)]);
-  const ev = [];
-  if(person.created_at) ev.push({d:person.created_at, i:'🆕', t:'Cadastro criado no CRM'});
-  (fun.data||[]).forEach(r=>{ const lb = (ETAPAS_FUNIL.find(e=>e.key===r.etapa)||{label:r.etapa}).label; ev.push({d:r.data_inicio||r.data_combinada||r.created_at, i:'📶', t:`Funil: <b>${lb}</b>${r.observacao?' — '+escapeHtml(r.observacao):''}`}); });
-  (est.data||[]).forEach(r=>ev.push({d:r.created_at, i:'🔍', t:`Estudo aberto — ${escapeHtml(r.tipo_seguro||'apólice')} ${escapeHtml(r.seguradora_atual||'')}`}));
-  (apo.data||[]).forEach(r=>ev.push({d:r.data_emissao||r.created_at, i:'📄', t:`Apólice ${escapeHtml(r.tipo_seguro||'')} — ${escapeHtml(r.seguradora||'')}${r.origem_apolice==='nova'?' (nova)':''}`}));
-  (doc.data||[]).forEach(r=>ev.push({d:r.created_at, i:'📎', t:`Documento anexado: ${escapeHtml(r.nome_arquivo||'')}`}));
-  ev.sort((a,b)=> new Date(b.d) - new Date(a.d));
-  host.innerHTML = `<div class="block-head"><h3>🕒 Histórico com a CallMed</h3><span class="count mono">${ev.length}</span></div>
-    <div class="block-body open">${ev.map(x=>`<div class="rec"><span class="k">${fmtDate(x.d)}</span>${x.i} ${x.t}</div>`).join('')}</div>`;
 }
 document.addEventListener('change', async e=>{
   if(e.target.id!=='pa-tipo') return; const p = window._curPerson; if(!p) return;
