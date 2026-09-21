@@ -1966,7 +1966,7 @@ function openNovoCliente(prefill, onSaved){
       <div id="nc-dup"></div><div class="om-err" id="nc-err"></div>
     </div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="nc-save">Salvar cliente</button></div>`, true);
-  window._ncFiles = []; window._ncOnSaved = onSaved || null;
+  window._ncFiles = []; window._ncOnSaved = onSaved || null; window._dlgOnClose = ncCleanup;
   const dz = box.querySelector('#nc-dz'), inp = box.querySelector('#nc-file');
   dz.addEventListener('click', ()=>inp.click());
   dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
@@ -1979,20 +1979,25 @@ function openNovoCliente(prefill, onSaved){
 }
 async function ncAddFiles(files){
   const list = document.getElementById('nc-files');
+  const LBL = {nome:'nome',cpf:'CPF',crm:'CRM',data_nascimento:'nascimento',telefone:'telefone',email:'e-mail',especialidade:'especialidade',cnpj:'CNPJ',razao_social:'razão social',sexo:'sexo',estado_civil:'estado civil'};
   for(const file of files){
     const row = document.createElement('div'); row.className = 'nc-file'; row.textContent = `⏳ Lendo ${file.name}...`; list.appendChild(row);
-    window._ncFiles.push(file);
-    try{
-      const f = await docsRead(file);
-      const filled = [];
-      NC_FIELDS.map(x=>x[0]).concat(['sexo','estado_civil']).forEach(k=>{
-        const el = document.getElementById('nc-'+k); if(!el || !f[k] || el.value) return;
-        el.value = f[k]; el.classList.add('auto'); filled.push(k);
-      });
-      row.innerHTML = `✅ <b>${escapeHtml(file.name)}</b> — ${filled.length ? 'preencheu: '+filled.join(', ') : 'nada novo encontrado (confira/preencha manualmente)'}${f._chars<40?' · <i>pouco texto legível</i>':''}`;
-      ncCheckDup();
-    }catch(e){ row.innerHTML = `⚠️ <b>${escapeHtml(file.name)}</b> anexado, mas não consegui ler: ${escapeHtml(e.message||e)}`; }
+    let f = {}, erro = null, path = null;
+    try{ f = await docsRead(file); }catch(e){ erro = e.message||String(e); }
+    try{ path = await docsUpload(file, 'clientes/rascunho'); window._ncFiles.push({file, path, dados:f}); }catch(e){ erro = (erro?erro+' · ':'')+'não consegui guardar o arquivo: '+(e.message||e); }
+    const filled = [];
+    Object.keys(LBL).forEach(k=>{
+      const el = document.getElementById('nc-'+k); if(!el || !f[k] || el.value) return;
+      el.value = f[k]; el.classList.add('auto'); filled.push(LBL[k]);
+    });
+    const faltou = Object.keys(LBL).filter(k=>{ const el = document.getElementById('nc-'+k); return el && !el.value; }).map(k=>LBL[k]);
+    row.innerHTML = `${path?'✅':'⚠️'} <b>${escapeHtml(file.name)}</b> ${path?'— guardado no banco':''}<br><span style="color:var(--ink-soft)">${filled.length ? 'Preenchido automaticamente: <b>'+filled.join(', ')+'</b>' : 'Nada novo encontrado neste documento'}${faltou.length?' · em branco (não encontrei): '+faltou.join(', '):''}${erro?' · <i>'+escapeHtml(erro)+'</i>':''}</span>`;
+    ncCheckDup();
   }
+}
+async function ncCleanup(){
+  const paths = (window._ncFiles||[]).map(x=>x.path).filter(Boolean); window._ncFiles = [];
+  if(paths.length){ try{ await sb.storage.from('crm-docs').remove(paths); }catch(e){ console.warn(e); } }
 }
 async function ncCheckDup(){
   const box = document.getElementById('nc-dup'); if(!box) return;
@@ -2019,10 +2024,14 @@ async function ncSave(){
     ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou'].forEach(k=>{ if(v(k)) row[k] = v(k); });
     const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026').single();
     if(error) throw error;
-    for(const file of (window._ncFiles||[])){
-      try{ const path = await docsUpload(file, 'clientes/'+data.id);
-        await sb.from('crm_documentos').insert({pessoa_id:data.id, categoria:'cadastro', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size}); }catch(e){ console.warn(e); }
+    for(const it of (window._ncFiles||[])){
+      try{
+        let path = it.path; const novo = 'clientes/'+data.id+'/'+path.split('/').pop();
+        const mv = await sb.storage.from('crm-docs').move(path, novo); if(!mv.error) path = novo;
+        await sb.from('crm_documentos').insert({pessoa_id:data.id, categoria:'cadastro', nome_arquivo:it.file.name, path, mime:it.file.type, tamanho:it.file.size, dados_extraidos:it.dados||null});
+      }catch(e){ console.warn(e); }
     }
+    window._ncFiles = [];
     OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
     const cb = window._ncOnSaved; window._ncOnSaved = null; window._dlgOnClose = null; dlgClose();
     showToast('Cliente cadastrado');
