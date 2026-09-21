@@ -206,7 +206,6 @@
   <nav id="rail">
     <button class="nav-btn active" data-view="operacao">🧭<span>Aliança</span></button>
     <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
-    <button class="nav-btn" data-view="estudo" title="Estudo de apólice de outro corretor">🔍<span>Estudo</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
     <button class="nav-btn" data-view="ata">🗒️<span>Ata</span></button>
@@ -360,14 +359,14 @@
 
     <div id="view-central" class="view">
       <div class="pg">
-        <div class="pg-head"><h2>Central de Apólices</h2><span class="sub" id="ca-count"></span><input id="ca-search" class="ca-inp" placeholder="Buscar cliente, seguradora ou nº..." style="margin-left:auto;max-width:280px"></div>
+        <div class="pg-head"><h2>Central de Apólices</h2><a href="#" id="ca-allest" style="font-size:12px;color:var(--brand);font-weight:600">ver todos os estudos</a><span class="sub" id="ca-count"></span><input id="ca-search" class="ca-inp" placeholder="Buscar cliente, seguradora ou nº..." style="margin-left:auto;max-width:280px"></div>
         <div class="dz" id="ca-dz">📄 Arraste as apólices aqui (PDF ou foto) ou clique para anexar — o sistema lê, identifica o cliente e pergunta o que for preciso<input type="file" id="ca-file" multiple accept=".pdf,image/*" hidden></div>
         <div id="ca-list"></div>
       </div>
     </div>
 
     <div id="view-estudo" class="view">
-      <div class="es-side"><div class="es-side-h"><h3>Estudos</h3><button class="om-save" id="es-new">＋ Novo estudo</button></div><div id="es-list"></div></div>
+      <div class="es-side"><button class="btn-ghost" id="es-back" style="display:none">← Voltar ao cadastro</button><div class="es-side-h"><h3 id="es-title">Estudos</h3><button class="om-save" id="es-new">＋ Novo estudo</button></div><a href="#" id="es-all" style="display:none;font-size:12px;color:var(--brand);font-weight:600">ver todos os estudos</a><div id="es-list" style="margin-top:8px"></div></div>
       <div class="pg" id="es-detail"><div class="op-more" style="padding-top:80px">Selecione um estudo à esquerda ou crie um novo.<br><br><b>Como funciona:</b> suba a apólice atual do cliente (de outro corretor) → o sistema lê os dados → cruza com as coberturas das nossas 8 seguradoras → mostra as lacunas, a combinação sugerida e compara as cotações que você lançar com o prêmio atual.</div></div>
     </div>
 
@@ -539,6 +538,7 @@
   .q{ border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:12px;}
   .rd, .pk{ display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:4px 0; cursor:pointer;} .pk small{ color:var(--ink-faint);}
   .chks{ display:flex; flex-wrap:wrap; gap:6px 14px;} .chk{ font-size:12px; display:flex; gap:5px; align-items:center;}
+  .person-actions{ display:flex; gap:10px; margin:14px 0;}
   .pl-tag{ color:var(--ink-faint);} .pl-tag.hot{ color:var(--green); font-weight:600;} .pl-tag.warm{ color:var(--amber-ink); font-weight:600;}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
@@ -682,7 +682,6 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     if(btn.dataset.view === 'operacao') renderOperacao();
     if(btn.dataset.view === 'central') renderCentral();
-    if(btn.dataset.view === 'estudo') renderEstudos();
     if(btn.dataset.view === 'funil') renderFunil();
     if(btn.dataset.view === 'jornada') renderKanban();
     if(btn.dataset.view === 'agenda') renderCalendar();
@@ -939,8 +938,13 @@ async function openPerson(id){
         </div>` : `<div class="activity-strip empty">Sem atividade de plantões registrada em 2026 na base CallMed Plantões.</div>`}
       </div>
     </div>
+    <div class="person-actions"><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button></div>
+    <div class="block" id="estudos-block"></div>
+    <div class="block" id="hist-block"></div>
     <div id="blocks-container"></div>
   `;
+  window._curPerson = person;
+  renderPessoaEstudos(person); renderPessoaHistorico(person);
   const container = document.getElementById('blocks-container');
   for(const block of BLOCKS){
     const section = document.createElement('div');
@@ -2001,15 +2005,15 @@ async function renderCentral(){
 let caQueue = [];
 function caEnqueue(files){ caQueue = caQueue.concat(files); if(!document.getElementById('dlg') || document.getElementById('dlg').style.display!=='flex') caNext(); }
 async function caNext(){
-  const file = caQueue.shift(); if(!file){ renderCentral(); return; }
+  const file = caQueue.shift(); if(!file){ window._caFixed = null; renderCentral(); return; }
   const box = dlgOpen(`<div class="om-title"><div><h3>Lendo ${escapeHtml(file.name)}...</h3><div class="om-sub">Extraindo texto e identificando os dados da apólice.</div></div></div><div class="dlg-body"><div class="op-more">⏳ Aguarde...</div></div>`, true);
   let f = {};
   try{ f = await docsRead(file); }catch(e){ f = {_erro:e.message}; }
-  const found = await findPessoas({cpf:f.cpf, nome:f.nome});
+  const found = window._caFixed ? [{...window._caFixed, why:'cadastro aberto'}] : await findPessoas({cpf:f.cpf, nome:f.nome});
   caForm(file, f, found);
 }
 function caForm(file, f, found){
-  const top = found[0] && (found[0].why==='CPF idêntico' || found[0].why==='CRM idêntico') ? found[0].id : null;
+  const top = found[0] && (found[0].why==='CPF idêntico' || found[0].why==='CRM idêntico' || found[0].why==='cadastro aberto') ? found[0].id : null;
   const opts = found.map((p,i)=>pessoaOptionHtml(p,'ca-pes', p.id===top)).join('');
   const premAnual = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : '';
   const covs = DOCS_COVS.map(c=>`<label class="chk"><input type="checkbox" class="ca-cov" value="${c.k}" ${ (f.coberturas||[]).includes(c.k)?'checked':''}> ${c.l}</label>`).join('');
@@ -2082,7 +2086,7 @@ async function caSave(file, f){
       if(error) throw error;
       await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
       window._dlgOnClose = null; dlgClose(); showToast('Enviada para o Estudo');
-      ES.open = data.id; document.querySelector('.nav-btn[data-view="estudo"]').click(); caQueue = [];
+      caQueue = []; showEstudoView(pessoaId||null, data.id);
       return;
     }
     const { data: ap, error } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, numero_apolice:g('ca-num')||null, seguradora:g('ca-seg'), tipo_seguro:g('ca-prod'),
@@ -2093,7 +2097,7 @@ async function caSave(file, f){
     await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
     OP.dirty = true;
     window._dlgOnClose = null; dlgClose(); showToast(sel==='novo' ? 'Apólice salva e novo cliente cadastrado' : 'Apólice associada ao cliente');
-    if(caQueue.length) caNext(); else renderCentral();
+    if(caQueue.length) caNext(); else { const fx = window._caFixed; window._caFixed = null; if(fx) goToPersonView(fx.id); else renderCentral(); }
   }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar apólice'; }
 }
 (function(){
@@ -2107,7 +2111,7 @@ async function caSave(file, f){
 })();
 
 // ---------- ESTUDO (comparativo com nossas seguradoras) ----------
-const ES = { list:[], cat:[], open:null, cur:null, plant:null };
+const ES = { list:[], cat:[], open:null, cur:null, plant:null, filter:null };
 const ES_CORE = ['morte','ipa','invalidez_doenca','doencas_graves','dit'];
 const ES_OPT = ['funeral','renda','sucessao','previdencia'];
 const ES_STATUS = [['aberto','Aberto'],['analise','Em análise'],['proposta','Proposta enviada'],['fechado','Fechado'],['perdido','Perdido']];
@@ -2115,7 +2119,12 @@ function covLabel(k){ return (DOCS_COVS.find(c=>c.k===k)||{l:k}).l; }
 async function renderEstudos(){
   const host = document.getElementById('es-list'); host.innerHTML = '<div class="op-more">Carregando...</div>';
   if(!ES.cat.length){ const { data } = await sb.from('crm_catalogo_produtos').select('*').order('seguradora'); ES.cat = data||[]; }
-  const { data, error } = await sb.from('crm_estudos').select('*').order('created_at',{ascending:false}).limit(200);
+  let qE = sb.from('crm_estudos').select('*').order('created_at',{ascending:false}).limit(200);
+  if(ES.filter) qE = qE.eq('pessoa_id', ES.filter.id);
+  document.getElementById('es-title').textContent = ES.filter ? 'Estudos — '+ES.filter.nome.split(' ').slice(0,2).join(' ') : 'Estudos';
+  document.getElementById('es-back').style.display = ES.filter ? 'block' : 'none';
+  document.getElementById('es-all').style.display = ES.filter ? 'inline-block' : 'none';
+  const { data, error } = await qE;
   if(error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(error.message)+'</div>'; return; }
   ES.list = data||[];
   host.innerHTML = ES.list.length ? ES.list.map(e=>{
@@ -2124,31 +2133,32 @@ async function renderEstudos(){
   if(ES.open){ const cur = ES.list.find(x=>x.id===ES.open); if(cur) esShow(cur); }
 }
 document.getElementById('es-list').addEventListener('click', e=>{ const c = e.target.closest('.es-card'); if(!c) return; ES.open = c.dataset.id; renderEstudos(); });
-document.getElementById('es-new').addEventListener('click', ()=>{
-  const box = dlgOpen(`<div class="om-title"><div><h3>Novo estudo</h3><div class="om-sub">Suba a apólice atual do cliente (de outro corretor). O sistema lê os dados e já cruza com as nossas seguradoras.</div></div><button data-close>✕</button></div>
+document.getElementById('es-new').addEventListener('click', ()=> estudoDialog(ES.filter));
+function estudoDialog(person){
+  const box = dlgOpen(`<div class="om-title"><div><h3>Novo estudo${person?' — '+escapeHtml(person.nome):''}</h3><div class="om-sub">Suba a apólice atual do cliente (de outro corretor). O sistema lê os dados e já cruza com as nossas seguradoras.</div></div><button data-close>✕</button></div>
     <div class="dlg-body"><div class="dz" id="es-dz">📎 Arraste a apólice atual aqui ou clique (PDF ou foto)<input type="file" id="es-file" accept=".pdf,image/*" hidden></div><div class="hint">Sem o arquivo? <a href="#" id="es-manual">Criar estudo em branco</a> e preencher à mão.</div></div>`, false);
   const dz = box.querySelector('#es-dz'), inp = box.querySelector('#es-file');
   dz.addEventListener('click', ()=>inp.click());
   dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
   dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
-  dz.addEventListener('drop', e=>{ e.preventDefault(); esCreate(e.dataTransfer.files[0]); });
-  inp.addEventListener('change', ()=> esCreate(inp.files[0]));
-  box.querySelector('#es-manual').addEventListener('click', e=>{ e.preventDefault(); esCreate(null); });
-});
-async function esCreate(file){
+  dz.addEventListener('drop', e=>{ e.preventDefault(); esCreate(e.dataTransfer.files[0], person); });
+  inp.addEventListener('change', ()=> esCreate(inp.files[0], person));
+  box.querySelector('#es-manual').addEventListener('click', e=>{ e.preventDefault(); esCreate(null, person); });
+}
+async function esCreate(file, person){
   const box = document.getElementById('dlg'); box.querySelector('.dlg-body').innerHTML = '<div class="op-more">⏳ Lendo a apólice e cruzando com o catálogo...</div>';
   try{
     let f = {}, path = null;
     if(file){ try{ f = await docsRead(file); }catch(e){ f = {}; } path = await docsUpload(file, 'estudos'); }
     const found = await findPessoas({cpf:f.cpf, nome:f.nome});
-    const strong = found.find(p=>p.why==='CPF idêntico' || p.why==='CRM idêntico');
+    const strong = person ? {id:person.id, nome:person.nome} : found.find(p=>p.why==='CPF idêntico' || p.why==='CRM idêntico');
     const prem = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : null;
     const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id: strong ? strong.id : null, cliente_nome: strong ? strong.nome : (f.nome||null), cliente_cpf:f.cpf||null,
       seguradora_atual:f.seguradora||null, tipo_seguro:f.tipo_seguro||null, numero_apolice:f.numero_apolice||null, vigencia_inicio:f.vig_ini||null, vigencia_fim:f.vig_fim||null,
       premio_anual:prem, capital_segurado:f.capital||null, coberturas_atuais:f.coberturas||[], dados_extraidos:{origem:'estudo', extraido:f}, documento_path:path }).select('id').single();
     if(error) throw error;
     if(path) await sb.from('crm_documentos').insert({pessoa_id: strong?strong.id:null, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
-    dlgClose(); ES.open = data.id; renderEstudos();
+    dlgClose(); showEstudoView(strong?strong.id:null, data.id);
     showToast(strong ? 'Estudo criado e vinculado a '+strong.nome : 'Estudo criado — vincule ou cadastre o cliente');
   }catch(e){ box.querySelector('.dlg-body').innerHTML = '<div class="om-err">Erro: '+escapeHtml(e.message||e)+'</div>'; }
 }
@@ -2263,6 +2273,61 @@ function esParecer(e, a){
   const cots = e.cotacoes||{}; Object.keys(cots).forEach(s=>{ if(e.premio_anual) L.push(`Cotação ${s}: ${fmtMoney(cots[s])}/ano (${cots[s]<=e.premio_anual?'economia de '+fmtMoney(e.premio_anual-cots[s]):'acréscimo de '+fmtMoney(cots[s]-e.premio_anual)} vs. atual).`); });
   return L.join('\n');
 }
+
+
+async function showEstudoView(pessoaId, estudoId){
+  ES.open = estudoId || null; ES.filter = null;
+  if(pessoaId){
+    let p = OP.pessoas.find(x=>x.id===pessoaId);
+    if(!p){ const { data } = await sb.from('crm_pessoas').select('id,nome').eq('id', pessoaId).single(); p = data; }
+    ES.filter = p ? {id:p.id, nome:p.nome} : null;
+  }
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelector('.nav-btn[data-view="operacao"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-estudo').classList.add('active');
+  document.getElementById('es-detail').innerHTML = '<div class="op-more" style="padding-top:80px">Selecione um estudo à esquerda ou crie um novo.</div>';
+  renderEstudos();
+}
+document.getElementById('es-back').addEventListener('click', ()=>{ if(ES.filter) goToPersonView(ES.filter.id); });
+document.getElementById('es-all').addEventListener('click', e=>{ e.preventDefault(); showEstudoView(null, null); });
+document.getElementById('ca-allest').addEventListener('click', e=>{ e.preventDefault(); showEstudoView(null, null); });
+
+// ---------- dentro do cadastro do cliente: estudos + histórico ----------
+async function renderPessoaEstudos(person){
+  const host = document.getElementById('estudos-block'); if(!host) return;
+  const { data } = await sb.from('crm_estudos').select('id,seguradora_atual,tipo_seguro,vigencia_fim,status,created_at').eq('pessoa_id', person.id).order('created_at',{ascending:false});
+  const rows = data || [];
+  host.innerHTML = `<div class="block-head"><h3>🔍 Estudos do cliente</h3><span class="count mono">${rows.length}</span></div>
+    <div class="block-body open">${rows.length ? rows.map(e=>{ const dias = e.vigencia_fim ? Math.round((new Date(e.vigencia_fim)-new Date())/86400000) : null;
+      return `<div class="rec" style="cursor:pointer" data-est="${e.id}"><b>${escapeHtml(e.seguradora_atual||'Apólice atual')}</b> · ${escapeHtml(e.tipo_seguro||'—')} <span class="tagx">${escapeHtml((ES_STATUS.find(s=>s[0]===e.status)||[0,e.status])[1])}</span><br><span class="k">${dias===null?'sem vigência':(dias<0?'vencida há '+(-dias)+'d':'vence em '+dias+'d')}</span> aberto em ${fmtDate(e.created_at)} — clique para abrir</div>`; }).join('') : '<div class="no-rec">Nenhum estudo ainda para este cliente.</div>'}
+      <div style="margin-top:10px"><button class="om-save" id="pe-new">＋ Novo estudo para ${escapeHtml(person.nome.split(' ')[0])}</button></div></div>`;
+  host.querySelectorAll('[data-est]').forEach(d=>d.addEventListener('click', ()=> showEstudoView(person.id, d.dataset.est)));
+  host.querySelector('#pe-new').addEventListener('click', ()=> estudoDialog({id:person.id, nome:person.nome}));
+}
+async function renderPessoaHistorico(person){
+  const host = document.getElementById('hist-block'); if(!host) return;
+  const [fun, est, apo, doc] = await Promise.all([
+    sb.from('crm_funil').select('etapa,data_inicio,data_combinada,observacao,created_at').eq('pessoa_id', person.id),
+    sb.from('crm_estudos').select('seguradora_atual,tipo_seguro,created_at').eq('pessoa_id', person.id),
+    sb.from('crm_apolices').select('seguradora,tipo_seguro,data_emissao,origem_apolice,created_at').eq('pessoa_id', person.id),
+    sb.from('crm_documentos').select('nome_arquivo,categoria,created_at').eq('pessoa_id', person.id)]);
+  const ev = [];
+  if(person.created_at) ev.push({d:person.created_at, i:'🆕', t:'Cadastro criado no CRM'});
+  (fun.data||[]).forEach(r=>{ const lb = (ETAPAS_FUNIL.find(e=>e.key===r.etapa)||{label:r.etapa}).label; ev.push({d:r.data_inicio||r.data_combinada||r.created_at, i:'📶', t:`Funil: <b>${lb}</b>${r.observacao?' — '+escapeHtml(r.observacao):''}`}); });
+  (est.data||[]).forEach(r=>ev.push({d:r.created_at, i:'🔍', t:`Estudo aberto — ${escapeHtml(r.tipo_seguro||'apólice')} ${escapeHtml(r.seguradora_atual||'')}`}));
+  (apo.data||[]).forEach(r=>ev.push({d:r.data_emissao||r.created_at, i:'📄', t:`Apólice ${escapeHtml(r.tipo_seguro||'')} — ${escapeHtml(r.seguradora||'')}${r.origem_apolice==='nova'?' (nova)':''}`}));
+  (doc.data||[]).forEach(r=>ev.push({d:r.created_at, i:'📎', t:`Documento anexado: ${escapeHtml(r.nome_arquivo||'')}`}));
+  ev.sort((a,b)=> new Date(b.d) - new Date(a.d));
+  host.innerHTML = `<div class="block-head"><h3>🕒 Histórico com a CallMed</h3><span class="count mono">${ev.length}</span></div>
+    <div class="block-body open">${ev.map(x=>`<div class="rec"><span class="k">${fmtDate(x.d)}</span>${x.i} ${x.t}</div>`).join('')}</div>`;
+}
+document.addEventListener('click', e=>{
+  if(e.target.id==='pa-estudo'){ const p = window._curPerson; if(p) estudoDialog({id:p.id, nome:p.nome}); }
+  if(e.target.id==='pa-apolice'){ const p = window._curPerson; if(!p) return;
+    const inp = document.createElement('input'); inp.type='file'; inp.multiple = true; inp.accept = '.pdf,image/*';
+    inp.addEventListener('change', ()=>{ window._caFixed = {id:p.id, nome:p.nome, cpf:p.cpf, crm:p.crm}; caEnqueue([...inp.files]); }); inp.click(); }
+});
 
 document.getElementById('op-newcli').addEventListener('click', ()=> openNovoCliente());
 
