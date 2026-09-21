@@ -238,12 +238,13 @@
           <span id="op-range"></span>
           <button id="op-next" title="Próximos 12 meses">›</button>
           <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
+          <span id="op-chip"></span>
         </div>
       </div>
       <div id="op-scroll"><div class="op-more">Carregando médicos...</div></div>
     </div>
 
-    <div id="op-pop"></div>
+    <div id="op-modal"></div>
 
     <div id="view-pessoas" class="view">
       <div id="sidebar">
@@ -446,6 +447,38 @@
   #op-pop button:hover{ background:var(--brand-soft);}
   #op-pop button.on{ font-weight:700;}
   #btn-op-back{ margin:10px 14px 0; align-self:flex-start;}
+  .op-mh{ flex-direction:column; align-items:stretch !important; justify-content:flex-start !important;}
+  .op-mt{ display:flex; align-items:center; justify-content:center; gap:6px; height:38px;}
+  .op-mt span{ display:flex; flex-direction:column; align-items:center; line-height:1.15;}
+  .op-mtoggle{ border:1px solid var(--border); background:var(--surface); border-radius:5px; width:20px; height:20px; font-size:11px; line-height:1; cursor:pointer; color:var(--ink-soft); padding:0;}
+  .op-mtoggle:hover{ background:var(--brand-soft); color:var(--brand);}
+  .op-mh.exp{ background:#eef1ff;}
+  .op-dh{ position:absolute; bottom:0; height:20px; text-align:center; font-size:9.5px; color:var(--ink-faint); font-weight:500; line-height:20px; border-left:1px solid #e3e6f0;}
+  .op-sumcell.clk{ cursor:pointer; color:var(--brand);}
+  .op-sumcell.clk:hover{ background:var(--brand-soft);}
+  .op-sumcell.sel{ background:var(--brand); color:#fff !important; border-radius:6px;}
+  .op-chip{ display:inline-flex; align-items:center; gap:8px; background:var(--brand-soft); color:var(--ink); border-radius:999px; padding:4px 6px 4px 12px; font-size:12px;}
+  .op-chip button{ border:none !important; background:var(--brand) !important; color:#fff; border-radius:50% !important; width:20px; height:20px; padding:0 !important; font-size:10px !important; cursor:pointer;}
+  #op-modal{ position:fixed; inset:0; z-index:60; background:rgba(15,18,30,.45); display:none; align-items:center; justify-content:center; padding:20px;}
+  .op-modal-card{ background:var(--surface); border-radius:var(--radius-lg); width:100%; max-width:680px; max-height:92vh; display:flex; flex-direction:column; box-shadow:0 24px 60px -12px rgba(15,18,30,.45);}
+  .om-title{ display:flex; justify-content:space-between; gap:12px; padding:18px 22px 10px; border-bottom:1px solid var(--border);}
+  .om-title h3{ font-size:1.05rem;}
+  .om-sub{ font-size:12px; color:var(--ink-soft); margin-top:2px;}
+  #om-close{ border:none; background:transparent; font-size:16px; cursor:pointer; color:var(--ink-soft);}
+  .om-list{ overflow:auto; padding:8px 22px; display:flex; flex-direction:column; gap:8px;}
+  .om-row{ border:1px solid var(--border); border-radius:var(--radius-md); padding:9px 12px; display:grid; grid-template-columns:150px 1fr; gap:6px 12px; align-items:center;}
+  .om-row.focus{ border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft);}
+  .om-head{ display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13px;}
+  .om-dates{ display:flex; gap:10px;}
+  .om-dates label{ display:flex; flex-direction:column; font-size:10px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; color:var(--ink-faint); gap:2px;}
+  .om-row input[type=date], .om-obs{ border:1px solid var(--border); border-radius:6px; padding:5px 8px; font-size:12.5px; background:var(--surface); color:var(--ink);}
+  .om-row input:disabled{ background:var(--surface-2); color:var(--ink-faint);}
+  .om-obs{ grid-column:1 / -1;}
+  .om-err{ color:var(--red); font-size:12.5px; padding:4px 22px; min-height:20px;}
+  .om-foot{ display:flex; gap:10px; align-items:center; padding:12px 22px 16px; border-top:1px solid var(--border);}
+  .om-cancel, .om-save{ border-radius:var(--radius-sm); padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:var(--surface);}
+  .om-save{ background:var(--brand); color:#fff; border-color:var(--brand);}
+  .om-save:disabled{ opacity:.6;}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -1220,7 +1253,7 @@ document.querySelectorAll('#ata-toggle button').forEach(btn=>{
   });
 });
 
-// ---------- TRAJETÓRIA (linha do tempo: médicos x funil x produtos) ----------
+// ---------- ALIANÇA (linha do tempo: médicos x funil x produtos) ----------
 const OP_PRODUTOS = [
   {k:'vida', l:'Vida', re:/vida/i, not:/grupo/i, c:'#2bbf8a'},
   {k:'vida_grupo', l:'Vida em grupo', re:/grupo/i, c:'#2f9e57'},
@@ -1234,13 +1267,17 @@ const OP_PRODUTOS = [
 ];
 const OP_STAGE_COLORS = ['#9fb0ff','#7d92ff','#5b74ff','#3a55ff','#1f3af0','#0018fc','#0012c9','#000d94'];
 const OP_MESES = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+const OP_UNIT_PX = 88;
+const OP_EXPANDED_W = 11;
 const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
-             start:new Date(2026,9,1), sumOpen:true };
+             start:new Date(2026,9,1), sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null };
 const OP_PAGE = 120;
+const DAY = 86400000;
 const opEnd = ()=> new Date(OP.start.getFullYear(), OP.start.getMonth()+12, 1);
+const opMKey = (d)=> d.getFullYear()+'-'+d.getMonth();
 
 function opD(s){ if(!s) return null; const x = String(s).slice(0,10).split('-'); return new Date(+x[0], +x[1]-1, +x[2]); }
-function opPct(d){ return (d - OP.start) / (opEnd() - OP.start) * 100; }
+function opFmt(d){ return d ? d.toLocaleDateString('pt-BR') : ''; }
 function opClamp(p){ return Math.max(0, Math.min(100, p)); }
 function opProd(k){ return OP_PRODUTOS.find(p=>p.k===k) || OP_PRODUTOS[OP_PRODUTOS.length-1]; }
 function opProdKey(tipo){
@@ -1248,19 +1285,64 @@ function opProdKey(tipo){
   for(const p of OP_PRODUTOS){ if(p.re.test(t) && !(p.not && p.not.test(t))) return p.k; }
   return 'outros';
 }
-function opStageDate(r){ return opD(r.data_combinada || r.created_at); }
+
+// eixo do tempo com meses de largura variável (mês aberto = dias visíveis)
+function opBuildMonths(){
+  const out = []; let cum = 0;
+  for(let i=0;i<12;i++){
+    const s = new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1);
+    const e = new Date(OP.start.getFullYear(), OP.start.getMonth()+i+1, 1);
+    const exp = OP.expanded.has(opMKey(s));
+    const wu = exp ? OP_EXPANDED_W : 1;
+    out.push({s, e, exp, wu, cum, days:Math.round((e-s)/DAY), name:OP_MESES[s.getMonth()], yr:String(s.getFullYear()).slice(2), key:opMKey(s)});
+    cum += wu;
+  }
+  OP.total = cum;
+  out.forEach(m=>{ m.l = m.cum/cum*100; m.w = m.wu/cum*100; });
+  OP.months = out;
+}
+function opPct(d){
+  const m0 = OP.months[0];
+  if(d < m0.s) return -1;
+  const last = OP.months[11];
+  if(d >= last.e) return 101;
+  for(const m of OP.months){
+    if(d >= m.s && d < m.e) return m.l + (d - m.s)/(m.e - m.s)*m.w;
+  }
+  return 101;
+}
+function opDateAt(pct){
+  for(const m of OP.months){
+    if(pct >= m.l && pct < m.l + m.w){
+      const f = (pct - m.l)/m.w;
+      return new Date(m.s.getFullYear(), m.s.getMonth(), Math.min(m.days, Math.floor(f*m.days)+1));
+    }
+  }
+  return new Date();
+}
+
+function opStageStart(r){ return opD(r.data_inicio || r.data_combinada || r.created_at); }
 function opStages(pid){
   const m = OP.funil.get(pid); if(!m) return [];
   const out = [];
-  ETAPAS_FUNIL.forEach((e,i)=>{ const r = m.get(e.key); if(r) out.push({i, key:e.key, label:e.label, date:opStageDate(r)}); });
+  ETAPAS_FUNIL.forEach((e,i)=>{ const r = m.get(e.key); if(r) out.push({i, key:e.key, label:e.label, date:opStageStart(r), fim:opD(r.data_fim), obs:r.observacao||'', id:r.id}); });
   return out.sort((a,b)=> a.date-b.date || a.i-b.i);
 }
 function opCurEtapaIdx(pid){ const s = opStages(pid); return s.length ? s[s.length-1].i : -1; }
+function opStageAt(pid, mi){
+  const mo = OP.months[mi]; let cur = null;
+  opStages(pid).forEach(s=>{ if(s.date < mo.e) cur = s; });
+  return cur ? cur.i : -1;
+}
 function opApoRange(a){
   let end = opD(a.data_vencimento), start = opD(a.data_emissao);
   if(!start && end){ start = new Date(end.getFullYear()-1, end.getMonth(), end.getDate()); }
   if(!end && start){ end = new Date(start.getFullYear()+1, start.getMonth(), start.getDate()); }
   return {start, end};
+}
+function opClienteNoMes(pid, mi){
+  const mo = OP.months[mi];
+  return (OP.apo.get(pid)||[]).some(a=>{ if(a.status==='cancelada') return false; const r = opApoRange(a); return r.start && r.end && r.start < mo.e && r.end >= mo.s; });
 }
 function opIsCliente(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status!=='cancelada'); }
 
@@ -1277,9 +1359,10 @@ async function opFetchAll(table, cols, orderCols){
   }
   return out;
 }
+const OP_FUNIL_COLS = 'id,pessoa_id,etapa,created_at,data_combinada,data_inicio,data_fim,observacao';
 async function opLoadFunilApo(){
   const [fun, apo] = await Promise.all([
-    opFetchAll('crm_funil','id,pessoa_id,etapa,created_at,data_combinada',['id']),
+    opFetchAll('crm_funil', OP_FUNIL_COLS, ['id']),
     opFetchAll('crm_apolices','id,pessoa_id,tipo_seguro,seguradora,status,data_emissao,data_vencimento,valor_premio',['id']),
   ]);
   OP.funil = new Map(); fun.forEach(r=>{ if(!OP.funil.has(r.pessoa_id)) OP.funil.set(r.pessoa_id,new Map()); OP.funil.get(r.pessoa_id).set(r.etapa, r); });
@@ -1313,12 +1396,14 @@ async function renderOperacao(force){
   OP.loading = false;
 }
 
-function opApplyFilters(keep){
+function opApplyFilters(keep, scrollToList){
+  opBuildMonths();
   const q = document.getElementById('op-search').value.trim().toLowerCase();
   const sit = document.getElementById('op-f-situacao').value;
   const et = document.getElementById('op-f-etapa').value;
   const pr = document.getElementById('op-f-produto').value;
   const sort = document.getElementById('op-sort').value;
+  const sf = OP.sumFilter;
   let list = OP.pessoas.filter(p=>{
     if(q && !((p.nome||'').toLowerCase().includes(q) || (p.crm||'').toLowerCase().includes(q) || (p.especialidade||'').toLowerCase().includes(q))) return false;
     const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id);
@@ -1327,6 +1412,10 @@ function opApplyFilters(keep){
     if(sit==='novo' && !(idx<0 && !cli)) return false;
     if(et && (idx<0 || ETAPAS_FUNIL[idx].key!==et)) return false;
     if(pr && !(OP.apo.get(p.id)||[]).some(a=>opProdKey(a.tipo_seguro)===pr)) return false;
+    if(sf){
+      if(sf.st === 'cli'){ if(!opClienteNoMes(p.id, sf.mi)) return false; }
+      else if(opStageAt(p.id, sf.mi) !== sf.st) return false;
+    }
     return true;
   });
   if(sort==='plantoes') list = list.slice().sort((a,b)=>(Number(b.total_pago_plantoes_2026)||0)-(Number(a.total_pago_plantoes_2026)||0));
@@ -1337,7 +1426,17 @@ function opApplyFilters(keep){
   OP.filtered = list; OP.shown = 0;
   opRenderAll(prevShown);
   scroller.scrollTop = prevTop; scroller.scrollLeft = prevLeft;
+  if(scrollToList){ const h = scroller.querySelector('.op-head'); if(h) scroller.scrollTop = h.offsetTop; }
   opRenderKpis();
+  opRenderChip();
+}
+
+function opRenderChip(){
+  const box = document.getElementById('op-chip'); const sf = OP.sumFilter;
+  if(!sf){ box.innerHTML = ''; return; }
+  const mo = OP.months[sf.mi];
+  const nm = sf.st==='cli' ? 'Clientes com apólice vigente' : ETAPAS_FUNIL[sf.st].label;
+  box.innerHTML = `<span class="op-chip">Filtro do resumo: <b>${nm}</b> em <b>${mo.name}/${mo.yr}</b> · ${OP.filtered.length} médico(s) <button id="op-chip-x" title="Limpar filtro">✕</button></span>`;
 }
 
 function opRenderKpis(){
@@ -1349,65 +1448,57 @@ function opRenderKpis(){
 
 function opGridCss(){
   const layers = [];
-  for(let i=1;i<12;i++){
-    const p = opPct(new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1)).toFixed(3);
-    layers.push(`linear-gradient(to right,transparent calc(${p}% - .5px),#e6e9f2 calc(${p}% - .5px),#e6e9f2 calc(${p}% + .5px),transparent calc(${p}% + .5px))`);
-  }
+  const line = (p,c)=> `linear-gradient(to right,transparent calc(${p}% - .5px),${c} calc(${p}% - .5px),${c} calc(${p}% + .5px),transparent calc(${p}% + .5px))`;
+  OP.months.forEach((m,i)=>{
+    if(i>0) layers.push(line(m.l.toFixed(3), '#dfe3ef'));
+    if(m.exp){ for(let d=1; d<m.days; d++) layers.push(line((m.l + d/m.days*m.w).toFixed(3), '#eef0f6')); }
+  });
   const t = opPct(new Date());
   if(t>=0 && t<=100) layers.push(`linear-gradient(to right,transparent calc(${t.toFixed(3)}% - 1px),rgba(194,54,54,.55) calc(${t.toFixed(3)}% - 1px),rgba(194,54,54,.55) calc(${t.toFixed(3)}% + 1px),transparent calc(${t.toFixed(3)}% + 1px))`);
   return layers.join(',');
 }
 
-function opMonthsInfo(){
-  const out = [];
-  for(let i=0;i<12;i++){
-    const s = new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1);
-    const e = new Date(OP.start.getFullYear(), OP.start.getMonth()+i+1, 1);
-    out.push({s, e, l:opPct(s), w:opPct(e)-opPct(s), name:OP_MESES[s.getMonth()], yr:String(s.getFullYear()).slice(2)});
-  }
-  return out;
-}
-
-function opSummary(months){
+function opSummary(){
+  const months = OP.months;
   const stageCounts = ETAPAS_FUNIL.map(()=>months.map(()=>0));
   const cliCounts = months.map(()=>0);
   OP.funil.forEach((m,pid)=>{
-    const st = opStages(pid); if(!st.length) return;
-    months.forEach((mo,mi)=>{
-      let cur = null; st.forEach(s=>{ if(s.date < mo.e) cur = s; });
-      if(cur) stageCounts[cur.i][mi]++;
-    });
+    months.forEach((mo,mi)=>{ const i = opStageAt(pid, mi); if(i>=0) stageCounts[i][mi]++; });
   });
-  OP.apo.forEach(list=>{
-    months.forEach((mo,mi)=>{
-      if(list.some(a=>{ if(a.status==='cancelada') return false; const r = opApoRange(a); return r.start && r.end && r.start < mo.e && r.end >= mo.s; })) cliCounts[mi]++;
-    });
-  });
+  OP.apo.forEach((list,pid)=>{ months.forEach((mo,mi)=>{ if(opClienteNoMes(pid, mi)) cliCounts[mi]++; }); });
   return {stageCounts, cliCounts};
 }
-
-function opSumRowHtml(label, dotColor, counts, months){
-  return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right" style="--opgrid:${'none'}">${
-    months.map((mo,mi)=>`<div class="op-sumcell${counts[mi]?'':' z'}" style="left:${mo.l}%;width:${mo.w}%">${counts[mi]||'·'}</div>`).join('')}</div></div>`;
+function opSumRowHtml(label, dotColor, counts, stKey){
+  const sf = OP.sumFilter;
+  return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right" style="--opgrid:none">${
+    OP.months.map((mo,mi)=>{
+      const on = sf && sf.st===stKey && sf.mi===mi;
+      return `<div class="op-sumcell${counts[mi]?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" style="left:${mo.l}%;width:${mo.w}%">${counts[mi]||'·'}</div>`;
+    }).join('')}</div></div>`;
+}
+function opSumRowsHtml(){
+  const sm = opSummary();
+  return ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], i)).join('')
+    + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, 'cli');
 }
 
 function opRenderAll(prevShown){
   const host = document.getElementById('op-scroll');
-  const months = opMonthsInfo();
   const now = new Date();
   host.style.setProperty('--opgrid', opGridCss());
   const lastM = new Date(OP.start.getFullYear(), OP.start.getMonth()+11, 1);
   document.getElementById('op-range').textContent = `${OP_MESES[OP.start.getMonth()]}/${OP.start.getFullYear()} – ${OP_MESES[lastM.getMonth()]}/${lastM.getFullYear()}`;
-  const sm = opSummary(months);
-  const sumRows = ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], months)).join('')
-    + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, months);
-  host.innerHTML = `<div class="op-inner">
+  const anyExp = OP.months.some(m=>m.exp);
+  const heads = OP.months.map(mo=>{
+    const days = mo.exp ? Array.from({length:mo.days},(_,d)=>`<span class="op-dh" style="left:${d/mo.days*100}%;width:${100/mo.days}%">${d+1}</span>`).join('') : '';
+    return `<div class="op-mh${(now>=mo.s&&now<mo.e)?' cur':''}${mo.exp?' exp':''}" style="left:${mo.l}%;width:${mo.w}%"><div class="op-mt"><span>${mo.name}<small>${mo.yr}</small></span><button class="op-mtoggle" data-mkey="${mo.key}" title="${mo.exp?'Minimizar mês':'Abrir o mês inteiro (dias)'}">${mo.exp?'⤡':'⤢'}</button></div>${days}</div>`;
+  }).join('');
+  host.innerHTML = `<div class="op-inner" style="min-width:calc(var(--oplw) + ${OP.total*OP_UNIT_PX}px)">
     <div class="op-sumbox">
-      <div class="op-sumtitle" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal — médicos por etapa do funil (situação ao fim de cada mês)</div>
-      <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'}">${sumRows}</div>
+      <div class="op-sumtitle" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal — médicos por etapa do funil (situação ao fim de cada mês) · clique num número para filtrar</div>
+      <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'}">${opSumRowsHtml()}</div>
     </div>
-    <div class="op-row op-head"><div class="op-left">${OP.filtered.length} de ${OP.pessoas.length} médicos</div><div class="op-right">${
-      months.map(mo=>`<div class="op-mh${(now>=mo.s&&now<mo.e)?' cur':''}" style="left:${mo.l}%;width:${mo.w}%">${mo.name}<small>${mo.yr}</small></div>`).join('')}</div></div>
+    <div class="op-row op-head"><div class="op-left">${OP.filtered.length} de ${OP.pessoas.length} médicos</div><div class="op-right" style="height:${anyExp?60:38}px">${heads}</div></div>
     <div id="op-body"></div><div class="op-more" id="op-more"></div></div>`;
   opAppendRows(Math.max(prevShown||0, OP_PAGE));
 }
@@ -1418,14 +1509,18 @@ function opRowHtml(p){
   const pl = Number(p.total_pago_plantoes_2026)||0;
   const height = 10 + 26 + apos.length*24;
   const st = opStages(p.id);
-  const today = new Date();
+  const today = new Date(); today.setHours(0,0,0,0);
   let segs = '';
   st.forEach((s,i)=>{
-    const endD = (i+1<st.length) ? st[i+1].date : (today > s.date ? today : new Date(s.date.getTime()+14*86400000));
+    let endD;
+    if(s.fim) endD = new Date(s.fim.getTime()+DAY);
+    else if(i+1<st.length) endD = st[i+1].date;
+    else endD = today > s.date ? new Date(today.getTime()+DAY) : new Date(s.date.getTime()+14*DAY);
     let l = opPct(s.date), r = opPct(endD);
     if(r < 0 || l > 100) return;
     l = opClamp(l); r = opClamp(r);
-    segs += `<div class="seg" data-etapa="${s.key}" style="left:${l}%;width:${Math.max(r-l,0.6)}%;background:${OP_STAGE_COLORS[s.i]}" title="${s.label} · ${s.date.toLocaleDateString('pt-BR')}">${s.label}</div>`;
+    const tip = `${s.label}\n${opFmt(s.date)} → ${s.fim?opFmt(s.fim):'em andamento'}${s.obs?'\n\n💬 '+s.obs:''}`;
+    segs += `<div class="seg" data-etapa="${s.key}" style="left:${l}%;width:${Math.max(r-l,0.5)}%;background:${OP_STAGE_COLORS[s.i]}" title="${escapeHtml(tip)}">${s.obs?'💬 ':''}${s.label}</div>`;
   });
   let lanes = `<div class="op-lane funil" data-pid="${p.id}" style="top:5px">${segs}</div>`;
   apos.forEach((a,i)=>{
@@ -1435,7 +1530,7 @@ function opRowHtml(p){
     l = opClamp(l); r = opClamp(r);
     const pd = opProd(opProdKey(a.tipo_seguro));
     const late = rg.end < today || a.status==='cancelada';
-    const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${rg.start.toLocaleDateString('pt-BR')} a ${rg.end.toLocaleDateString('pt-BR')}${late?' (encerrada)':''}`;
+    const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}`;
     lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
   });
   return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${pl>0?' · plantões R$ '+Math.round(pl).toLocaleString('pt-BR'):''}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
@@ -1450,74 +1545,131 @@ function opAppendRows(n){
   if(more) more.textContent = OP.shown < OP.filtered.length ? `Mostrando ${OP.shown} de ${OP.filtered.length} — role para carregar mais` : (OP.filtered.length ? `Fim da lista (${OP.filtered.length})` : 'Nenhum médico encontrado com esses filtros.');
 }
 
-// ---- popup para marcar/desmarcar etapa do funil na data clicada ----
-let opPopCtx = null;
-function opShowPop(pid, date, x, y){
-  opPopCtx = {pid, date};
-  const m = OP.funil.get(pid);
-  const pop = document.getElementById('op-pop');
-  pop.innerHTML = `<div class="ph">Etapa em ${date.toLocaleDateString('pt-BR')}</div>` + ETAPAS_FUNIL.map((e,i)=>{
-    const r = m && m.get(e.key);
-    return `<button data-etapa="${e.key}" class="${r?'on':''}"><span class="op-dot" style="background:${OP_STAGE_COLORS[i]}"></span>${r?'✓ ':''}${e.label}${r?` <small style="color:var(--ink-faint);font-weight:400">· ${opStageDate(r).toLocaleDateString('pt-BR').slice(0,5)} (remover)</small>`:''}</button>`;
+// ---- janela de edição das etapas do funil (início, fim, observação) ----
+let opModalCtx = null;
+function opIso(d){ return d ? ymd(d) : ''; }
+function opOpenModal(pid, clickedDate, focusKey){
+  const p = OP.pessoas.find(x=>x.id===pid); if(!p) return;
+  const m = OP.funil.get(pid) || new Map();
+  const st = opStages(pid);
+  const maxIdx = st.length ? Math.max(...st.map(s=>s.i)) : -1;
+  let autoKey = focusKey;
+  if(!autoKey && clickedDate){ const nx = ETAPAS_FUNIL[maxIdx+1]; if(nx) autoKey = nx.key; }
+  const rows = ETAPAS_FUNIL.map((e,i)=>{
+    const r = m.get(e.key);
+    const isNew = !r && e.key===autoKey && clickedDate;
+    const on = !!r || isNew;
+    const ini = r ? opIso(opStageStart(r)) : (isNew ? opIso(clickedDate) : '');
+    const fim = r ? (r.data_fim||'') : '';
+    const obs = r ? (r.observacao||'') : '';
+    return `<div class="om-row${e.key===autoKey?' focus':''}" data-key="${e.key}" data-id="${r?r.id:''}">
+      <label class="om-head"><input type="checkbox" class="om-on" ${on?'checked':''}><span class="op-dot" style="background:${OP_STAGE_COLORS[i]}"></span><b>${e.label}</b></label>
+      <div class="om-dates"><label>Início<input type="date" class="om-ini" value="${ini}" ${on?'':'disabled'}></label><label>Fim<input type="date" class="om-fim" value="${fim}" ${on?'':'disabled'}></label></div>
+      <input type="text" class="om-obs" placeholder="Observação (ex.: pediu retorno após dia 15, está de férias)" value="${escapeHtml(obs)}" ${on?'':'disabled'}>
+    </div>`;
   }).join('');
-  pop.style.display = 'block';
-  const w = pop.offsetWidth, h = pop.offsetHeight;
-  pop.style.left = Math.min(x, window.innerWidth - w - 10) + 'px';
-  pop.style.top = Math.min(y, window.innerHeight - h - 10) + 'px';
+  const box = document.getElementById('op-modal');
+  box.innerHTML = `<div class="op-modal-card"><div class="om-title"><div><h3>${escapeHtml(p.nome)}</h3><div class="om-sub">Etapas do funil · uma após a outra, sem sobreposição. Deixe o fim em branco na etapa em andamento.</div></div><button id="om-close" title="Fechar">✕</button></div>
+    <div class="om-list">${rows}</div><div class="om-err" id="om-err"></div>
+    <div class="om-foot"><button class="btn-ghost" id="om-open-person">Abrir cadastro completo</button><span style="flex:1"></span><button class="om-cancel" id="om-cancel">Cancelar</button><button class="om-save" id="om-save">Salvar</button></div></div>`;
+  box.style.display = 'flex';
+  opModalCtx = {pid};
 }
-function opHidePop(){ document.getElementById('op-pop').style.display = 'none'; opPopCtx = null; }
+function opCloseModal(){ const b = document.getElementById('op-modal'); b.style.display='none'; b.innerHTML=''; opModalCtx = null; }
 
-async function opToggleStage(pid, etapa, date){
-  let m = OP.funil.get(pid);
-  const had = m && m.has(etapa);
-  if(had){
-    const { error } = await sb.from('crm_funil').delete().eq('pessoa_id', pid).eq('etapa', etapa);
-    if(error){ showToast('Erro: '+error.message); return; }
-    m.delete(etapa); if(!m.size) OP.funil.delete(pid);
-  } else {
-    const iso = ymd(date);
-    const { data, error } = await sb.from('crm_funil').insert({ pessoa_id: pid, etapa, data_combinada: iso }).select('id,pessoa_id,etapa,created_at,data_combinada').single();
-    if(error){ showToast('Erro: '+error.message); return; }
-    if(!m){ m = new Map(); OP.funil.set(pid, m); }
-    m.set(etapa, data);
+async function opSaveModal(){
+  const ctx = opModalCtx; if(!ctx) return;
+  const err = document.getElementById('om-err'); err.textContent = '';
+  const active = [];
+  document.querySelectorAll('#op-modal .om-row').forEach(row=>{
+    const key = row.dataset.key, i = ETAPAS_FUNIL.findIndex(e=>e.key===key);
+    const on = row.querySelector('.om-on').checked;
+    active.push({key, i, label:ETAPAS_FUNIL[i].label, id:row.dataset.id||null, on,
+      ini:row.querySelector('.om-ini').value, fim:row.querySelector('.om-fim').value, obs:row.querySelector('.om-obs').value.trim()});
+  });
+  const act = active.filter(a=>a.on).sort((a,b)=>a.i-b.i);
+  for(const a of act){
+    if(!a.ini){ err.textContent = `Informe a data de início da etapa "${a.label}".`; return; }
+    if(a.fim && a.fim < a.ini){ err.textContent = `Em "${a.label}", o fim não pode ser antes do início.`; return; }
   }
+  for(let k=0;k<act.length-1;k++){
+    const a = act[k], b = act[k+1];
+    const endA = a.fim || a.ini;
+    if(b.ini <= endA){ err.textContent = `"${b.label}" precisa começar depois do fim de "${a.label}" (${opFmt(opD(endA))}) — as etapas são sequenciais e não podem se sobrepor.`; return; }
+    if(!a.fim){ const d = opD(b.ini); d.setDate(d.getDate()-1); a.fim = ymd(d); if(a.fim < a.ini) a.fim = a.ini; }
+  }
+  const btn = document.getElementById('om-save'); btn.disabled = true; btn.textContent = 'Salvando...';
+  try{
+    for(const a of active){
+      if(!a.on && a.id){
+        const { error } = await sb.from('crm_funil').delete().eq('id', a.id); if(error) throw error;
+      } else if(a.on){
+        const payload = { data_inicio:a.ini, data_combinada:a.ini, data_fim:a.fim||null, observacao:a.obs||null };
+        if(a.id){ const { error } = await sb.from('crm_funil').update(payload).eq('id', a.id); if(error) throw error; }
+        else { const { error } = await sb.from('crm_funil').insert({ pessoa_id:ctx.pid, etapa:a.key, ...payload }); if(error) throw error; }
+      }
+    }
+    const { data, error } = await sb.from('crm_funil').select(OP_FUNIL_COLS).eq('pessoa_id', ctx.pid);
+    if(error) throw error;
+    if(data.length){ const mm = new Map(); data.forEach(r=>mm.set(r.etapa, r)); OP.funil.set(ctx.pid, mm); } else OP.funil.delete(ctx.pid);
+    opCloseModal();
+    opRefreshRow(ctx.pid);
+    showToast('Etapas salvas');
+  }catch(e){
+    err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled=false; btn.textContent='Salvar';
+  }
+}
+function opRefreshRow(pid){
   const p = OP.pessoas.find(x=>x.id===pid);
   const row = document.querySelector(`.op-row[data-pid="${pid}"]`);
   if(row && p) row.outerHTML = opRowHtml(p);
-  const months = opMonthsInfo(), sm = opSummary(months);
-  const rowsHost = document.getElementById('op-sumrows');
-  if(rowsHost) rowsHost.innerHTML = ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], months)).join('') + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, months);
+  const rowsHost = document.getElementById('op-sumrows'); if(rowsHost) rowsHost.innerHTML = opSumRowsHtml();
   opRenderKpis();
 }
 
 document.getElementById('view-operacao').addEventListener('click', (e)=>{
-  const pop = e.target.closest('#op-pop');
+  if(e.target.closest('#op-chip-x')){ OP.sumFilter = null; opApplyFilters(true); return; }
+  const tg = e.target.closest('.op-mtoggle');
+  if(tg){
+    const k = tg.dataset.mkey;
+    if(OP.expanded.has(k)) OP.expanded.delete(k); else OP.expanded.add(k);
+    opApplyFilters(true); return;
+  }
+  const sc = e.target.closest('.op-sumcell.clk');
+  if(sc){
+    const st = sc.dataset.st==='cli' ? 'cli' : parseInt(sc.dataset.st,10), mi = parseInt(sc.dataset.mi,10);
+    const same = OP.sumFilter && OP.sumFilter.st===st && OP.sumFilter.mi===mi;
+    OP.sumFilter = same ? null : {st, mi};
+    opApplyFilters(false, !same); return;
+  }
   const lane = e.target.closest('.op-lane.funil');
   if(lane){
+    const seg = e.target.closest('.seg');
+    if(seg){ opOpenModal(lane.dataset.pid, null, seg.dataset.etapa); return; }
     const rect = lane.getBoundingClientRect();
-    const frac = (e.clientX - rect.left) / rect.width;
-    const date = new Date(OP.start.getTime() + frac * (opEnd() - OP.start));
-    date.setHours(0,0,0,0);
-    e.stopPropagation();
-    opShowPop(lane.dataset.pid, date, e.clientX, e.clientY);
-    return;
+    const date = opDateAt((e.clientX - rect.left)/rect.width*100);
+    opOpenModal(lane.dataset.pid, date, null); return;
   }
   const open = e.target.closest('[data-open]');
   if(open){ goToPersonView(open.dataset.open); return; }
   if(e.target.closest('#op-sumtoggle')){
     OP.sumOpen = !OP.sumOpen;
     document.getElementById('op-sumrows').style.display = OP.sumOpen ? 'block' : 'none';
-    document.getElementById('op-sumtoggle').textContent = (OP.sumOpen?'▾':'▸') + ' Resumo mensal — médicos por etapa do funil (situação ao fim de cada mês)';
+    document.getElementById('op-sumtoggle').textContent = (OP.sumOpen?'▾':'▸') + ' Resumo mensal — médicos por etapa do funil (situação ao fim de cada mês) · clique num número para filtrar';
   }
 });
-document.getElementById('op-pop').addEventListener('click', (e)=>{
-  const b = e.target.closest('button[data-etapa]'); if(!b || !opPopCtx) return;
-  const ctx = opPopCtx; opHidePop();
-  opToggleStage(ctx.pid, b.dataset.etapa, ctx.date);
+document.getElementById('op-modal').addEventListener('click', (e)=>{
+  if(e.target.id==='op-modal' || e.target.id==='om-close' || e.target.id==='om-cancel'){ opCloseModal(); return; }
+  if(e.target.id==='om-save'){ opSaveModal(); return; }
+  if(e.target.id==='om-open-person'){ const pid = opModalCtx && opModalCtx.pid; opCloseModal(); if(pid) goToPersonView(pid); return; }
 });
-document.addEventListener('click', (e)=>{ if(!e.target.closest('#op-pop') && !e.target.closest('.op-lane.funil')) opHidePop(); });
+document.getElementById('op-modal').addEventListener('change', (e)=>{
+  if(e.target.classList.contains('om-on')){
+    const row = e.target.closest('.om-row');
+    row.querySelectorAll('.om-ini,.om-fim,.om-obs').forEach(i=>{ i.disabled = !e.target.checked; });
+  }
+});
 document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
-  opHidePop();
   const el = e.target;
   if(el.scrollTop + el.clientHeight > el.scrollHeight - 500 && OP.shown < OP.filtered.length) opAppendRows();
 });
@@ -1525,9 +1677,9 @@ let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
 ['op-f-situacao','op-f-etapa','op-f-produto','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
 document.getElementById('btn-op-back').addEventListener('click', ()=> document.querySelector('.nav-btn[data-view="operacao"]').click());
-document.getElementById('op-prev').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()-1, OP.start.getMonth(), 1); opApplyFilters(true); });
-document.getElementById('op-next').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()+1, OP.start.getMonth(), 1); opApplyFilters(true); });
-document.getElementById('op-reset').addEventListener('click', ()=>{ OP.start = new Date(2026,9,1); opApplyFilters(true); });
+document.getElementById('op-prev').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()-1, OP.start.getMonth(), 1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
+document.getElementById('op-next').addEventListener('click', ()=>{ OP.start = new Date(OP.start.getFullYear()+1, OP.start.getMonth(), 1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
+document.getElementById('op-reset').addEventListener('click', ()=>{ OP.start = new Date(2026,9,1); OP.expanded.clear(); OP.sumFilter = null; opApplyFilters(true); });
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
