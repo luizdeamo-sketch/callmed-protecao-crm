@@ -566,6 +566,7 @@
   .fl input, .fl select{ border:1px solid var(--border); border-radius:6px; padding:7px 9px; font-size:13px; font-family:'Inter',sans-serif; text-transform:none; color:var(--ink); background:var(--surface);}
   input.auto{ background:#f0f7ff !important; border-color:#9fb0ff !important;}
   .nc-files{ font-size:12px; margin-bottom:10px; display:flex; flex-direction:column; gap:4px;}
+  .dup.ok{ background:var(--green-soft); border-color:#bfe6d4;}
   .dup{ margin-top:10px; background:var(--amber-soft); border:1px solid var(--amber-line); border-radius:var(--radius-sm); padding:8px 12px; font-size:12.5px;} .dup a{ color:var(--brand); font-weight:600;}
   .q{ border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:12px;}
   .rd, .pk{ display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:4px 0; cursor:pointer;} .pk small{ color:var(--ink-faint);}
@@ -1866,7 +1867,7 @@ function docsLoadScript(src){
     const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = ()=>rej(new Error('Falha ao carregar '+src)); document.head.appendChild(s);
   });
 }
-async function docsPdfText(file){
+async function docsPdfText(file, forceOcr){
   await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise;
@@ -1878,7 +1879,7 @@ async function docsPdfText(file){
     tc.items.forEach(it=>{ const y = Math.round(it.transform[5]/3); if(!rows.has(y)) rows.set(y, []); rows.get(y).push(it); });
     [...rows.keys()].sort((a,b)=>b-a).forEach(y=>{ out += rows.get(y).sort((a,b)=>a.transform[4]-b.transform[4]).map(i=>i.str).join(' ') + '\n'; });
   }
-  if(out.replace(/\s/g,'').length < 80){
+  if(forceOcr || out.replace(/\s/g,'').length < 80){
     const parts = [];
     for(let p=1; p<=Math.min(pdf.numPages, 3); p++){
       const page = await pdf.getPage(p); const vp = page.getViewport({scale:2});
@@ -1886,7 +1887,7 @@ async function docsPdfText(file){
       await page.render({canvasContext: cv.getContext('2d'), viewport: vp}).promise;
       parts.push(await docsOcr(cv));
     }
-    out = parts.join('\n');
+    out = forceOcr ? out + '\n' + parts.join('\n') : parts.join('\n');
   }
   return out;
 }
@@ -1910,10 +1911,12 @@ function docsExtract(text){
   const nm = t.match(/(?:segurado(?:\(a\))?|proponente|titular|nome\s*(?:completo|do\s*segurado|do\s*proponente)?)\s*[:\-–]\s*([^\n]{5,90})/i);
   if(nm){ let n = nm[1].replace(/\s{2,}.*/,'').replace(/\b(CPF|CNPJ|RG|CRM|Data|Nasc|Sexo|Estado|Telefone|E-?mail)\b.*$/i,'').replace(/[\d\/.-]+$/,'').trim();
           if(/^[A-Za-zÀ-ú' ]{6,}$/.test(n) && n.split(/\s+/).length>=2) f.nome = titleCase(n); }
+  if(!f.nome){ const nm2 = t.match(/(?:^|\n)[^\n]{0,14}?\bnome(?:\s*e\s*sobrenome|\s*completo)?\s*[:\n]\s*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú' ]{5,60})/i);
+    if(nm2){ const n = nm2[1].replace(/\s+/g,' ').trim(); if(n.split(' ').length>=2 && !/\b(CPF|DATA|REGISTRO|FILIA)/i.test(n)) f.nome = titleCase(n); } }
   const crm = t.match(/CRM[\s\-\/:]*(?:[A-Z]{2}[\s\-\/:]*)?(\d{4,7})/i); if(crm) f.crm = crm[1];
   const em = t.match(/[\w.+-]+@[\w-]+\.[\w.-]+/); if(em) f.email = em[0].toLowerCase();
   const ph = t.match(/\(?\b(\d{2})\)?[\s.-]?(9?\d{4})[\s.-]?(\d{4})\b/); if(ph && !/^(19|20)\d{2}$/.test(ph[1]+ph[2].slice(0,2))) f.telefone = `(${ph[1]}) ${ph[2]}-${ph[3]}`;
-  const nasc = t.match(/(?:nasc\w*|data\s*de\s*nascimento)[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})/i); if(nasc) f.data_nascimento = brToIso(nasc[1]);
+  const nasc = t.match(/(?:nasc\w*|data\s*de\s*nascimento)[^\d]{0,70}(\d{2}\/\d{2}\/\d{4})/i); if(nasc) f.data_nascimento = brToIso(nasc[1]);
   const sx = t.match(/sexo[:\s]*(masculino|feminino|\bM\b|\bF\b)/i); if(sx) f.sexo = /^m/i.test(sx[1]) ? 'M' : 'F';
   const ec = t.match(/estado\s*civil[:\s]*(solteiro|casado|divorciado|vi[uú]vo|uni[ãa]o\s*est[aá]vel|separado)/i); if(ec) f.estado_civil = ec[1].toLowerCase();
   const esp = t.match(/especialidade[:\s]*([A-Za-zÀ-ú ]{4,50})/i); if(esp) f.especialidade = titleCase(esp[1].trim());
@@ -1932,7 +1935,12 @@ function docsExtract(text){
   f._chars = t.length;
   return f;
 }
-async function docsRead(file){ const text = await docsText(file); return docsExtract(text); }
+async function docsRead(file){
+  const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(file.name);
+  const text = await docsText(file); let f = docsExtract(text);
+  if(isPdf && !f.cpf && !f.nome){ try{ const t2 = await docsPdfText(file, true); f = docsExtract(text + '\n' + t2); }catch(e){ console.warn('ocr', e); } }
+  return f;
+}
 
 async function docsUpload(file, pasta){
   const safe = file.name.replace(/[^\w.\-]+/g,'_');
@@ -2000,18 +2008,20 @@ function openNovoCliente(prefill, onSaved){
     <div class="dlg-body">
       <div class="dz" id="nc-dz">📎 Arraste documentos aqui ou clique para anexar<input type="file" id="nc-file" multiple accept=".pdf,image/*" hidden></div>
       <div id="nc-files" class="nc-files"></div>
+      <div id="nc-banner"></div>
       <div class="fgrid">
         ${NC_FIELDS.map(([k,l,t])=>fld('nc-'+k,l,prefill[k],t,k==='nome')).join('')}
         <label class="fl"><span>Perfil do cliente *</span><select id="nc-tipo">${tipoOptions(prefill.tipo||'medico')}</select></label>
         <label class="fl"><span>Sexo</span><select id="nc-sexo"><option value="">—</option><option value="M">Masculino</option><option value="F">Feminino</option></select></label>
         <label class="fl"><span>Estado civil</span><select id="nc-estado_civil"><option value="">—</option><option>solteiro</option><option>casado</option><option>união estável</option><option>divorciado</option><option>viúvo</option></select></label>
         <label class="fl"><span>Origem do cliente</span><select id="nc-origem"><option value="">—</option><option>CallMed Plantões</option><option>Indicação</option><option>Instagram</option><option>Evento</option><option>Outro</option></select></label>
-        ${fld('nc-quem_indicou','Quem indicou (se for indicação)','')}
+        ${fld('nc-quem_indicou','Quem indicou *','')}
+        <label class="chk" style="align-self:end;padding-bottom:8px"><input type="checkbox" id="nc-sem-ind"> Sem indicação (contato direto / base própria)</label>
       </div>
       <div id="nc-dup"></div><div class="om-err" id="nc-err"></div>
     </div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="nc-save">Salvar cliente</button></div>`, true);
-  window._ncFiles = []; window._ncOnSaved = onSaved || null; window._dlgOnClose = ncCleanup;
+  window._ncFiles = []; NC.pessoaId = null; NC.existing = null; window._ncOnSaved = onSaved || null; window._dlgOnClose = ncCleanup;
   const dz = box.querySelector('#nc-dz'), inp = box.querySelector('#nc-file');
   dz.addEventListener('click', ()=>inp.click());
   dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
@@ -2020,66 +2030,112 @@ function openNovoCliente(prefill, onSaved){
   inp.addEventListener('change', ()=>{ ncAddFiles([...inp.files]); inp.value=''; });
   ['nc-cpf','nc-crm','nc-nome'].forEach(id=> box.querySelector('#'+id).addEventListener('change', ncCheckDup));
   box.querySelector('#nc-save').addEventListener('click', ncSave);
+  box.querySelector('#nc-nome').addEventListener('change', async ()=>{ if(!NC.pessoaId && window._ncFiles.length && ncVal('nome')) await ncAfterRead(); });
   if(prefill.nome || prefill.cpf) ncCheckDup();
 }
+const NC = { pessoaId:null, existing:null };
+const NC_LBL = {nome:'nome',cpf:'CPF',crm:'CRM',data_nascimento:'nascimento',telefone:'telefone',email:'e-mail',especialidade:'especialidade',cnpj:'CNPJ',razao_social:'razão social',sexo:'sexo',estado_civil:'estado civil'};
+const NC_SAVE_KEYS = ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou'];
+const ncVal = (id)=>{ const el = document.getElementById('nc-'+id); return el ? el.value.trim() : ''; };
+function ncBanner(html, cls){ const b = document.getElementById('nc-banner'); if(b) b.innerHTML = html ? `<div class="${cls||'dup'}">${html}</div>` : ''; }
+
 async function ncAddFiles(files){
   const list = document.getElementById('nc-files');
-  const LBL = {nome:'nome',cpf:'CPF',crm:'CRM',data_nascimento:'nascimento',telefone:'telefone',email:'e-mail',especialidade:'especialidade',cnpj:'CNPJ',razao_social:'razão social',sexo:'sexo',estado_civil:'estado civil'};
   for(const file of files){
-    const row = document.createElement('div'); row.className = 'nc-file'; row.textContent = `⏳ Lendo ${file.name}...`; list.appendChild(row);
+    const row = document.createElement('div'); row.className = 'nc-file'; row.textContent = `⏳ Lendo ${file.name} (documentos escaneados podem levar alguns segundos)...`; list.appendChild(row);
     let f = {}, erro = null, path = null;
     try{ f = await docsRead(file); }catch(e){ erro = e.message||String(e); }
-    try{ path = await docsUpload(file, 'clientes/rascunho'); window._ncFiles.push({file, path, dados:f}); }catch(e){ erro = (erro?erro+' · ':'')+'não consegui guardar o arquivo: '+(e.message||e); }
+    try{ path = await docsUpload(file, NC.pessoaId ? 'clientes/'+NC.pessoaId : 'clientes/rascunho'); window._ncFiles.push({file, path, dados:f, registered:false}); }catch(e){ erro = (erro?erro+' · ':'')+'não consegui guardar o arquivo: '+(e.message||e); }
     const filled = [];
-    Object.keys(LBL).forEach(k=>{
+    Object.keys(NC_LBL).forEach(k=>{
       const el = document.getElementById('nc-'+k); if(!el || !f[k] || el.value) return;
-      el.value = f[k]; el.classList.add('auto'); filled.push(LBL[k]);
+      el.value = f[k]; el.classList.add('auto'); filled.push(NC_LBL[k]);
     });
-    const faltou = Object.keys(LBL).filter(k=>{ const el = document.getElementById('nc-'+k); return el && !el.value; }).map(k=>LBL[k]);
+    const faltou = Object.keys(NC_LBL).filter(k=>!ncVal(k)).map(k=>NC_LBL[k]);
     row.innerHTML = `${path?'✅':'⚠️'} <b>${escapeHtml(file.name)}</b> ${path?'— guardado no banco':''}<br><span style="color:var(--ink-soft)">${filled.length ? 'Preenchido automaticamente: <b>'+filled.join(', ')+'</b>' : 'Nada novo encontrado neste documento'}${faltou.length?' · em branco (não encontrei): '+faltou.join(', '):''}${erro?' · <i>'+escapeHtml(erro)+'</i>':''}</span>`;
-    ncCheckDup();
+    await ncAfterRead();
+  }
+}
+async function ncAfterRead(){
+  if(NC.pessoaId){ await ncRegisterDocs(NC.pessoaId); await ncPushFields(NC.pessoaId); return; }
+  const nome = ncVal('nome');
+  if(!nome){ ncBanner('Não consegui ler o <b>nome</b> neste documento. Digite o nome abaixo para eu verificar se a pessoa já existe e criar o lead.'); return; }
+  const found = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), nome});
+  const forte = found.filter(isStrong);
+  if(forte.length){
+    NC.existing = forte[0];
+    ncBanner(`⚠️ <b>${escapeHtml(forte[0].nome)}</b> já está cadastrado (${escapeHtml(forte[0].why)}). Não criei duplicado. <a href="#" id="nc-usar">Abrir o cadastro existente e anexar estes documentos</a>`);
+    document.getElementById('nc-usar').addEventListener('click', async ev=>{ ev.preventDefault(); const id = NC.existing.id; await ncRegisterDocs(id); ncClose(); goToPersonView(id); });
+    return;
+  }
+  await ncCreateLead();
+}
+function ncRow(){
+  const row = { nome:ncVal('nome'), tipo:ncVal('tipo')||'medico' };
+  NC_SAVE_KEYS.forEach(k=>{ if(ncVal(k)) row[k] = ncVal(k); });
+  return row;
+}
+async function ncCreateLead(){
+  const { data, error } = await sb.from('crm_pessoas').insert(ncRow()).select('id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026').single();
+  if(error){ ncBanner('Não consegui criar o lead automaticamente: '+escapeHtml(error.message)); return; }
+  NC.pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+  await ncRegisterDocs(data.id);
+  ncBanner(`✅ <b>Lead criado automaticamente</b> (${escapeHtml(data.nome)}). Complete o que faltar e clique em <b>Salvar</b>.`, 'dup ok');
+}
+async function ncPushFields(id){
+  const upd = ncRow(); const { error } = await sb.from('crm_pessoas').update(upd).eq('id', id); if(error) console.warn(error);
+}
+async function ncRegisterDocs(pessoaId){
+  for(const it of (window._ncFiles||[])){
+    if(it.registered) continue;
+    try{
+      let path = it.path; const novo = 'clientes/'+pessoaId+'/'+path.split('/').pop();
+      if(path!==novo){ const mv = await sb.storage.from('crm-docs').move(path, novo); if(!mv.error) path = novo; }
+      await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:'cadastro', nome_arquivo:it.file.name, path, mime:it.file.type, tamanho:it.file.size, dados_extraidos:it.dados||null});
+      it.path = path; it.registered = true;
+    }catch(e){ console.warn(e); }
   }
 }
 async function ncCleanup(){
-  const paths = (window._ncFiles||[]).map(x=>x.path).filter(Boolean); window._ncFiles = [];
+  const paths = (window._ncFiles||[]).filter(x=>!x.registered).map(x=>x.path).filter(Boolean); window._ncFiles = [];
   if(paths.length){ try{ await sb.storage.from('crm-docs').remove(paths); }catch(e){ console.warn(e); } }
 }
+function ncClose(){ window._ncFiles = (window._ncFiles||[]).filter(x=>!x.registered); window._dlgOnClose = null; dlgClose(); }
 async function ncCheckDup(){
-  const box = document.getElementById('nc-dup'); if(!box) return;
-  const v = id=>document.getElementById('nc-'+id).value.trim();
-  const found = await findPessoas({cpf:v('cpf'), crm:v('crm'), nome:v('nome')});
+  const box = document.getElementById('nc-dup'); if(!box || NC.pessoaId) return;
+  const found = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), nome:ncVal('nome')});
   const strong = found.filter(isStrong);
   box.innerHTML = found.length ? `<div class="dup"><b>${strong.length?'⚠️ Já existe cadastro com esses dados:':'Cadastros com nome parecido:'}</b>${found.map(p=>`<div>• ${escapeHtml(p.nome)} <small>(${escapeHtml(p.why)})</small> <a href="#" data-openp="${p.id}">abrir cadastro</a></div>`).join('')}</div>` : '';
-  box.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(a.dataset.openp); }));
+  box.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); ncClose(); goToPersonView(a.dataset.openp); }));
 }
 async function ncSave(){
-  const v = id=>document.getElementById('nc-'+id).value.trim();
   const err = document.getElementById('nc-err'); err.textContent = '';
-  if(!v('nome')){ err.textContent = 'Informe o nome do cliente.'; return; }
-  const dups = await findPessoas({cpf:v('cpf'), crm:v('crm'), nome:v('nome')});
-  const forte = dups.filter(isStrong);
-  if(forte.length){ err.innerHTML = `⚠️ Já existe cadastro (${escapeHtml(forte[0].why)}): <b>${escapeHtml(forte[0].nome)}</b> — <a href="#" id="nc-abrir">abrir cadastro existente</a>. Não criei duplicado.`;
-    const a = document.getElementById('nc-abrir'); if(a) a.addEventListener('click', ev=>{ ev.preventDefault(); dlgClose(); goToPersonView(forte[0].id); }); return; }
-  const sim = dups.filter(x=>!isStrong(x));
-  if(sim.length && !document.getElementById('nc-force')){ err.innerHTML = `Nome parecido com: ${sim.map(x=>escapeHtml(x.nome)).join(', ')}.<br><label><input type="checkbox" id="nc-force"> É outra pessoa — cadastrar mesmo assim</label> (marque e salve de novo)`; return; }
-  if(sim.length && !document.getElementById('nc-force').checked){ err.textContent = 'Marque "É outra pessoa" ou abra o cadastro existente.'; return; }
-  const btn = document.getElementById('nc-save'); btn.disabled = true; btn.textContent = 'Salvando...';
+  if(!ncVal('nome')){ err.textContent = 'Informe o nome. Se anexou um documento e o nome não foi lido, digite-o para eu criar o lead.'; return; }
+  if(!ncVal('quem_indicou') && !document.getElementById('nc-sem-ind').checked){ err.textContent = 'Informe quem indicou — ou marque “Sem indicação”.'; return; }
+  const btn = document.getElementById('nc-save');
   try{
-    const row = { nome:v('nome'), tipo:v('tipo')||'medico' };
-    ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou'].forEach(k=>{ if(v(k)) row[k] = v(k); });
-    const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026').single();
-    if(error) throw error;
-    for(const it of (window._ncFiles||[])){
-      try{
-        let path = it.path; const novo = 'clientes/'+data.id+'/'+path.split('/').pop();
-        const mv = await sb.storage.from('crm-docs').move(path, novo); if(!mv.error) path = novo;
-        await sb.from('crm_documentos').insert({pessoa_id:data.id, categoria:'cadastro', nome_arquivo:it.file.name, path, mime:it.file.type, tamanho:it.file.size, dados_extraidos:it.dados||null});
-      }catch(e){ console.warn(e); }
+    if(!NC.pessoaId){
+      const dups = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), nome:ncVal('nome')});
+      const forte = dups.filter(isStrong);
+      if(forte.length){ err.innerHTML = `⚠️ Já existe cadastro (${escapeHtml(forte[0].why)}): <b>${escapeHtml(forte[0].nome)}</b> — <a href="#" id="nc-abrir">abrir cadastro existente</a>. Não criei duplicado.`;
+        document.getElementById('nc-abrir').addEventListener('click', ev=>{ ev.preventDefault(); ncClose(); goToPersonView(forte[0].id); }); return; }
+      const sim = dups.filter(x=>!isStrong(x));
+      if(sim.length && !document.getElementById('nc-force')){ err.innerHTML = `Nome parecido com: ${sim.map(x=>escapeHtml(x.nome)).join(', ')}.<br><label><input type="checkbox" id="nc-force"> É outra pessoa — cadastrar mesmo assim</label> (marque e salve de novo)`; return; }
+      if(sim.length && !document.getElementById('nc-force').checked){ err.textContent = 'Marque "É outra pessoa" ou abra o cadastro existente.'; return; }
     }
-    window._ncFiles = [];
-    OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
-    const cb = window._ncOnSaved; window._ncOnSaved = null; window._dlgOnClose = null; dlgClose();
-    showToast('Cliente cadastrado');
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    let data;
+    const row = ncRow(); if(document.getElementById('nc-sem-ind').checked && !row.quem_indicou) row.quem_indicou = 'Sem indicação (contato direto)';
+    if(NC.pessoaId){
+      const r = await sb.from('crm_pessoas').update(row).eq('id', NC.pessoaId).select('id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
+      const i = OP.pessoas.findIndex(x=>x.id===data.id); if(i>=0) OP.pessoas[i] = data;
+    } else {
+      const r = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
+      OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    }
+    await ncRegisterDocs(data.id);
+    const cb = window._ncOnSaved; window._ncOnSaved = null; window._ncFiles = []; window._dlgOnClose = null; NC.pessoaId = null; dlgClose();
+    showToast('Cliente salvo');
     if(cb) cb(data); else goToPersonView(data.id);
   }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar cliente'; }
 }
