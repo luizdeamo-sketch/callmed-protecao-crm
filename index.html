@@ -204,7 +204,8 @@
   </header>
 
   <nav id="rail">
-    <button class="nav-btn active" data-view="pessoas">👥<span>Pessoas</span></button>
+    <button class="nav-btn active" data-view="operacao">🧭<span>Operação</span></button>
+    <button class="nav-btn" data-view="pessoas">👥<span>Pessoas</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="funil">📶<span>Funil</span></button>
     <button class="nav-btn" data-view="jornada">🗂️<span>Jornada</span></button>
@@ -216,7 +217,34 @@
 
   <div class="view-container">
 
-    <div id="view-pessoas" class="view active">
+    <div id="view-operacao" class="view active">
+      <div class="op-top">
+        <div class="op-title">
+          <h2>Operação</h2>
+          <span class="sub">Todos os médicos · funil comercial e produtos numa única visão. Clique numa célula do funil para marcar/desmarcar; clique no nome para abrir o cadastro completo.</span>
+          <div class="op-kpis" id="op-kpis"></div>
+        </div>
+        <div class="op-filters">
+          <input id="op-search" placeholder="Buscar nome, CRM ou especialidade...">
+          <select id="op-f-situacao">
+            <option value="">Todas as situações</option>
+            <option value="cliente">Clientes (com apólice)</option>
+            <option value="funil">Em funil (sem apólice)</option>
+            <option value="novo">Sem contato ainda</option>
+          </select>
+          <select id="op-f-etapa"><option value="">Qualquer etapa atual</option></select>
+          <select id="op-f-produto"><option value="">Qualquer produto</option></select>
+          <select id="op-sort">
+            <option value="nome">Ordenar: nome</option>
+            <option value="plantoes">Ordenar: maior valor pago em plantões</option>
+            <option value="etapa">Ordenar: etapa mais avançada</option>
+          </select>
+        </div>
+      </div>
+      <div id="op-scroll"><div class="op-more">Carregando médicos...</div></div>
+    </div>
+
+    <div id="view-pessoas" class="view">
       <div id="sidebar">
         <div id="search-box"><input id="search-input" placeholder="Buscar por nome, CPF ou CRM..."></div>
         <div id="list-status">Carregando...</div>
@@ -366,6 +394,44 @@
   .sc-block ul{ margin:0; padding-left:16px; display:flex; flex-direction:column; gap:5px;}
   .sc-block li{ font-size:12px; color:rgba(255,255,255,.92); line-height:1.4;}
   @media (max-width:700px){ .sc-grid{grid-template-columns:1fr;} }
+  #view-operacao{ grid-template-rows:auto 1fr; background:var(--bg);}
+  .op-top{ padding:18px 24px 12px; display:flex; flex-direction:column; gap:12px; background:var(--surface); border-bottom:1px solid var(--border);}
+  .op-title{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
+  .op-title h2{ font-size:1.25rem;}
+  .op-title .sub{ color:var(--ink-soft); font-size:12.5px;}
+  .op-kpis{ display:flex; gap:8px; flex-wrap:wrap; margin-left:auto;}
+  .op-kpi{ background:var(--brand-soft); border-radius:999px; padding:3px 12px; font-size:12px; color:var(--ink-soft);}
+  .op-kpi b{ color:var(--brand); font-family:'Poppins',sans-serif;}
+  .op-filters{ display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .op-filters input, .op-filters select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink);}
+  .op-filters input{ width:260px;}
+  #op-scroll{ overflow:auto; position:relative;}
+  table.op{ border-collapse:separate; border-spacing:0; font-size:12.5px; min-width:100%;}
+  table.op th, table.op td{ border-bottom:1px solid var(--border-soft); border-right:1px solid var(--border-soft); padding:0; height:38px; background:var(--surface);}
+  table.op thead th{ position:sticky; z-index:3; background:#f2f3f9; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-soft); font-weight:600; text-align:center; height:30px;}
+  table.op thead tr.g1 th{ top:0; height:26px; color:#fff; letter-spacing:.1em;}
+  table.op thead tr.g2 th{ top:26px; height:44px; line-height:1.2;}
+  table.op thead th .cnt{ display:block; font-family:'Poppins',sans-serif; font-size:13px; color:var(--brand); margin-top:2px;}
+  th.g-funil{ background:var(--brand) !important;} th.g-prod{ background:#149c6b !important;} th.g-info{ background:#565c6e !important;}
+  table.op .sticky-l{ position:sticky; left:0; z-index:2; min-width:290px; max-width:290px; text-align:left; border-right:2px solid var(--border);}
+  table.op thead th.sticky-l{ z-index:4; text-align:left; padding-left:14px;}
+  .op-name{ padding:4px 12px; cursor:pointer; overflow:hidden;}
+  .op-name:hover{ background:var(--brand-soft);}
+  .op-name .n{ font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px;}
+  .op-name .m{ font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .op-name .cli{ display:inline-block; font-size:9.5px; background:var(--green-soft); color:var(--green); border-radius:4px; padding:0 5px; margin-left:6px; font-family:'IBM Plex Mono',monospace; font-weight:600; vertical-align:1px;}
+  td.fl{ min-width:74px; text-align:center; cursor:pointer;}
+  td.fl:hover{ background:var(--brand-soft);}
+  td.fl .on{ display:inline-flex; flex-direction:column; align-items:center; line-height:1.1; color:var(--brand); font-weight:700;}
+  td.fl .on small{ font-size:9.5px; font-weight:500; color:var(--ink-soft);}
+  td.fl.cur{ background:#e8ecff;}
+  td.fl .off{ color:#d5d8e4; font-size:11px;}
+  td.pd{ min-width:104px; padding:4px 5px !important;}
+  .bar{ border-radius:6px; padding:3px 7px; color:#fff; font-size:10.5px; font-weight:600; line-height:1.25; cursor:pointer; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+  .bar small{ display:block; font-weight:400; opacity:.9; font-size:9.5px;}
+  .bar.ok{ background:#2fae7d;} .bar.warn{ background:#d9932a;} .bar.late{ background:#c23636;}
+  td.pl{ min-width:96px; text-align:right; padding:0 10px !important; font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-soft);}
+  .op-more{ padding:14px; text-align:center; color:var(--ink-faint); font-size:12px;}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -497,6 +563,7 @@ function boot(){
   loadPeople('');
   renderCalendar();
   renderKanban();
+  renderOperacao();
 }
 
 // ---------- NAV RAIL ----------
@@ -506,6 +573,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     btn.classList.add('active');
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view === 'operacao') renderOperacao();
     if(btn.dataset.view === 'funil') renderFunil();
     if(btn.dataset.view === 'jornada') renderKanban();
     if(btn.dataset.view === 'agenda') renderCalendar();
@@ -1138,6 +1206,200 @@ document.querySelectorAll('#ata-toggle button').forEach(btn=>{
     if(diario) renderAta(); else renderAtaSemanal();
   });
 });
+
+// ---------- OPERAÇÃO (matriz: médicos x funil x produtos) ----------
+const OP_PRODUTOS = [
+  {k:'vida', l:'Vida', re:/vida/i, not:/grupo/i},
+  {k:'vida_grupo', l:'Vida em grupo', re:/vida.*grupo|grupo/i},
+  {k:'rc', l:'RC Profissional', re:/respons|\brc\b/i},
+  {k:'auto', l:'Automóvel', re:/auto/i},
+  {k:'resid', l:'Residencial', re:/resid/i},
+  {k:'emp', l:'Empresarial', re:/empres/i},
+  {k:'saude', l:'Saúde', re:/sa[uú]de/i},
+  {k:'prev', l:'Previdência', re:/previd/i},
+  {k:'outros', l:'Outros', re:/.*/},
+];
+const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false };
+const OP_PAGE = 150;
+
+async function opFetchAll(table, cols, orderCols){
+  let out = [], from = 0;
+  while(true){
+    let q = sb.from(table).select(cols);
+    orderCols.forEach(c=>{ q = q.order(c); });
+    const { data, error } = await q.range(from, from+999);
+    if(error) throw error;
+    out = out.concat(data);
+    if(data.length < 1000) break;
+    from += 1000;
+  }
+  return out;
+}
+function opProdKey(tipo){
+  const t = tipo || '';
+  for(const p of OP_PRODUTOS){ if(p.re.test(t) && !(p.not && p.not.test(t))) return p.k; }
+  return 'outros';
+}
+function opApoStatus(a){
+  if(!a.data_vencimento) return 'ok';
+  const dias = (new Date(a.data_vencimento) - new Date())/86400000;
+  if(dias < 0) return 'late';
+  if(dias <= 60) return 'warn';
+  return 'ok';
+}
+function opCurEtapaIdx(pid){
+  const m = OP.funil.get(pid); if(!m) return -1;
+  let idx = -1; ETAPAS_FUNIL.forEach((e,i)=>{ if(m.has(e.key)) idx = i; });
+  return idx;
+}
+function opIsCliente(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status!=='cancelada'); }
+
+async function renderOperacao(force){
+  if(OP.loading) return;
+  if(OP.loaded && !force){ opApplyFilters(); return; }
+  OP.loading = true;
+  const host = document.getElementById('op-scroll');
+  host.innerHTML = '<div class="op-more">Carregando médicos, funil e apólices...</div>';
+  try{
+    const [pess, fun, apo] = await Promise.all([
+      opFetchAll('crm_pessoas','id,nome,crm,especialidade,total_pago_plantoes_2026',['nome','id']),
+      opFetchAll('crm_funil','id,pessoa_id,etapa,created_at,data_combinada',['id']),
+      opFetchAll('crm_apolices','id,pessoa_id,tipo_seguro,seguradora,status,data_vencimento,valor_premio',['id']),
+    ]);
+    OP.pessoas = pess;
+    OP.funil = new Map(); fun.forEach(r=>{ if(!OP.funil.has(r.pessoa_id)) OP.funil.set(r.pessoa_id,new Map()); OP.funil.get(r.pessoa_id).set(r.etapa, r); });
+    OP.apo = new Map(); apo.forEach(r=>{ if(!OP.apo.has(r.pessoa_id)) OP.apo.set(r.pessoa_id,[]); OP.apo.get(r.pessoa_id).push(r); });
+    OP.loaded = true;
+    const fe = document.getElementById('op-f-etapa');
+    if(fe.options.length<=1) ETAPAS_FUNIL.forEach(e=>{ const o=document.createElement('option'); o.value=e.key; o.textContent='Etapa atual: '+e.label; fe.appendChild(o); });
+    const fp = document.getElementById('op-f-produto');
+    if(fp.options.length<=1) OP_PRODUTOS.forEach(p=>{ const o=document.createElement('option'); o.value=p.k; o.textContent='Tem: '+p.l; fp.appendChild(o); });
+    opApplyFilters();
+  }catch(e){
+    host.innerHTML = '<div class="op-more">Erro ao carregar: '+escapeHtml(e.message||String(e))+'</div>';
+  }
+  OP.loading = false;
+}
+
+function opApplyFilters(){
+  const q = document.getElementById('op-search').value.trim().toLowerCase();
+  const sit = document.getElementById('op-f-situacao').value;
+  const et = document.getElementById('op-f-etapa').value;
+  const pr = document.getElementById('op-f-produto').value;
+  const sort = document.getElementById('op-sort').value;
+  let list = OP.pessoas.filter(p=>{
+    if(q && !((p.nome||'').toLowerCase().includes(q) || (p.crm||'').toLowerCase().includes(q) || (p.especialidade||'').toLowerCase().includes(q))) return false;
+    const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id);
+    if(sit==='cliente' && !cli) return false;
+    if(sit==='funil' && !(idx>=0 && !cli)) return false;
+    if(sit==='novo' && !(idx<0 && !cli)) return false;
+    if(et && (idx<0 || ETAPAS_FUNIL[idx].key!==et)) return false;
+    if(pr && !(OP.apo.get(p.id)||[]).some(a=>opProdKey(a.tipo_seguro)===pr)) return false;
+    return true;
+  });
+  if(sort==='plantoes') list = list.slice().sort((a,b)=>(Number(b.total_pago_plantoes_2026)||0)-(Number(a.total_pago_plantoes_2026)||0));
+  if(sort==='etapa') list = list.slice().sort((a,b)=>opCurEtapaIdx(b.id)-opCurEtapaIdx(a.id));
+  OP.filtered = list; OP.shown = 0;
+  opRenderTable();
+  opRenderKpis();
+}
+
+function opRenderKpis(){
+  const total = OP.pessoas.length;
+  let cli = 0, fun = 0;
+  OP.pessoas.forEach(p=>{ if(opIsCliente(p.id)) cli++; else if(opCurEtapaIdx(p.id)>=0) fun++; });
+  document.getElementById('op-kpis').innerHTML =
+    `<span class="op-kpi"><b>${total}</b> médicos</span><span class="op-kpi"><b>${fun}</b> em funil</span><span class="op-kpi"><b>${cli}</b> clientes</span><span class="op-kpi">exibindo <b>${OP.filtered.length}</b></span>`;
+}
+
+function opStageCounts(){
+  return ETAPAS_FUNIL.map(e=>{ let n=0; OP.funil.forEach(m=>{ if(m.has(e.key)) n++; }); return n; });
+}
+function opProdCounts(){
+  const c = {}; OP_PRODUTOS.forEach(p=>c[p.k]=0);
+  OP.apo.forEach(list=>{ const s=new Set(list.map(a=>opProdKey(a.tipo_seguro))); s.forEach(k=>c[k]++); });
+  return c;
+}
+
+function opRenderTable(){
+  const host = document.getElementById('op-scroll');
+  const sc = opStageCounts(), pc = opProdCounts();
+  host.innerHTML = `<table class="op" id="op-table">
+    <thead>
+      <tr class="g1"><th class="sticky-l g-info" rowspan="1">MÉDICO</th><th class="g-info">PLANTÕES</th><th class="g-funil" colspan="${ETAPAS_FUNIL.length}">FUNIL COMERCIAL</th><th class="g-prod" colspan="${OP_PRODUTOS.length}">PRODUTOS (CLIENTE)</th></tr>
+      <tr class="g2"><th class="sticky-l">${OP.filtered.length} de ${OP.pessoas.length}</th><th>Pago 2026</th>
+        ${ETAPAS_FUNIL.map((e,i)=>`<th>${e.label}<span class="cnt">${sc[i]}</span></th>`).join('')}
+        ${OP_PRODUTOS.map(p=>`<th>${p.l}<span class="cnt">${pc[p.k]}</span></th>`).join('')}
+      </tr>
+    </thead>
+    <tbody id="op-body"></tbody></table><div class="op-more" id="op-more"></div>`;
+  opAppendRows();
+}
+
+function opRowHtml(p){
+  const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id), fm = OP.funil.get(p.id);
+  const apos = OP.apo.get(p.id)||[];
+  const pl = Number(p.total_pago_plantoes_2026)||0;
+  let h = `<tr data-pid="${p.id}"><td class="sticky-l"><div class="op-name" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}</div></div></td>`;
+  h += `<td class="pl">${pl>0 ? 'R$ '+Math.round(pl).toLocaleString('pt-BR') : '—'}</td>`;
+  ETAPAS_FUNIL.forEach((e,i)=>{
+    const r = fm && fm.get(e.key);
+    const d = r ? fmtDate(r.data_combinada || r.created_at).slice(0,5) : '';
+    h += `<td class="fl${i===idx?' cur':''}" data-pid="${p.id}" data-etapa="${e.key}">${r?`<span class="on">●<small>${d}</small></span>`:'<span class="off">○</span>'}</td>`;
+  });
+  OP_PRODUTOS.forEach(pd=>{
+    const list = apos.filter(a=>opProdKey(a.tipo_seguro)===pd.k);
+    if(!list.length){ h += '<td class="pd"></td>'; return; }
+    const a = list[0], st = opApoStatus(a);
+    h += `<td class="pd"><div class="bar ${st}" data-open="${p.id}" title="${escapeHtml((a.seguradora||'')+' · '+(a.tipo_seguro||'')+(a.data_vencimento?' · vence '+fmtDate(a.data_vencimento):''))}">${escapeHtml(a.seguradora||'Apólice')}${list.length>1?' +'+(list.length-1):''}<small>${a.data_vencimento?'vence '+fmtDate(a.data_vencimento):''}</small></div></td>`;
+  });
+  return h + '</tr>';
+}
+
+function opAppendRows(){
+  const body = document.getElementById('op-body'); if(!body) return;
+  const slice = OP.filtered.slice(OP.shown, OP.shown + OP_PAGE);
+  body.insertAdjacentHTML('beforeend', slice.map(opRowHtml).join(''));
+  OP.shown += slice.length;
+  const more = document.getElementById('op-more');
+  if(more) more.textContent = OP.shown < OP.filtered.length ? `Mostrando ${OP.shown} de ${OP.filtered.length} — role para carregar mais` : (OP.filtered.length ? `Fim da lista (${OP.filtered.length})` : 'Nenhum médico encontrado com esses filtros.');
+}
+
+async function opToggleFlag(td){
+  const pid = td.dataset.pid, etapa = td.dataset.etapa;
+  let m = OP.funil.get(pid);
+  const had = m && m.has(etapa);
+  if(had){
+    const { error } = await sb.from('crm_funil').delete().eq('pessoa_id', pid).eq('etapa', etapa);
+    if(error){ showToast('Erro: '+error.message); return; }
+    m.delete(etapa); if(!m.size) OP.funil.delete(pid);
+  } else {
+    const { data, error } = await sb.from('crm_funil').insert({ pessoa_id: pid, etapa }).select('id,pessoa_id,etapa,created_at,data_combinada').single();
+    if(error){ showToast('Erro: '+error.message); return; }
+    if(!m){ m = new Map(); OP.funil.set(pid, m); }
+    m.set(etapa, data);
+  }
+  const p = OP.pessoas.find(x=>x.id===pid);
+  const tr = td.closest('tr');
+  tr.outerHTML = opRowHtml(p);
+  const sc = opStageCounts();
+  document.querySelectorAll('#op-table thead tr.g2 th').forEach((th,i)=>{ if(i>=2 && i<2+ETAPAS_FUNIL.length) th.querySelector('.cnt').textContent = sc[i-2]; });
+  opRenderKpis();
+}
+
+document.getElementById('view-operacao').addEventListener('click', (e)=>{
+  const open = e.target.closest('[data-open]');
+  if(open){ goToPersonView(open.dataset.open); return; }
+  const td = e.target.closest('td.fl');
+  if(td) opToggleFlag(td);
+});
+document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
+  const el = e.target;
+  if(el.scrollTop + el.clientHeight > el.scrollHeight - 400 && OP.shown < OP.filtered.length) opAppendRows();
+});
+let opSearchTimer = null;
+document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(opApplyFilters, 250); });
+['op-f-situacao','op-f-etapa','op-f-produto','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', opApplyFilters));
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
