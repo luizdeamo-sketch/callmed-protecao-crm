@@ -208,6 +208,7 @@
     <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
+    <button class="nav-btn" data-view="sugestoes" title="Sugestões de melhoria do sistema">💡<span>Sugestões</span></button>
     <button class="nav-btn" data-view="ata">🗒️<span>Ata</span></button>
   </nav>
 
@@ -378,6 +379,25 @@
     <div id="view-estudo" class="view">
       <div class="es-side"><button class="btn-ghost" id="es-back" style="display:none">← Voltar ao cadastro</button><div class="es-side-h"><h3 id="es-title">Estudos</h3><button class="om-save" id="es-new">＋ Novo estudo</button></div><a href="#" id="es-all" style="display:none;font-size:12px;color:var(--brand);font-weight:600">ver todos os estudos</a><div id="es-list" style="margin-top:8px"></div></div>
       <div class="pg" id="es-detail"><div class="op-more" style="padding-top:80px">Selecione um estudo à esquerda ou crie um novo.<br><br><b>Como funciona:</b> suba a apólice atual do cliente (de outro corretor) → o sistema lê os dados → cruza com as coberturas das nossas 8 seguradoras → mostra as lacunas, a combinação sugerida e compara as cotações que você lançar com o prêmio atual.</div></div>
+    </div>
+
+    <div id="view-sugestoes" class="view">
+      <div class="pg" style="max-width:920px">
+        <div class="pg-head"><h2>💡 Sugestões de melhoria</h2><span class="sub">Ideias, problemas e pedidos para o sistema. Tudo fica registrado no histórico.</span></div>
+        <div class="es-box">
+          <div class="sg-row" style="margin-bottom:8px"><span class="ql" style="margin:0">Registrando como</span><select id="sg-who"><option>Amanda</option><option>Luiz</option><option>Outro</option></select></div>
+          <textarea id="sg-text" rows="4" placeholder="Escreva livremente, ou clique em 🎤 e narre a sua ideia — o sistema transcreve para você."></textarea>
+          <div class="sg-row" style="margin-top:8px">
+            <button id="sg-mic" class="om-cancel">🎤 Gravar / ditar</button><span id="sg-mic-st" style="font-size:12px;color:var(--red)"></span>
+            <select id="sg-tipo"></select><select id="sg-tela"></select>
+            <select id="sg-prio"><option value="normal">Prioridade normal</option><option value="alta">Prioridade alta</option><option value="baixa">Prioridade baixa</option></select>
+            <span style="flex:1"></span><button id="sg-send" class="om-save">Enviar sugestão</button>
+          </div>
+          <audio id="sg-audio-prev" controls hidden style="margin-top:8px;width:100%"></audio>
+        </div>
+        <div class="op-filters" style="margin-bottom:10px"><div id="sg-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input id="sg-q" placeholder="Buscar nas sugestões..." style="margin-left:auto;width:220px"></div>
+        <div id="sg-list"></div>
+      </div>
     </div>
 
     <div id="view-ata" class="view" style="overflow-y:auto; padding:30px 36px;">
@@ -551,6 +571,17 @@
   .chks{ display:flex; flex-wrap:wrap; gap:6px 14px;} .chk{ font-size:12px; display:flex; gap:5px; align-items:center;}
   .person-actions{ display:flex; gap:10px; margin:14px 0;}
   .pl-tag{ color:var(--ink-faint);} .pl-tag.hot{ color:var(--green); font-weight:600;} .pl-tag.warm{ color:var(--amber-ink); font-weight:600;}
+  #sg-text{ width:100%; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:14px; font-family:inherit; resize:vertical;}
+  .sg-row{ display:flex; gap:8px; align-items:center; flex-wrap:wrap;} .sg-row select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 9px; font-size:12.5px; background:var(--surface);}
+  #sg-mic.rec{ background:var(--red); color:#fff; border-color:var(--red);}
+  .sg-chip{ border:1px solid var(--border); background:var(--surface); border-radius:999px; padding:5px 12px; font-size:12px; cursor:pointer; color:var(--ink-soft);} .sg-chip b{ color:var(--c,var(--brand));}
+  .sg-chip.on{ background:var(--c,var(--brand)); color:#fff; border-color:var(--c,var(--brand));} .sg-chip.on b{ color:#fff;}
+  .sg-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:10px;}
+  .sg-top{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;} .sg-meta{ font-size:11.5px; color:var(--ink-faint);}
+  .sg-status{ color:#fff; border-radius:999px; padding:2px 11px; font-size:11.5px; font-weight:600;}
+  .sg-text{ font-size:13.5px; line-height:1.55;} .sg-audio{ margin-top:8px; font-size:12.5px;} .sg-audio a{ color:var(--brand); font-weight:600;}
+  .sg-resp{ margin-top:8px; background:var(--green-soft); border-radius:var(--radius-sm); padding:8px 12px; font-size:12.5px;}
+  .sg-actions{ display:flex; gap:8px; margin-top:10px;} .sg-hist{ margin-top:8px;}
   .btn-export-pdf{ flex:none; background:#fff; color:var(--brand); border:none; border-radius:8px; padding:8px 14px; font-size:12.5px; font-weight:700; box-shadow:0 2px 8px rgba(0,0,0,.15);}
   .btn-export-pdf:hover{ background:#f2f3ff;}
 
@@ -693,6 +724,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     if(btn.dataset.view === 'operacao') renderOperacao();
     if(btn.dataset.view === 'central') renderCentral();
+    if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'funil') renderFunil();
     if(btn.dataset.view === 'jornada') renderKanban();
     if(btn.dataset.view === 'agenda') renderCalendar();
@@ -2598,6 +2630,105 @@ document.addEventListener('click', e=>{
 });
 
 document.getElementById('op-newcli').addEventListener('click', ()=> openNovoCliente());
+
+// ---------- SUGESTÕES DE MELHORIA (texto livre + voz, com histórico e status) ----------
+const SG_STATUS = [['nova','Nova','#0018fc'],['em_analise','Em análise','#c8790b'],['aprovada','Aprovada','#149c6b'],['em_execucao','Em execução','#7b3fe4'],['concluida','Concluída','#2f9e57'],['rejeitada','Rejeitada','#c23636'],['depois','Deixar para depois','#8990a3']];
+const SG_TIPOS = {ideia:'Ideia nova', melhoria:'Melhoria', problema:'Problema / erro'};
+const SG_TELAS = ['Aliança','Central de Apólices','Estudo','Cadastro do cliente','Novo cliente','Agenda','Base','Ata','Login / acesso','Outro'];
+const SG = { list:[], filter:'', q:'', rec:null, media:null, chunks:[], audioBlob:null, recording:false };
+const sgLabel = (k)=> (SG_STATUS.find(s=>s[0]===k)||[k,k,'#666']);
+
+function sgInit(){
+  const who = document.getElementById('sg-who'); try{ const w = localStorage.getItem('sg_who'); if(w) who.value = w; }catch(e){}
+  who.addEventListener('change', ()=>{ try{ localStorage.setItem('sg_who', who.value); }catch(e){} });
+  document.getElementById('sg-tela').innerHTML = '<option value="">Em qual tela? (opcional)</option>'+SG_TELAS.map(t=>`<option>${t}</option>`).join('');
+  document.getElementById('sg-tipo').innerHTML = Object.entries(SG_TIPOS).map(([k,l])=>`<option value="${k}">${l}</option>`).join('');
+}
+async function renderSugestoes(){
+  const host = document.getElementById('sg-list'); if(!SG.list.length) host.innerHTML = '<div class="op-more">Carregando...</div>';
+  const { data, error } = await sb.from('crm_sugestoes').select('*').order('created_at',{ascending:false}).limit(1000);
+  if(error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(error.message)+'</div>'; return; }
+  SG.list = data||[]; sgDraw();
+}
+function sgDraw(){
+  const counts = {}; SG.list.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
+  document.getElementById('sg-chips').innerHTML = `<button class="sg-chip${SG.filter===''?' on':''}" data-f="">Todas <b>${SG.list.length}</b></button>` + SG_STATUS.map(s=>`<button class="sg-chip${SG.filter===s[0]?' on':''}" data-f="${s[0]}" style="--c:${s[2]}">${s[1]} <b>${counts[s[0]]||0}</b></button>`).join('');
+  const q = SG.q.toLowerCase();
+  const rows = SG.list.filter(r=>(!SG.filter || r.status===SG.filter) && (!q || (r.texto||'').toLowerCase().includes(q) || (r.autor||'').toLowerCase().includes(q) || (r.tela||'').toLowerCase().includes(q)));
+  document.getElementById('sg-list').innerHTML = rows.length ? rows.map(r=>{
+    const st = sgLabel(r.status); const hist = r.historico||[];
+    return `<div class="sg-card" data-id="${r.id}">
+      <div class="sg-top"><b>${escapeHtml(r.autor||'—')}</b><span class="sg-meta">${fmtDateTime(r.created_at)}</span><span class="tagx">${escapeHtml(SG_TIPOS[r.tipo]||r.tipo||'')}</span>${r.tela?`<span class="tagx">${escapeHtml(r.tela)}</span>`:''}${r.prioridade==='alta'?'<span class="tagx bad">Prioridade alta</span>':''}${r.origem==='voz'?'<span class="tagx">🎤 por voz</span>':''}<span style="flex:1"></span><span class="sg-status" style="background:${st[2]}">${st[1]}</span></div>
+      <div class="sg-text">${escapeHtml(r.texto).replace(/\n/g,'<br>')}</div>
+      ${r.audio_path?`<div class="sg-audio"><a href="#" data-act="audio">▶ ouvir o áudio original</a></div>`:''}
+      ${r.resposta?`<div class="sg-resp"><b>Resposta:</b> ${escapeHtml(r.resposta).replace(/\n/g,'<br>')}</div>`:''}
+      <div class="sg-actions"><button class="om-cancel" data-act="status">Alterar status / responder</button><button class="btn-ghost" data-act="hist">Histórico (${hist.length})</button></div>
+      <div class="sg-hist" style="display:none">${hist.length ? hist.slice().reverse().map(h=>`<div class="rec"><span class="k">${fmtDateTime(h.em)}</span><b>${escapeHtml(h.por||'—')}</b>: ${escapeHtml(sgLabel(h.de)[1])} → <b>${escapeHtml(sgLabel(h.para)[1])}</b>${h.nota?'<br>'+escapeHtml(h.nota):''}</div>`).join('') : '<div class="no-rec">Sem movimentações ainda.</div>'}</div>
+    </div>`; }).join('') : '<div class="op-more">Nenhuma sugestão nesta seleção.</div>';
+}
+document.getElementById('sg-chips').addEventListener('click', e=>{ const b = e.target.closest('.sg-chip'); if(!b) return; SG.filter = b.dataset.f; sgDraw(); });
+document.getElementById('sg-q').addEventListener('input', e=>{ SG.q = e.target.value; sgDraw(); });
+document.getElementById('sg-list').addEventListener('click', async e=>{
+  const a = e.target.closest('[data-act]'); if(!a) return; e.preventDefault();
+  const card = a.closest('.sg-card'), r = SG.list.find(x=>x.id===card.dataset.id); if(!r) return;
+  if(a.dataset.act==='hist'){ const h = card.querySelector('.sg-hist'); h.style.display = h.style.display==='none' ? 'block' : 'none'; }
+  if(a.dataset.act==='audio'){ try{ const url = await docsSignedUrl(r.audio_path); a.parentElement.innerHTML = `<audio controls autoplay src="${url}"></audio>`; }catch(x){ showToast('Erro: '+x.message); } }
+  if(a.dataset.act==='status') sgStatusDialog(r);
+});
+function sgStatusDialog(r){
+  const box = dlgOpen(`<div class="om-title"><div><h3>Alterar status</h3><div class="om-sub">${escapeHtml((r.texto||'').slice(0,140))}${(r.texto||'').length>140?'…':''}</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><label class="fl"><span>Novo status</span><select id="sg-new-status">${SG_STATUS.map(s=>`<option value="${s[0]}" ${r.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
+      <label class="fl" style="margin-top:10px"><span>Resposta / nota (visível para quem sugeriu)</span><textarea id="sg-note" rows="4" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
+      <div class="om-err" id="sg-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="sg-save-status">Salvar</button></div>`);
+  box.querySelector('#sg-save-status').addEventListener('click', async ()=>{
+    const para = document.getElementById('sg-new-status').value, nota = document.getElementById('sg-note').value.trim();
+    if(para===r.status && !nota){ dlgClose(); return; }
+    const hist = (r.historico||[]).concat([{em:new Date().toISOString(), por:document.getElementById('sg-who').value, de:r.status, para, nota:nota||null}]);
+    const upd = { status:para, historico:hist, atualizado_em:new Date().toISOString() }; if(nota) upd.resposta = nota;
+    const { error } = await sb.from('crm_sugestoes').update(upd).eq('id', r.id);
+    if(error){ document.getElementById('sg-err').textContent = 'Erro: '+error.message; return; }
+    Object.assign(r, upd); dlgClose(); showToast('Status atualizado'); sgDraw();
+  });
+}
+
+// ---- voz: ditado (transcrição) + gravação do áudio ----
+const SG_SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+async function sgMicToggle(){
+  const btn = document.getElementById('sg-mic'), st = document.getElementById('sg-mic-st'), ta = document.getElementById('sg-text');
+  if(SG.recording){ SG.recording = false; try{ SG.rec && SG.rec.stop(); }catch(e){} try{ SG.media && SG.media.state!=='inactive' && SG.media.stop(); }catch(e){} btn.textContent = '🎤 Gravar / ditar'; btn.classList.remove('rec'); st.textContent = ''; return; }
+  if(!SG_SR){ showToast('Este navegador não faz ditado por voz. Use o Chrome ou o Edge.'); return; }
+  const base = ta.value ? ta.value.replace(/\s+$/,'')+'\n' : '';
+  SG.audioBlob = null; SG.chunks = [];
+  try{ const stream = await navigator.mediaDevices.getUserMedia({audio:true}); SG.media = new MediaRecorder(stream);
+    SG.media.ondataavailable = e=>{ if(e.data.size) SG.chunks.push(e.data); };
+    SG.media.onstop = ()=>{ stream.getTracks().forEach(t=>t.stop()); SG.audioBlob = new Blob(SG.chunks,{type:SG.media.mimeType||'audio/webm'}); const p = document.getElementById('sg-audio-prev'); p.src = URL.createObjectURL(SG.audioBlob); p.hidden = false; };
+    SG.media.start(); }catch(e){ SG.media = null; }
+  const rec = new SG_SR(); rec.lang = 'pt-BR'; rec.continuous = true; rec.interimResults = true; SG.rec = rec; let fin = '';
+  rec.onresult = ev=>{ let interim = ''; for(let i=ev.resultIndex;i<ev.results.length;i++){ const t = ev.results[i][0].transcript; if(ev.results[i].isFinal) fin += t+' '; else interim += t; } ta.value = base + fin + interim; SG.voz = true; };
+  rec.onerror = ev=>{ if(ev.error==='not-allowed') showToast('Permita o uso do microfone no navegador.'); };
+  rec.onend = ()=>{ if(SG.recording){ try{ rec.start(); }catch(e){} } };
+  rec.start(); SG.recording = true; btn.textContent = '⏹ Parar'; btn.classList.add('rec'); st.textContent = '🔴 ouvindo... fale e depois clique em Parar';
+}
+document.getElementById('sg-mic').addEventListener('click', sgMicToggle);
+document.getElementById('sg-send').addEventListener('click', async ()=>{
+  if(SG.recording) await sgMicToggle();
+  const ta = document.getElementById('sg-text'), texto = ta.value.trim(); if(!texto){ showToast('Escreva ou dite a sugestão primeiro.'); return; }
+  const btn = document.getElementById('sg-send'); btn.disabled = true; btn.textContent = 'Enviando...';
+  try{
+    await new Promise(r=>setTimeout(r,400));
+    let audio_path = null;
+    if(SG.audioBlob){ try{ const f = new File([SG.audioBlob], 'sugestao-'+Date.now()+'.webm', {type:SG.audioBlob.type||'audio/webm'}); audio_path = await docsUpload(f,'sugestoes'); }catch(e){ console.warn(e); } }
+    const autor = document.getElementById('sg-who').value;
+    const { error } = await sb.from('crm_sugestoes').insert({ autor, texto, origem: (SG.voz||audio_path)?'voz':'texto', tipo:document.getElementById('sg-tipo').value, tela:document.getElementById('sg-tela').value||null,
+      prioridade:document.getElementById('sg-prio').value, audio_path, historico:[{em:new Date().toISOString(), por:autor, de:'nova', para:'nova', nota:'Sugestão registrada'}] });
+    if(error) throw error;
+    ta.value = ''; SG.audioBlob = null; SG.voz = false; const p = document.getElementById('sg-audio-prev'); p.hidden = true; p.removeAttribute('src');
+    showToast('Sugestão registrada — obrigado!'); renderSugestoes();
+  }catch(e){ showToast('Erro: '+(e.message||e)); }
+  btn.disabled = false; btn.textContent = 'Enviar sugestão';
+});
+sgInit();
 
 // ---------- EXPORTAR PDF (relatório semanal p/ CEO) ----------
 function exportSemanaPDF(w){
