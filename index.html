@@ -249,6 +249,7 @@
           <select id="op-f-produto"><option value="">Qualquer produto</option></select>
           <select id="op-sort">
             <option value="nome">Ordenar: nome</option>
+            <option value="classificacao">Ordenar: Call Hot primeiro</option>
             <option value="plantoes">Ordenar: maior valor pago em plantões</option>
             <option value="etapa">Ordenar: etapa mais avançada</option>
             <option value="plantao">Ordenar: plantão mais recente</option>
@@ -440,6 +441,14 @@
   .op-head{ position:sticky; top:0; z-index:5; background:#f2f3f9; border-bottom:1px solid var(--border);}
   .op-head .op-left{ background:#f2f3f9; z-index:6; cursor:default; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; display:flex; align-items:center;}
   .op-head .op-right{ height:38px; background-image:none;}
+  .op-sort-wrap{ position:relative;}
+  #op-sort-quick{ background:none; border:none; font:inherit; text-transform:inherit; letter-spacing:inherit; color:inherit; cursor:pointer; padding:0;}
+  #op-sort-quick:hover{ color:var(--brand);}
+  .op-sort-menu{ display:none; position:absolute; top:100%; left:0; margin-top:4px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:0 6px 20px rgba(20,25,50,.12); z-index:20; min-width:230px; padding:4px; flex-direction:column;}
+  .op-sort-menu.open{ display:flex;}
+  .op-sort-opt{ text-align:left; background:none; border:none; padding:8px 10px; font-size:12.5px; text-transform:none; letter-spacing:normal; font-weight:500; color:var(--ink); border-radius:6px; cursor:pointer;}
+  .op-sort-opt:hover{ background:var(--brand-soft);}
+  .op-sort-opt.sel{ background:var(--brand-soft); color:var(--brand); font-weight:700;}
   .op-mh{ position:absolute; top:0; bottom:0; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; color:var(--ink-soft); border-left:1px solid var(--border); line-height:1.15;}
   .op-mh small{ font-weight:500; font-size:9.5px; color:var(--ink-faint);}
   .op-mh.cur{ background:#e8ecff; color:var(--brand);}
@@ -1438,6 +1447,13 @@ const OP_PRODUTOS = [
 ];
 const OP_STAGE_COLORS = ['#9fb0ff','#7d92ff','#5b74ff','#3a55ff','#1f3af0','#0018fc','#0012c9','#000d94'];
 const OP_MESES = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+const OP_SORT_OPTS = [
+  {v:'nome', l:'Nome (A-Z)'},
+  {v:'classificacao', l:'🔥 Call Hot primeiro'},
+  {v:'plantoes', l:'Maior valor pago em plantões'},
+  {v:'etapa', l:'Etapa mais avançada'},
+  {v:'plantao', l:'Plantão mais recente'},
+];
 const OP_UNIT_PX = 88;
 const OP_EXPANDED_W = 11;
 const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
@@ -1612,6 +1628,7 @@ function opApplyFilters(keep, scrollToList){
     }
     return true;
   });
+  if(sort==='classificacao'){ const rank = {call_hot:0, quente:1, frio:2}; list = list.slice().sort((a,b)=>(rank[a.classificacao]??3)-(rank[b.classificacao]??3)); }
   if(sort==='plantoes') list = list.slice().sort((a,b)=>(Number(b.total_pago_plantoes_2026)||0)-(Number(a.total_pago_plantoes_2026)||0));
   if(sort==='etapa') list = list.slice().sort((a,b)=>opCurEtapaIdx(b.id)-opCurEtapaIdx(a.id));
   if(sort==='plantao') list = list.slice().sort((a,b)=>{ const ua=(OP.plant.get(a.id)||{}).ultimo_plantao||'', ub=(OP.plant.get(b.id)||{}).ultimo_plantao||''; return ub<ua?-1:(ub>ua?1:0); });
@@ -1713,10 +1730,10 @@ function opRenderAll(prevShown){
   }).join('');
   host.innerHTML = `<div class="op-inner" style="min-width:calc(var(--oplw) + ${OP.total*OP_UNIT_PX}px)">
     <div class="op-sumbox">
-      <div class="op-sumtitle" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal — médicos por etapa do funil (situação ao fim de cada mês) · clique num número para filtrar</div>
+      <div class="op-sumtitle" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal <span class="info-ico" tabindex="0" title="Médicos por etapa do funil (situação ao fim de cada mês). Clique num número para filtrar.">ⓘ</span></div>
       <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'}">${opSumRowsHtml()}</div>
     </div>
-    <div class="op-row op-head"><div class="op-left">${OP.filtered.length} de ${OP.pessoas.length} médicos</div><div class="op-right" style="height:${anyExp?60:38}px">${heads}</div></div>
+    <div class="op-row op-head"><div class="op-left op-sort-wrap"><button id="op-sort-quick" title="Clique para ordenar a lista">${OP.filtered.length} de ${OP.pessoas.length} médicos ▾</button><div class="op-sort-menu" id="op-sort-menu">${OP_SORT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-sort').value===o.v?' sel':''}" data-sortv="${o.v}">${o.l}</button>`).join('')}</div></div><div class="op-right" style="height:${anyExp?60:38}px">${heads}</div></div>
     <div id="op-body"></div><div class="op-more" id="op-more"></div></div>`;
   opAppendRows(Math.max(prevShown||0, OP_PAGE));
 }
@@ -1847,7 +1864,16 @@ function opRefreshRow(pid){
   opRenderKpis();
 }
 
+document.addEventListener('click', (e)=>{
+  if(e.target.closest('#op-sort-quick') || e.target.closest('#op-sort-menu')) return;
+  const m = document.getElementById('op-sort-menu'); if(m) m.classList.remove('open');
+});
 document.getElementById('view-operacao').addEventListener('click', (e)=>{
+  const sq = e.target.closest('#op-sort-quick');
+  if(sq){ e.stopPropagation(); document.getElementById('op-sort-menu').classList.toggle('open'); return; }
+  const so = e.target.closest('.op-sort-opt');
+  if(so){ document.getElementById('op-sort').value = so.dataset.sortv; opApplyFilters(false); return; }
+  if(!e.target.closest('#op-sort-menu')){ const m = document.getElementById('op-sort-menu'); if(m) m.classList.remove('open'); }
   const kn = e.target.closest('[data-fnext]'); if(kn){ document.getElementById('op-f-next').value = kn.dataset.fnext; opApplyFilters(false); return; }
   if(e.target.closest('#op-dups')){ opDupDialog(); return; }
   if(e.target.closest('#op-chip-x')){ OP.sumFilter = null; opApplyFilters(true); return; }
@@ -1874,10 +1900,10 @@ document.getElementById('view-operacao').addEventListener('click', (e)=>{
   }
   const open = e.target.closest('[data-open]');
   if(open){ goToPersonView(open.dataset.open); return; }
-  if(e.target.closest('#op-sumtoggle')){
+  if(e.target.closest('#op-sumtoggle') && !e.target.closest('.info-ico')){
     OP.sumOpen = !OP.sumOpen;
     document.getElementById('op-sumrows').style.display = OP.sumOpen ? 'block' : 'none';
-    document.getElementById('op-sumtoggle').textContent = (OP.sumOpen?'▾':'▸') + ' Resumo mensal — médicos por etapa do funil (situação ao fim de cada mês) · clique num número para filtrar';
+    document.getElementById('op-sumtoggle').innerHTML = (OP.sumOpen?'▾':'▸') + ' Resumo mensal <span class="info-ico" tabindex="0" title="Médicos por etapa do funil (situação ao fim de cada mês). Clique num número para filtrar.">ⓘ</span>';
   }
 });
 document.getElementById('op-modal').addEventListener('click', (e)=>{
