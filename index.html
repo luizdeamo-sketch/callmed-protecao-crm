@@ -61,6 +61,7 @@
   header .brand{ font-family:'Poppins',sans-serif; font-weight:700; font-size:1rem; display:flex; align-items:center; gap:9px; color:var(--ink);}
   header .brand .dot{ width:7px; height:7px; border-radius:50%; background:var(--teal);}
   header .brand img{ height:24px; display:block;}
+  .hdr-title{ font-size:1.05rem; font-weight:700; color:var(--ink); padding-left:9px; border-left:1px solid var(--border); margin-left:2px;}
   .login-card .logo{ height:32px; margin-bottom:20px; display:block;}
   header .who{ font-size:12.5px; color:var(--ink-faint); display:flex; align-items:center; gap:14px;}
   header .who button{ background:var(--surface-2); border:1px solid var(--border); color:var(--ink-soft); border-radius:7px; padding:6px 12px; font-size:12px; font-weight:600; transition:all .15s;}
@@ -202,7 +203,7 @@
 
 <div id="app">
   <header>
-    <div class="brand"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><span class="dot"></span></div>
+    <div class="brand"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><span class="dot"></span><span class="hdr-title" id="hdr-title">Aliança</span><span class="info-ico" id="hdr-info" tabindex="0" title="Cada médico é um parceiro da CallMed — toda a jornada dele numa linha do tempo: faixa do funil comercial + uma linha por produto. Clique na faixa do funil para marcar/desmarcar uma etapa na data; clique no nome para abrir o cadastro completo.">ⓘ</span></div>
     <div class="who"><span id="who-email"></span><button id="btn-backup" title="Baixar uma cópia de todos os dados">⬇ Backup</button><button id="btn-logout">Sair</button></div>
   </header>
 
@@ -220,17 +221,16 @@
 
     <div id="view-operacao" class="view active">
       <div class="op-top">
-        <div class="op-title">
-          <h2>Aliança <span class="info-ico" tabindex="0" title="Cada médico é um parceiro da CallMed — toda a jornada dele numa linha do tempo: faixa do funil comercial + uma linha por produto. Clique na faixa do funil para marcar/desmarcar uma etapa na data; clique no nome para abrir o cadastro completo.">ⓘ</span></h2>
-        </div>
         <div class="op-filters">
           <div class="op-kpis" id="op-kpis"></div>
           <input id="op-search" placeholder="Buscar por nome, CPF, CRM ou telefone...">
           <button id="op-ftoggle" class="om-cancel">⚙ Filtros<span id="op-fcount" class="op-fcount" style="display:none"></span></button>
-          <button id="op-prev12" title="Voltar 12 meses">«</button><button id="op-prev" title="Voltar 1 mês">‹</button>
-          <span id="op-range"></span>
-          <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button>
-          <button id="op-hoje" class="om-cancel" style="margin-left:auto">☀️ Hoje</button><button id="op-callhot" class="om-cancel">🔥 Call Hot da semana</button><button id="op-import" class="om-cancel">⬆ Importar contatos</button><button id="op-newcli" class="om-save">＋ Novo cliente</button>
+          <div class="op-nav-pill">
+            <button id="op-prev12" title="Voltar 12 meses">«</button><button id="op-prev" title="Voltar 1 mês">‹</button>
+            <span id="op-range"></span>
+            <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button>
+          </div>
+          <button id="op-hoje" class="om-cancel icon-btn" style="margin-left:auto" title="Hoje — painel do dia">☀️</button><button id="op-callhot" class="om-cancel icon-btn" title="Call Hot da semana — leads prioritários">🔥</button><button id="op-import" class="om-cancel icon-btn" title="Importar contatos">⬆</button><button id="op-newcli" class="om-save">＋ Novo cliente</button>
           <span id="op-chip"></span>
         </div>
         <div class="op-filters-more" id="op-filters-more">
@@ -412,8 +412,6 @@
   @media (max-width:700px){ .sc-grid{grid-template-columns:1fr;} }
   #view-operacao{ grid-template-rows:auto 1fr; background:var(--bg);}
   .op-top{ padding:16px 24px 12px; display:flex; flex-direction:column; gap:10px; background:var(--surface); border-bottom:1px solid var(--border);}
-  .op-title{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
-  .op-title h2{ font-size:1.25rem;}
   .info-ico{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:var(--brand-soft); color:var(--brand); font-size:11px; font-family:'Poppins',sans-serif; cursor:help; vertical-align:middle; margin-left:4px;}
   .op-kpis{ display:flex; gap:8px; flex-wrap:wrap;}
   .op-kpi{ background:var(--brand-soft); border-radius:999px; padding:3px 12px; font-size:12px; color:var(--ink-soft);}
@@ -426,7 +424,10 @@
   .op-filters-more{ display:none; gap:8px; flex-wrap:wrap; align-items:center; padding-top:2px;}
   .op-filters-more.open{ display:flex;}
   .op-filters-more select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink); cursor:pointer;}
-  #op-range{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); min-width:150px; text-align:center;}
+  .op-nav-pill{ display:flex; align-items:center; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden;}
+  .op-nav-pill button{ border:none !important; border-radius:0 !important; padding:7px 9px !important; background:var(--surface);}
+  .op-nav-pill button:not(:last-child){ border-right:1px solid var(--border) !important;}
+  #op-range{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); min-width:130px; text-align:center; padding:0 8px;}
   #op-scroll{ overflow:auto; position:relative; --oplw:290px;}
   .op-inner{ min-width:calc(var(--oplw) + 1080px);}
   .op-row{ display:flex; border-bottom:1px solid var(--border-soft); background:var(--surface);}
@@ -494,6 +495,7 @@
   .om-err{ color:var(--red); font-size:12.5px; padding:4px 22px; min-height:20px;}
   .om-foot{ display:flex; gap:10px; align-items:center; padding:12px 22px 16px; border-top:1px solid var(--border);}
   .om-cancel, .om-save{ border-radius:var(--radius-sm); padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:var(--surface);}
+  .icon-btn{ padding:8px 11px !important; font-size:15px !important; line-height:1;}
   .om-save{ background:var(--brand); color:#fff; border-color:var(--brand);}
   .om-save:disabled{ opacity:.6;}
   .dz{ border:2px dashed #c9cff0; background:var(--brand-soft); border-radius:var(--radius-md); padding:20px; text-align:center; color:var(--ink-soft); font-size:13px; cursor:pointer; margin:0 0 14px;}
@@ -588,14 +590,14 @@
   #btn-backup{ border:1px solid var(--border); background:var(--surface); border-radius:var(--radius-sm); padding:6px 12px; font-size:12px; margin-right:8px;} #btn-backup:hover{ background:var(--brand-soft);}
   @media (max-width:820px){
     #app{ grid-template-columns:1fr; grid-template-rows:52px 1fr 62px;}
-    header{ grid-column:1; padding:0 12px;} header .brand img{ height:22px;} #who-email, #btn-backup{ display:none;}
+    header{ grid-column:1; padding:0 12px;} header .brand img{ height:22px;} #who-email, #btn-backup, .hdr-title, #hdr-info{ display:none;}
     #rail{ grid-column:1; grid-row:3; flex-direction:row; justify-content:flex-start; overflow-x:auto; padding:6px 8px; border-right:none; border-top:1px solid var(--border); gap:2px;}
     #rail button{ flex:0 0 66px; width:66px; height:48px;}
     .view-container{ grid-column:1; grid-row:2;}
     input, select, textarea{ font-size:16px !important;}
     .om-save, .om-cancel, .btn-export-pdf{ min-height:40px;}
     .op-top{ padding:12px;} .op-filters input{ width:100%;} .op-filters-more select{ flex:1 1 46%;}
-    #op-range, #op-prev, #op-next, #op-prev12, #op-next12, #op-import{ display:none;}
+    .op-nav-pill, #op-import{ display:none;}
     #op-ftoggle{ order:-1;}
     #op-search{ order:-3; flex:1 1 100%;} #op-hoje, #op-callhot, #op-newcli{ order:-2; flex:1 1 30%; margin-left:0 !important; font-size:13px; padding:9px 6px;}
     .op-inner{ min-width:0 !important;} .op-head, .op-sumbox{ display:none;} .op-right{ display:none;}
@@ -744,10 +746,16 @@ function boot(){
 }
 
 // ---------- NAV RAIL ----------
+function opSetHeaderTitle(btn){
+  const label = btn.querySelector('span') ? btn.querySelector('span').textContent : btn.textContent;
+  document.getElementById('hdr-title').textContent = label;
+  document.getElementById('hdr-info').style.display = (btn.dataset.view === 'operacao') ? '' : 'none';
+}
 document.querySelectorAll('.nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
+    opSetHeaderTitle(btn);
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     document.getElementById('view-'+btn.dataset.view).classList.add('active');
     if(btn.dataset.view === 'operacao') renderOperacao();
@@ -761,7 +769,9 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
 });
 function goToPersonView(personId){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelector('.nav-btn[data-view="operacao"]').classList.add('active');
+  const opBtn = document.querySelector('.nav-btn[data-view="operacao"]');
+  opBtn.classList.add('active');
+  opSetHeaderTitle(opBtn);
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-pessoas').classList.add('active');
   openPerson(personId);
@@ -3026,6 +3036,8 @@ async function showEstudoView(pessoaId, estudoId){
   }
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.querySelector('.nav-btn[data-view="operacao"]').classList.add('active');
+  document.getElementById('hdr-title').textContent = 'Estudo';
+  document.getElementById('hdr-info').style.display = 'none';
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-estudo').classList.add('active');
   document.getElementById('es-detail').innerHTML = '<div class="op-more" style="padding-top:80px">Selecione um estudo à esquerda ou crie um novo.</div>';
