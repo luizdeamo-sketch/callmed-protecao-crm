@@ -536,6 +536,10 @@
   .q{ border:1px solid var(--border); border-radius:var(--radius-md); padding:12px 14px; margin-bottom:12px;}
   .rd, .pk{ display:flex; gap:8px; align-items:flex-start; font-size:13px; padding:4px 0; cursor:pointer;} .pk small{ color:var(--ink-faint);}
   .chks{ display:flex; flex-wrap:wrap; gap:6px 14px;} .chk{ font-size:12px; display:flex; gap:5px; align-items:center;}
+  .cv-grid{ display:grid; grid-template-columns:1fr 1fr; gap:6px 16px;} @media (max-width:600px){ .cv-grid{ grid-template-columns:1fr;} }
+  .cv-row{ display:flex; align-items:center; gap:8px; font-size:12.5px; padding:2px 0;} .cv-row .chk{ flex:1; min-width:0;}
+  .cv-row input[type=number]{ width:108px; border:1px solid var(--border); border-radius:6px; padding:4px 7px; font-size:12px;}
+  .cv-row input[type=number]:disabled{ background:var(--surface-2); color:var(--ink-faint);}
   .person-actions{ display:flex; gap:10px; margin:14px 0;}
   .pl-tag{ color:var(--ink-faint);} .pl-tag.hot{ color:var(--green); font-weight:600;} .pl-tag.warm{ color:var(--amber-ink); font-weight:600;}
   #sg-text{ width:100%; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:14px; font-family:inherit; resize:vertical;}
@@ -1106,7 +1110,7 @@ async function pvApolices(p){
   host.innerHTML = `<div class="ql">Apólices do cliente (${rows.length})</div>
     ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Seguradora</th><th>Vigência</th><th>Prêmio</th><th>Origem / vínculo</th><th>Status</th></tr></thead><tbody>${rows.map(a=>{ const d = daysTo(a.data_vencimento); return `<tr><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${escapeHtml(a.seguradora||'—')}</td><td>${fmtDate(a.data_emissao)||'—'} → <b>${fmtDate(a.data_vencimento)||'—'}</b>${d!==null&&d>=0&&d<=60?` <span class="tagx warn">${d}d</span>`:''}</td><td>${fmtMoney(a.valor_premio)}</td><td>${escapeHtml(CA_ORIGENS[a.origem_apolice]||a.origem_apolice||'—')} · ${escapeHtml(a.vinculo_comercial||'—')}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td></tr>`; }).join('')}</tbody></table>`:'<div class="hint">Nenhuma apólice vinculada. Use “Anexar apólice” no topo ou a Central de Apólices.</div>'}
     <div class="ql" style="margin-top:12px">Proteção atual (coberturas nas apólices)</div>
-    <div class="chks">${['morte','ipa','invalidez_doenca','doencas_graves','dit','funeral','renda','sucessao','previdencia'].map(k=>`<span class="tagx" style="${have.has(k)?'':'background:#f2f3f9;color:var(--ink-faint);text-decoration:line-through'}">${covLabel(k)}</span>`).join(' ')}</div>
+    <div class="chks">${ES_CORE.concat(ES_OPT).map(k=>`<span class="tagx" style="${have.has(k)?'':'background:#f2f3f9;color:var(--ink-faint);text-decoration:line-through'}" title="${escapeHtml(covProtect(k))}">${covLabel(k)}</span>`).join(' ')}</div>
     ${cap?`<div class="hint">Capital de vida já segurado: <b>${fmtMoney(cap)}</b></div>`:''}`;
 }
 
@@ -1882,20 +1886,49 @@ const DOCS_INSURERS = [
   ['Omint',/omint/i],['Centauro',/centauro/i],['Zurich',/zurich/i],['Liberty',/liberty/i],['SURA',/\bsura\b/i],['Itaú Seguros',/ita[uú]\s*seguros/i],
   ['Prudential',/prudential/i],['MetLife',/metlife/i],['Amil',/\bamil\b/i],['Unimed',/unimed/i],['Generali',/generali/i],['Chubb',/chubb/i],['Pier',/\bpier\b/i]
 ];
+// Lista definida pela Amanda em 22/09 — as 13 coberturas que trabalhamos, cada uma com o texto
+// "o que a cobertura protege" (gancho de conversa quando o cliente não tem).
 const DOCS_COVS = [
-  {k:'morte', l:'Morte', re:/\bmorte\b(?!\s*acidental)|cobertura b[aá]sica|capital segurado/i},
-  {k:'morte_acidental', l:'Morte acidental', re:/morte\s*acidental/i},
-  {k:'ipa', l:'Invalidez por acidente (IPA)', re:/invalidez\s*permanente[^.\n]{0,40}acidente|\bIPA\b|\bIPTA\b/i},
-  {k:'invalidez_doenca', l:'Invalidez por doença', re:/invalidez[^.\n]{0,50}doen[çc]a|\bIFPD\b|\bIPD\b/i},
-  {k:'doencas_graves', l:'Doenças graves', re:/doen[çc]as?\s*graves|antecipa[çc][ãa]o[^.\n]{0,30}doen[çc]a|c[âa]ncer/i},
-  {k:'dit', l:'Diária por incapacidade (DIT)', re:/di[áa]rias?\s*(por|de)\s*incapacidade|\bDIT\b|incapacidade\s*tempor[áa]ria(?!\s*hospitalar)/i},
-  {k:'dih', l:'Diária de internação hospitalar (DIH)', re:/di[áa]ria[s]?\s*de\s*interna[çc][ãa]o|\bDIH\b/i},
-  {k:'funeral', l:'Funeral / assistência funeral', re:/funeral/i},
-  {k:'renda', l:'Renda (família / invalidez)', re:/renda\s*(mensal|por|familiar|temporária)|pens[ãa]o/i},
-  {k:'sucessao', l:'Sucessão / vida inteira', re:/sucess[ãa]o|vida\s*inteira|whole\s*life/i},
-  {k:'previdencia', l:'Previdência', re:/previd[êe]ncia(?!\s*social)|\bVGBL\b|\bPGBL\b/i},
-  {k:'rc_prof', l:'RC profissional', re:/responsabilidade\s*civil\s*profissional|erro\s*m[ée]dico/i},
+  {k:'morte', l:'Morte', re:/\bmorte\b(?!\s*acidental)/i,
+    d:'Garante o pagamento do capital segurado aos beneficiários indicados em caso de falecimento do segurado, decorrente de causa natural, doença ou acidente, conforme as condições contratadas.'},
+  {k:'morte_acidental', l:'Morte Acidental', re:/morte\s*acidental/i,
+    d:'Garante o pagamento do capital segurado aos beneficiários quando o falecimento do segurado decorrer de acidente pessoal coberto, conforme as condições da apólice.'},
+  {k:'sucessao', l:'Sucessão (vitalícia)', re:/sucess[ãa]o\s*(vital[íi]cia)?|vida\s*inteira|whole\s*life/i,
+    d:'Auxilia no planejamento sucessório e na proteção patrimonial, garantindo recursos aos beneficiários ou sócios em caso de falecimento do segurado, contribuindo para a continuidade do patrimônio e/ou da sociedade.'},
+  {k:'renda', l:'Renda Familiar / Invalidez', re:/renda\s*(mensal|por|familiar|temporária)|pens[ãa]o/i,
+    d:'Protege a continuidade financeira da família ou do próprio segurado: pode proporcionar recursos aos beneficiários em caso de falecimento ou ao segurado em situações de invalidez coberta, conforme a modalidade contratada.'},
+  {k:'ipa', l:'Invalidez por Acidente', re:/invalidez\s*permanente[^.\n]{0,40}acidente|\bIPA\b|\bIPTA\b/i,
+    d:'Garante o pagamento de uma indenização ao segurado caso um acidente coberto provoque invalidez permanente, total ou parcial, de acordo com os critérios e percentuais previstos na apólice.'},
+  {k:'invalidez_doenca', l:'Invalidez por Doença', re:/invalidez[^.\n]{0,50}doen[çc]a|\bIFPD\b|\bIPD\b/i,
+    d:'Garante indenização ao segurado quando uma doença coberta resultar em invalidez permanente, conforme os critérios estabelecidos nas condições do seguro.'},
+  {k:'doencas_graves', l:'Doenças Graves', re:/doen[çc]as?\s*graves|antecipa[çc][ãa]o[^.\n]{0,30}doen[çc]a/i,
+    d:'Garante o pagamento de uma indenização ao próprio segurado após o diagnóstico de uma doença grave prevista na cobertura, permitindo utilizar o recurso conforme sua necessidade, como tratamento, adaptação da rotina ou manutenção financeira.'},
+  {k:'dih', l:'Diária de Internação Hospitalar', re:/di[áa]ria[s]?\s*de\s*interna[çc][ãa]o|\bDIH\b/i,
+    d:'Garante o pagamento de uma diária ao segurado durante internação hospitalar coberta, ajudando a compensar despesas e impactos financeiros decorrentes do período de hospitalização, conforme limites e condições contratadas.'},
+  {k:'dit', l:'Diária de Incapacidade Temporária (DIT)', re:/di[áa]rias?\s*(por|de)\s*incapacidade|\bDIT\b|incapacidade\s*tempor[áa]ria(?!\s*hospitalar)/i,
+    d:'Garante o pagamento de uma renda diária ao segurado quando ele ficar temporariamente incapaz de exercer sua atividade profissional em decorrência de doença ou acidente coberto, observados os critérios e período de franquia previstos na apólice.'},
+  {k:'cirurgias', l:'Cirurgias', re:/cobertura\s*(de\s*)?cirurgias?|indeniza[çc][ãa]o\s*cir[úu]rgica|procedimento\s*cir[úu]rgico\s*coberto/i,
+    d:'Garante o pagamento de uma indenização ao segurado quando for realizado um procedimento cirúrgico coberto, decorrente de doença ou acidente, conforme os procedimentos e condições previstos no contrato.'},
+  {k:'fratura_ossea', l:'Fratura Óssea', re:/fratura\s*[óo]ssea/i,
+    d:'Garante o pagamento de uma indenização ao segurado em caso de fratura óssea decorrente de acidente coberto, conforme os tipos de fratura, limites e condições estabelecidos na apólice.'},
+  {k:'funeral_familiar', l:'Assistência Funeral Familiar', re:/funeral[^.\n]{0,60}(familiar|c[ôo]njuge|filhos)|fam[íi]lia[^.\n]{0,40}funeral/i,
+    d:'Disponibiliza assistência para os serviços e despesas relacionados ao funeral do segurado titular, cônjuge e filhos elegíveis, podendo ocorrer por prestação de serviços ou reembolso, conforme as condições contratadas, incluindo traslado quando previsto.'},
+  {k:'funeral_individual', l:'Assistência Funeral Individual', re:/funeral(?!.{0,60}(familiar|c[ôo]njuge|filhos))/i,
+    d:'Disponibiliza assistência para as despesas e serviços relacionados ao funeral do segurado titular, podendo ocorrer por meio de prestação de serviços ou reembolso, conforme a modalidade contratada, incluindo traslado quando previsto.'},
 ];
+function covProtect(k){ return (DOCS_COVS.find(c=>c.k===k)||{}).d || ''; }
+// valor por cobertura: procura, linha a linha, uma cobertura identificada + um R$ na mesma linha
+function extractPerCoverageValues(text, matchedKeys){
+  const out = {};
+  String(text||'').split('\n').forEach(line=>{
+    const moneys = [...line.matchAll(/R\$\s*([\d.]+,\d{2})/g)]; if(!moneys.length) return;
+    DOCS_COVS.forEach(c=>{
+      if(!matchedKeys.includes(c.k) || out[c.k]!=null) return;
+      if(c.re.test(line)){ const v = moneyBR(moneys[moneys.length-1][1]); if(v!=null) out[c.k] = v; }
+    });
+  });
+  return out;
+}
 const DOCS_TIPOS = [
   ['Vida em grupo',/vida\s*em\s*grupo|seguro\s*de\s*vida\s*coletivo|vida\s*coletivo/i],['Vida',/seguro\s*de\s*vida|vida\s*individual|\bvida\b/i],
   ['Responsabilidade Civil',/responsabilidade\s*civil/i],['Automóvel',/autom[oó]vel|\bauto\b|ve[ií]culo/i],['Residencial',/residencial|resid[êe]ncia/i],
@@ -1998,6 +2031,8 @@ function docsExtract(text){
   if(pr){ const v = moneyBR(pr[2]); const mensal = /mensal/i.test(pr[1]||'') || /parcela|mensalidade/i.test(pr[0]); f.premio = v; f.premio_periodo = mensal ? 'mensal' : 'anual'; }
   const cap = t.match(/(?:import[âa]ncia\s*segurada|capital\s*segurado|valor\s*segurado|capital)[^\d]{0,45}(?:R\$)?\s*([\d.]+,\d{2})/i); if(cap) f.capital = moneyBR(cap[1]);
   f.coberturas = DOCS_COVS.filter(c=>c.re.test(t)).map(c=>c.k);
+  f.coberturas_valores = extractPerCoverageValues(t, f.coberturas);
+  if(!f.capital && Object.keys(f.coberturas_valores).length) f.capital = Object.values(f.coberturas_valores).reduce((a,b)=>a+b,0);
   f._chars = t.length;
   return f;
 }
@@ -2286,7 +2321,7 @@ function caEdit(id){
       ${fld('ce-seg','Seguradora',r.seguradora)}${fld('ce-prod','Produto / tipo',r.tipo_seguro)}${fld('ce-num','Nº da apólice',r.numero_apolice)}
       <label class="fl"><span>Contratação</span><select id="ce-contr"><option value="">—</option>${['Individual','Grupo','PJ / Empresarial'].map(o=>`<option ${r.tipo_contratacao===o?'selected':''}>${o}</option>`).join('')}</select></label>
       ${fld('ce-ini','Início da vigência',r.data_emissao,'date')}${fld('ce-fim','Fim da vigência',r.data_vencimento,'date')}
-      ${fld('ce-prem','Prêmio anual (R$)',r.valor_premio==null?'':String(r.valor_premio),'number')}${fld('ce-cap','Capital / cobertura (R$)',r.valor_cobertura==null?'':String(r.valor_cobertura),'number')}
+      ${fld('ce-prem','Prêmio anual (R$)',r.valor_premio==null?'':String(r.valor_premio),'number')}
       ${fld('ce-com','Comissão (%)',r.comissao_pct==null?'':String(r.comissao_pct),'number')}${fld('ce-pag','Forma de pagamento',r.forma_pagamento)}
       ${fld('ce-vend','Quem vendeu / origem',r.corretor_origem,'text',true)}
       <label class="fl"><span>Vínculo comercial</span><select id="ce-vinc"><option value="">—</option>${['CallMed','Outra corretora','Direto com seguradora','Não identificado'].map(o=>`<option ${r.vinculo_comercial===o?'selected':''}>${o}</option>`).join('')}</select></label>
@@ -2294,15 +2329,19 @@ function caEdit(id){
       ${fld('ce-tom','Tomador / estipulante',r.tomador)}${fld('ce-benef','Beneficiários',r.beneficiarios)}
       <label class="fl"><span>Status</span><select id="ce-status">${CA_STATUS.map(s=>`<option value="${s[0]}" ${r.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
       ${fld('ce-obs','Observações',r.observacoes,'text',true)}</div>
+      <div class="ql" style="margin-top:10px">Coberturas e o valor de cada uma (R$)</div><div class="cv-grid">${covValueRows('ce', r.coberturas||[], r.coberturas_valores||{})}</div>
       ${r.arquivo_apolice?`<div class="hint" style="margin-top:10px">📎 <a href="#" id="ce-file" style="color:var(--brand);font-weight:600">abrir arquivo da apólice</a></div>`:''}
       <div class="om-err" id="ce-err"></div></div>
     <div class="om-foot"><button class="om-cancel" id="ce-del" style="color:var(--red)">Excluir apólice</button><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ce-save">Salvar</button></div>`, true);
   const g = i=>document.getElementById(i).value.trim(), n = i=> g(i)===''?null:Number(g(i));
   box.querySelector('#ce-openp').addEventListener('click', ev=>{ ev.preventDefault(); dlgClose(); goToPersonView(r.pessoa_id); });
   const fl = box.querySelector('#ce-file'); if(fl) fl.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(r.arquivo_apolice),'_blank'); }catch(x){ showToast('Erro: '+x.message); } });
+  covValueBind(box, 'ce');
   box.querySelector('#ce-save').addEventListener('click', async ()=>{
+    const covVals = covValueCollect(box, 'ce'); const covs = [...box.querySelectorAll('.ce-cov:checked')].map(c=>c.value);
+    const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
     const upd = { seguradora:g('ce-seg')||null, tipo_seguro:g('ce-prod')||null, numero_apolice:g('ce-num')||null, tipo_contratacao:g('ce-contr')||null, data_emissao:g('ce-ini')||null, data_vencimento:g('ce-fim')||null,
-      valor_premio:n('ce-prem'), valor_cobertura:n('ce-cap'), comissao_pct:n('ce-com'), forma_pagamento:g('ce-pag')||null, corretor_origem:g('ce-vend')||null, status:g('ce-status'), observacoes:g('ce-obs')||null, vinculo_comercial:g('ce-vinc')||null, tipo_movimento:g('ce-mov')||null, tomador:g('ce-tom')||null, beneficiarios:g('ce-benef')||null };
+      valor_premio:n('ce-prem'), valor_cobertura:capTotal, coberturas:covs, coberturas_valores:covVals, comissao_pct:n('ce-com'), forma_pagamento:g('ce-pag')||null, corretor_origem:g('ce-vend')||null, status:g('ce-status'), observacoes:g('ce-obs')||null, vinculo_comercial:g('ce-vinc')||null, tipo_movimento:g('ce-mov')||null, tomador:g('ce-tom')||null, beneficiarios:g('ce-benef')||null };
     if(r.origem_apolice==='nova' && upd.vinculo_comercial && upd.vinculo_comercial!=='CallMed'){ document.getElementById('ce-err').textContent = 'Incoerente: apólice "Nova CallMed" não pode ter vínculo em "'+upd.vinculo_comercial+'".'; return; }
     const { error } = await sb.from('crm_apolices').update(upd).eq('id', id);
     if(error){ document.getElementById('ce-err').textContent = 'Erro: '+error.message; return; }
@@ -2437,7 +2476,7 @@ function caForm(file, f, found){
   const top = found[0] && (found[0].why==='CPF idêntico' || found[0].why==='CRM idêntico' || found[0].why==='nome idêntico' || found[0].why==='cadastro aberto') ? found[0].id : null;
   const opts = found.map((p,i)=>pessoaOptionHtml(p,'ca-pes', p.id===top)).join('');
   const premAnual = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : '';
-  const covs = DOCS_COVS.map(c=>`<label class="chk"><input type="checkbox" class="ca-cov" value="${c.k}" ${ (f.coberturas||[]).includes(c.k)?'checked':''}> ${c.l}</label>`).join('');
+  const covs = covValueRows('ca', f.coberturas||[], f.coberturas_valores||{});
   const box = dlgOpen(`<div class="om-title"><div><h3>Nova apólice — ${escapeHtml(file.name)}</h3><div class="om-sub">${f._erro?'⚠️ Não consegui ler o arquivo automaticamente ('+escapeHtml(f._erro)+'). Preencha manualmente.':'Leitura automática concluída — confira os campos antes de salvar.'}</div></div><button data-close>✕</button></div>
     <div class="dlg-body">
       <div class="q"><div class="ql">1. O que é esta apólice?</div>
@@ -2457,7 +2496,7 @@ function caForm(file, f, found){
         ${fld('ca-num','Nº da apólice',f.numero_apolice)}
         <label class="fl"><span>Contratação</span><select id="ca-contr"><option ${f.tipo_contratacao==='Individual'?'selected':''}>Individual</option><option ${f.tipo_contratacao==='Grupo'?'selected':''}>Grupo</option><option>PJ / Empresarial</option></select></label>
         ${fld('ca-ini','Início da vigência',f.vig_ini,'date')}${fld('ca-fim','Fim da vigência',f.vig_fim,'date')}
-        ${fld('ca-prem','Prêmio anual (R$)',premAnual===''?'':String(premAnual),'number')}${fld('ca-cap','Capital / cobertura (R$)',f.capital?String(f.capital):'','number')}
+        ${fld('ca-prem','Prêmio anual (R$)',premAnual===''?'':String(premAnual),'number')}
         ${fld('ca-com','Comissão (%)','','number')}
         <label class="fl"><span>Forma de pagamento</span><select id="ca-pag"><option value="">—</option><option>Boleto</option><option>Cartão de crédito</option><option>Débito em conta</option><option>Folha / desconto</option><option>Pix</option></select></label>
         ${fld('ca-vend','Quem vendeu / origem (ex.: Amanda, indicação da Carla)','','text',true)}
@@ -2466,7 +2505,7 @@ function caForm(file, f, found){
         <label class="fl"><span>Tipo de movimento</span><select id="ca-mov"><option value="nova">Nova</option><option value="renovacao">Renovação</option><option value="migracao">Migração de corretor</option></select></label>
         ${fld('ca-tom','Tomador / estipulante (PJ ou grupo)','')}
         ${fld('ca-benef','Beneficiários','','text',true)}
-      </div><div class="ql" style="margin-top:10px">Coberturas identificadas</div><div class="chks">${covs}</div>
+      </div><div class="ql" style="margin-top:10px">Coberturas e o valor de cada uma (R$)</div><div class="cv-grid">${covs}</div>
       <label class="fl full" style="margin-top:8px"><span>Observações</span><input id="ca-obs" type="text"></label></div>
       <div class="om-err" id="ca-err"></div></div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ca-save">Salvar apólice</button></div>`, true);
@@ -2480,6 +2519,7 @@ function caForm(file, f, found){
     const mv = box.querySelector('#ca-mov'); if(v==='nova') mv.value = 'nova'; };
   box.querySelector('#ca-vinc').addEventListener('change', e=>{ e.target.dataset.touched = '1'; });
   box.querySelectorAll('input[name="ca-tipo"]').forEach(r=>r.addEventListener('change', hint)); hint();
+  covValueBind(box, 'ca');
   let t; box.querySelector('#ca-busca-q').addEventListener('input', e=>{ clearTimeout(t); t = setTimeout(async ()=>{
     const q = e.target.value.trim(); if(q.length<2){ box.querySelector('#ca-busca-res').innerHTML=''; return; }
     const { data } = await sb.from('crm_pessoas').select('id,nome,cpf,crm').or(`nome.ilike.%${q}%,cpf.ilike.%${q}%,crm.ilike.%${q}%`).limit(8);
@@ -2521,11 +2561,13 @@ async function caSave(file, f){
     }
     const path = await docsUpload(file, tipo==='estudo'||tipo==='concorrente' ? 'estudos' : 'apolices');
     const covs = [...document.querySelectorAll('.ca-cov:checked')].map(c=>c.value);
+    const covVals = covValueCollect(document, 'ca');
+    const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
     const num = id=>{ const v = g(id); return v==='' ? null : Number(v); };
     if(tipo==='estudo' || tipo==='concorrente'){
       const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id:pessoaId, cliente_nome:f.nome||g('ca-n-nome')||null, cliente_cpf:f.cpf||g('ca-n-cpf')||null,
         seguradora_atual:g('ca-seg'), corretor_atual:g('ca-vend')||null, tipo_seguro:g('ca-prod'), numero_apolice:g('ca-num')||null,
-        vigencia_inicio:g('ca-ini')||null, vigencia_fim:g('ca-fim')||null, premio_anual:num('ca-prem'), capital_segurado:num('ca-cap'), coberturas_atuais:covs,
+        vigencia_inicio:g('ca-ini')||null, vigencia_fim:g('ca-fim')||null, premio_anual:num('ca-prem'), capital_segurado:capTotal, coberturas_atuais:covs, coberturas_valores:covVals,
         dados_extraidos:{origem:tipo, vinculo_comercial:g('ca-vinc'), movimento:g('ca-mov'), tomador:g('ca-tom')||null, beneficiarios:g('ca-benef')||null, contratacao:g('ca-contr'), pagamento:g('ca-pag')||null, extraido:f}, documento_path:path, observacoes:g('ca-obs')||null }).select('id').single();
       if(error) throw error;
       await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
@@ -2534,9 +2576,9 @@ async function caSave(file, f){
       return;
     }
     const { data: ap, error } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, numero_apolice:g('ca-num')||null, seguradora:g('ca-seg'), tipo_seguro:g('ca-prod'),
-      data_emissao:g('ca-ini')||null, data_vencimento:g('ca-fim')||null, valor_premio:num('ca-prem'), valor_cobertura:num('ca-cap'), status:g('ca-status'),
+      data_emissao:g('ca-ini')||null, data_vencimento:g('ca-fim')||null, valor_premio:num('ca-prem'), valor_cobertura:capTotal, status:g('ca-status'),
       observacoes:g('ca-obs')||null, arquivo_apolice:path, origem_apolice:tipo, tipo_contratacao:g('ca-contr'), comissao_pct:num('ca-com'), forma_pagamento:g('ca-pag')||null,
-      corretor_origem:g('ca-vend')||null, coberturas:covs, dados_extraidos:f, vinculo_comercial:g('ca-vinc'), tipo_movimento:g('ca-mov'), tomador:g('ca-tom')||null, beneficiarios:g('ca-benef')||null }).select('id').single();
+      corretor_origem:g('ca-vend')||null, coberturas:covs, coberturas_valores:covVals, dados_extraidos:f, vinculo_comercial:g('ca-vinc'), tipo_movimento:g('ca-mov'), tomador:g('ca-tom')||null, beneficiarios:g('ca-benef')||null }).select('id').single();
     if(error) throw error;
     await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
     OP.dirty = true; CA.loaded = false;
@@ -2556,10 +2598,29 @@ async function caSave(file, f){
 
 // ---------- ESTUDO (comparativo com nossas seguradoras) ----------
 const ES = { list:[], cat:[], open:null, cur:null, plant:null, filter:null };
-const ES_CORE = ['morte','ipa','invalidez_doenca','doencas_graves','dit'];
-const ES_OPT = ['funeral','renda','sucessao','previdencia','dih'];
+const ES_CORE = ['morte','morte_acidental','ipa','invalidez_doenca','doencas_graves','dit'];
+const ES_OPT = ['dih','cirurgias','fratura_ossea','funeral_individual','funeral_familiar','renda','sucessao'];
 const ES_STATUS = [['aberto','Aberto'],['analise','Em análise'],['proposta','Proposta enviada'],['fechado','Fechado'],['perdido','Perdido']];
 function covLabel(k){ return (DOCS_COVS.find(c=>c.k===k)||{l:k}).l; }
+function covValueRows(prefix, checkedKeys, valores){
+  checkedKeys = checkedKeys || []; valores = valores || {};
+  return DOCS_COVS.map(c=>{
+    const on = checkedKeys.includes(c.k); const v = valores[c.k];
+    return `<div class="cv-row"><label class="chk"><input type="checkbox" class="${prefix}-cov" value="${c.k}" ${on?'checked':''} title="${escapeHtml(c.d)}"> ${c.l}</label><input type="number" class="${prefix}-cov-val" data-k="${c.k}" placeholder="Valor (R$)" value="${v!=null?v:''}" ${on?'':'disabled'}></div>`;
+  }).join('');
+}
+function covValueBind(box, prefix){
+  box.querySelectorAll('.'+prefix+'-cov').forEach(cb=>cb.addEventListener('change', e=>{
+    const inp = box.querySelector(`.${prefix}-cov-val[data-k="${e.target.value}"]`); if(inp) inp.disabled = !e.target.checked;
+  }));
+}
+function covValueCollect(box, prefix){
+  const out = {}; box.querySelectorAll('.'+prefix+'-cov:checked').forEach(cb=>{
+    const inp = box.querySelector(`.${prefix}-cov-val[data-k="${cb.value}"]`); const v = inp && inp.value!=='' ? Number(inp.value) : null;
+    if(v!=null) out[cb.value] = v;
+  });
+  return out;
+}
 async function renderEstudos(){
   const host = document.getElementById('es-list'); host.innerHTML = '<div class="op-more">Carregando...</div>';
   if(!ES.cat.length){ const { data } = await sb.from('crm_catalogo_produtos').select('*').order('seguradora'); ES.cat = data||[]; }
@@ -2599,7 +2660,7 @@ async function esCreate(file, person){
     const prem = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : null;
     const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id: strong ? strong.id : null, cliente_nome: strong ? strong.nome : (f.nome||null), cliente_cpf:f.cpf||null,
       seguradora_atual:f.seguradora||null, tipo_seguro:f.tipo_seguro||null, numero_apolice:f.numero_apolice||null, vigencia_inicio:f.vig_ini||null, vigencia_fim:f.vig_fim||null,
-      premio_anual:prem, capital_segurado:f.capital||null, coberturas_atuais:f.coberturas||[], dados_extraidos:{origem:'estudo', extraido:f}, documento_path:path }).select('id').single();
+      premio_anual:prem, capital_segurado:f.capital||null, coberturas_atuais:f.coberturas||[], coberturas_valores:f.coberturas_valores||{}, dados_extraidos:{origem:'estudo', extraido:f}, documento_path:path }).select('id').single();
     if(error) throw error;
     if(path) await sb.from('crm_documentos').insert({pessoa_id: strong?strong.id:null, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
     dlgClose(); showEstudoView(strong?strong.id:null, data.id);
@@ -2637,15 +2698,15 @@ function esShow(e){
   const renda = pl && pl.valor_12m ? Number(pl.valor_12m) : null;
   const mult = renda && e.capital_segurado ? (e.capital_segurado/renda) : null;
   const cots = (e.cotacoes||{});
+  const evs = e.coberturas_valores||{};
   const covRows = ES_CORE.concat(ES_OPT).map(k=>{
-    const has = a.have.has(k); const cand = ES.cat.filter(p=>(p.coberturas||[]).includes(k));
-    return `<tr class="${has?'ok':(ES_CORE.includes(k)?'gap':'opt')}"><td>${covLabel(k)}${ES_CORE.includes(k)?'':' <small>(complementar)</small>'}</td><td>${has?'✅ tem':'— não tem'}</td><td>${has?'':(cand.length?cand.map(p=>`${escapeHtml(p.seguradora)} <small>(${escapeHtml(p.produto)})</small>`).join('<br>'):'<i>sem produto no catálogo ainda</i>')}</td></tr>`; }).join('');
+    const has = a.have.has(k); const v = evs[k];
+    return `<tr class="${has?'ok':(ES_CORE.includes(k)?'gap':'opt')}"><td>${covLabel(k)}${ES_CORE.includes(k)?'':' <small>(complementar)</small>'}</td><td>${has?'✅ tem'+(v!=null?' · '+fmtMoney(v):''):'— não tem'}</td><td><small>${has?'':escapeHtml(covProtect(k))}</small></td></tr>`; }).join('');
   const rankRows = a.rank.filter(r=>r.total>0).slice(0,6).map((r,i)=>{
     const cot = cots[r.seg] ?? '';
     const eco = (cot!=='' && e.premio_anual) ? (e.premio_anual - Number(cot)) : null;
     return `<tr><td><b>${i+1}. ${escapeHtml(r.seg)}</b></td><td>${r.core}/${a.missCore.length} essenciais${a.missOpt.length?` + ${r.total-r.core} compl.`:''}</td><td><small>${[...r.cov.entries()].map(([c,p])=>covLabel(c)+' → '+escapeHtml(p.produto)).join('<br>')}</small></td><td><input class="cot" data-seg="${escapeHtml(r.seg)}" type="number" placeholder="prêmio anual cotado" value="${cot}"></td><td>${eco===null?'—':`<b style="color:${eco>=0?'var(--green)':'var(--red)'}">${eco>=0?'−':'+'}${fmtMoney(Math.abs(eco))}</b>`}</td></tr>`; }).join('');
   const janela = dias===null ? '<span class="tagx">informe a vigência</span>' : dias<0 ? '<span class="tagx bad">vencida há '+(-dias)+' dias</span>' : dias<=60 ? '<span class="tagx warn">janela de oferta aberta — vence em '+dias+' dias</span>' : '<span class="tagx">vence em '+dias+' dias — abordar a partir de '+opFmt(new Date(new Date(e.vigencia_fim).getTime()-60*86400000))+'</span>';
-  const covChips = DOCS_COVS.map(c=>`<label class="chk"><input type="checkbox" class="es-cov" value="${c.k}" ${a.have.has(c.k)?'checked':''}> ${c.l}</label>`).join('');
   document.getElementById('es-detail').innerHTML = `
     <div class="es-head"><div><h2>${escapeHtml(e.cliente_nome||'Estudo sem cliente')}</h2><div class="sub">${janela}${e.documento_path?` · <a href="#" id="es-file-open">📎 ver apólice atual</a>`:''}</div></div>
       <select id="es-status">${ES_STATUS.map(s=>`<option value="${s[0]}" ${e.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></div>
@@ -2655,10 +2716,10 @@ function esShow(e){
       ${renda?`<div class="hint">Renda com a CallMed nos últimos 12 meses: <b>${fmtMoney(renda)}</b> (${pl.meses_12m||0} meses ativos)${mult!==null?` · capital atual = <b>${mult.toFixed(1)}× a renda anual</b> <small>(referência prática de mercado: 5 a 10×)</small>`:''}</div>`:''}</div>
     <div class="es-box"><div class="ql">Apólice atual (outro corretor)</div><div class="fgrid">
       ${fld('es-seg','Seguradora atual',e.seguradora_atual)}${fld('es-cor','Corretor atual',e.corretor_atual)}${fld('es-tipo','Produto',e.tipo_seguro)}${fld('es-num','Nº da apólice',e.numero_apolice)}
-      ${fld('es-ini','Início',e.vigencia_inicio,'date')}${fld('es-fim','Fim',e.vigencia_fim,'date')}${fld('es-prem','Prêmio anual (R$)',e.premio_anual===null?'':String(e.premio_anual),'number')}${fld('es-cap','Capital segurado (R$)',e.capital_segurado===null?'':String(e.capital_segurado),'number')}</div>
-      <div class="ql" style="margin-top:10px">Coberturas da apólice atual</div><div class="chks">${covChips}</div></div>
+      ${fld('es-ini','Início',e.vigencia_inicio,'date')}${fld('es-fim','Fim',e.vigencia_fim,'date')}${fld('es-prem','Prêmio anual (R$)',e.premio_anual===null?'':String(e.premio_anual),'number')}</div>
+      <div class="ql" style="margin-top:10px">Coberturas e o valor de cada uma (R$)</div><div class="cv-grid">${covValueRows('es', [...a.have], e.coberturas_valores||{})}</div></div>
     <div class="es-box"><div class="ql">Lacunas × o que temos no catálogo</div>
-      <table class="ca-table es-cov-t"><thead><tr><th>Cobertura</th><th>Hoje</th><th>Quem cobre entre as nossas seguradoras</th></tr></thead><tbody>${covRows}</tbody></table>
+      <table class="ca-table es-cov-t"><thead><tr><th>Cobertura</th><th>Hoje</th><th>O que a cobertura protege</th></tr></thead><tbody>${covRows}</tbody></table>
       <div class="hint">Base: nomes/condições gerais catalogadas em Seguradoras\\catalogo-seguradoras.md. Confirme sempre a cobertura exata na condição geral antes de ofertar.</div></div>
     <div class="es-box"><div class="ql">Recomendação</div>
       ${a.combo.length?`<div class="reco"><b>Combinação mínima que fecha as lacunas:</b><br>${a.combo.map(p=>`• <b>${escapeHtml(p.seguradora)}</b> — ${escapeHtml(p.produto)} <small>(${(p.coberturas||[]).map(covLabel).join(', ')}; ${escapeHtml(p.modalidade||'')})</small>`).join('<br>')}${a.semProduto.length?`<br><span class="tagx warn">Sem produto catalogado para: ${a.semProduto.map(covLabel).join(', ')}</span>`:''}</div>`:'<div class="hint">A apólice atual já cobre tudo o que o catálogo oferece.</div>'}
@@ -2679,6 +2740,7 @@ function esShow(e){
     $('es-busca-res').querySelectorAll('.es-pick').forEach(d=>d.addEventListener('click', async ()=>{ await sb.from('crm_estudos').update({pessoa_id:d.dataset.id, cliente_nome:d.dataset.nome}).eq('id',e.id); showToast('Estudo vinculado'); renderEstudos(); }));
   },250); }); }
   document.querySelectorAll('#es-detail .cot').forEach(i=>i.addEventListener('change', ()=> esRecalcCot()));
+  covValueBind(document.getElementById('es-detail'), 'es');
   document.querySelectorAll('#es-detail .es-cov').forEach(i=>i.addEventListener('change', async ()=>{ await esSave(true); }));
   $('es-parecer').addEventListener('click', ()=>{ $('es-obs').value = esParecer(esCollect(), esAnalise(esCollect())); });
   $('es-save').addEventListener('click', ()=>esSave(false));
@@ -2690,15 +2752,17 @@ function esShow(e){
 function esCollect(){
   const g = id=>document.getElementById(id).value.trim(); const n = id=> g(id)===''?null:Number(g(id));
   const cots = {}; document.querySelectorAll('#es-detail .cot').forEach(i=>{ if(i.value!=='') cots[i.dataset.seg] = Number(i.value); });
+  const covVals = covValueCollect(document.getElementById('es-detail'), 'es');
+  const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
   return { ...ES.cur, seguradora_atual:g('es-seg')||null, corretor_atual:g('es-cor')||null, tipo_seguro:g('es-tipo')||null, numero_apolice:g('es-num')||null,
-    vigencia_inicio:g('es-ini')||null, vigencia_fim:g('es-fim')||null, premio_anual:n('es-prem'), capital_segurado:n('es-cap'),
-    coberturas_atuais:[...document.querySelectorAll('#es-detail .es-cov:checked')].map(c=>c.value), cotacoes:cots, status:document.getElementById('es-status').value, observacoes:g('es-obs')||null };
+    vigencia_inicio:g('es-ini')||null, vigencia_fim:g('es-fim')||null, premio_anual:n('es-prem'), capital_segurado:capTotal,
+    coberturas_atuais:[...document.querySelectorAll('#es-detail .es-cov:checked')].map(c=>c.value), coberturas_valores:covVals, cotacoes:cots, status:document.getElementById('es-status').value, observacoes:g('es-obs')||null };
 }
 function esRecalcCot(){ ES.cur = esCollect(); esShow(ES.cur); }
 async function esSave(silent){
   const e = esCollect();
   const { error } = await sb.from('crm_estudos').update({ seguradora_atual:e.seguradora_atual, corretor_atual:e.corretor_atual, tipo_seguro:e.tipo_seguro, numero_apolice:e.numero_apolice,
-    vigencia_inicio:e.vigencia_inicio, vigencia_fim:e.vigencia_fim, premio_anual:e.premio_anual, capital_segurado:e.capital_segurado, coberturas_atuais:e.coberturas_atuais,
+    vigencia_inicio:e.vigencia_inicio, vigencia_fim:e.vigencia_fim, premio_anual:e.premio_anual, capital_segurado:e.capital_segurado, coberturas_atuais:e.coberturas_atuais, coberturas_valores:e.coberturas_valores,
     cotacoes:e.cotacoes, status:e.status, observacoes:e.observacoes, analise:{gerado_em:new Date().toISOString(), lacunas:esAnalise(e).missCore}, updated_at:new Date().toISOString() }).eq('id', e.id);
   if(error){ showToast('Erro: '+error.message); return; }
   if(!silent) showToast('Estudo salvo');
@@ -2709,7 +2773,7 @@ function esParecer(e, a){
   L.push(`ESTUDO DE APÓLICE — ${e.cliente_nome||'cliente'}`);
   L.push(`Apólice atual: ${e.tipo_seguro||'—'} · ${e.seguradora_atual||'—'}${e.corretor_atual?' (corretor '+e.corretor_atual+')':''}${e.numero_apolice?' · nº '+e.numero_apolice:''}`);
   L.push(`Vigência: ${opFmt(opD(e.vigencia_inicio))||'—'} a ${opFmt(opD(e.vigencia_fim))||'—'} · Prêmio anual: ${fmtMoney(e.premio_anual)} · Capital: ${fmtMoney(e.capital_segurado)}`);
-  L.push(`Coberturas atuais: ${(e.coberturas_atuais||[]).map(covLabel).join(', ')||'não identificadas'}`);
+  L.push(`Coberturas atuais: ${(e.coberturas_atuais||[]).map(k=>{ const v=(e.coberturas_valores||{})[k]; return covLabel(k)+(v!=null?' ('+fmtMoney(v)+')':''); }).join(', ')||'não identificadas'}`);
   L.push(`Lacunas essenciais: ${a.missCore.map(covLabel).join(', ')||'nenhuma'}`);
   if(a.missOpt.length) L.push(`Coberturas complementares ausentes: ${a.missOpt.map(covLabel).join(', ')}`);
   if(a.combo.length) L.push(`Sugestão: ${a.combo.map(p=>p.seguradora+' — '+p.produto).join('; ')}.`);
