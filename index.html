@@ -2803,6 +2803,101 @@ function esAnalise(e){
   return {have, missCore, missOpt, rank, combo, semProduto:[...remaining]};
 }
 
+
+// ---------- ANÁLISE COMPLETA — régua de cálculo por cobertura (backend) + PDF ----------
+// Fórmulas com base no resumo de 22/09 (Amanda): Morte por representatividade de renda + educação
+// dos filhos; Sucessão por inventário (ITCMD+cartório+advogado); Invalidez por capitalização da renda;
+// Doenças Graves por meses de renda; Diárias (DIT/DIH) por renda/30; Cirurgias/Fratura/Funeral fixos;
+// não duplica Morte+Sucessão nem Invalidez por Acidente+Doença no total (usa o maior dos dois).
+const MODULO_COVS = { sucessao:['sucessao'], familia:['renda'], doencas_graves:['doencas_graves'], cirurgias:['cirurgias','fratura_ossea'],
+  dih:['dih'], invalidez:['ipa','invalidez_doenca'], dit:['dit'], funeral:['funeral_individual','funeral_familiar'] };
+let CALC_PARAMS = null;
+async function ensureCalcParams(){
+  if(CALC_PARAMS) return CALC_PARAMS;
+  const { data } = await sb.from('crm_parametros_calculo').select('*');
+  CALC_PARAMS = {}; (data||[]).forEach(r=>CALC_PARAMS[r.chave]=Number(r.valor));
+  return CALC_PARAMS;
+}
+function calcCoverageCapital(key, e, P){
+  const renda = Number(e.renda_mensal)||0, patrimonio = Number(e.patrimonio_bruto)||0;
+  const taxa = (P.taxa_juros_mensal||0.7)/100, fator = (P.fator_multiplicador_pct||100)/100;
+  const txJuros = P.taxa_juros_mensal||0.7, txFator = P.fator_multiplicador_pct||100;
+  if(key==='morte'){
+    const perp = taxa>0 ? renda/taxa : 0;
+    const educ = (e.dependentes||[]).reduce((t,d)=>{ const custo=Number(d.custo_educacao)||0, idade=d.idade!=null?Number(d.idade):null; if(!custo) return t; const meses=(idade!=null&&idade<18)?(18-idade)*12:0; return t+custo*meses; },0);
+    return {valor:perp+educ, texto:`Renda capitalizada a ${txJuros}% a.m. (${fmtMoney(perp)}) + educação dos dependentes até 18 anos (${fmtMoney(educ)}).`};
+  }
+  if(key==='sucessao'){
+    const pct=(P.sucessao_itcmd_pct||0)+(P.sucessao_cartorio_pct||0)+(P.sucessao_advogado_pct||0);
+    return {valor:patrimonio*pct/100, texto:`${pct.toFixed(1)}% do patrimônio bruto (ITCMD ${P.sucessao_itcmd_pct||0}% + cartório ${P.sucessao_cartorio_pct||0}% + honorários ${P.sucessao_advogado_pct||0}%), referência para custos de inventário.`};
+  }
+  if(key==='ipa' || key==='invalidez_doenca'){
+    return {valor:(taxa>0?renda/taxa:0)*fator, texto:`Renda capitalizada a ${txJuros}% a.m., com fator multiplicador de ${txFator}%.`};
+  }
+  if(key==='doencas_graves'){
+    return {valor:renda*(P.doencas_graves_meses||24)*fator, texto:`${P.doencas_graves_meses||24} meses de renda, com fator multiplicador de ${txFator}%.`};
+  }
+  if(key==='cirurgias') return {valor:P.cirurgias_valor_fixo||0, texto:'Valor fixo de referência para procedimento cirúrgico coberto.'};
+  if(key==='fratura_ossea') return {valor:P.fratura_ossea_valor_fixo||0, texto:'Valor fixo de referência para fratura óssea decorrente de acidente.'};
+  if(key==='funeral_individual') return {valor:P.funeral_individual_valor||0, texto:'Valor fixo de referência para assistência funeral individual.'};
+  if(key==='funeral_familiar') return {valor:P.funeral_familiar_valor||0, texto:'Valor fixo de referência para assistência funeral familiar (cônjuge e filhos).'};
+  if(key==='renda') return {valor:taxa>0?renda/taxa:0, texto:`Renda capitalizada a ${txJuros}% a.m. para manter o padrão de vida da família.`};
+  if(key==='dit' || key==='dih') return {valor:renda/30, texto:'Renda mensal dividida por 30 dias — valor de diária sugerido.', diaria:true};
+  return {valor:0, texto:''};
+}
+function calcAnaliseCompleta(e, P){
+  const mods = e.modulos_visiveis||{};
+  const keys = ['morte']; Object.entries(MODULO_COVS).forEach(([m,covs])=>{ if(mods[m]!==false) covs.forEach(c=>{ if(!keys.includes(c)) keys.push(c); }); });
+  const rows = keys.map(k=>{ const c = calcCoverageCapital(k, e, P); return {key:k, label:covLabel(k), texto:c.texto, valor:c.valor, diaria:!!c.diaria}; });
+  const overlapGroups = [['morte','sucessao'],['ipa','invalidez_doenca']];
+  let total = 0; const counted = new Set();
+  overlapGroups.forEach(g=>{ const present = rows.filter(r=>!r.diaria && g.includes(r.key)); if(present.length){ total += Math.max(...present.map(r=>r.valor)); present.forEach(r=>counted.add(r.key)); } });
+  rows.forEach(r=>{ if(!r.diaria && !counted.has(r.key)) total += r.valor; });
+  return {rows, total};
+}
+function esAnaliseBoxHtml(){
+  return `<div class="es-box"><div class="ql">Análise Completa — capital sugerido por cobertura</div><div id="ac-result"><button class="om-save" id="ac-gerar">Gerar Análise Completa</button></div></div>`;
+}
+function esBindAnaliseBox(){
+  const btn = document.getElementById('ac-gerar'); if(!btn) return;
+  btn.addEventListener('click', async ()=>{
+    btn.disabled = true; btn.textContent = 'Calculando...';
+    const P = await ensureCalcParams(); const e = esCollect(); const calc = calcAnaliseCompleta(e, P);
+    document.getElementById('ac-result').innerHTML = `<table class="ca-table"><thead><tr><th>Cobertura</th><th>Sugestão</th><th>Como foi calculado</th></tr></thead><tbody>${calc.rows.map(r=>`<tr><td>${escapeHtml(r.label)}</td><td><b>${r.diaria?fmtMoney(r.valor)+'/dia':fmtMoney(r.valor)}</b></td><td><small>${escapeHtml(r.texto)}</small></td></tr>`).join('')}</tbody></table>
+      <div class="hint" style="margin-top:8px">Capital total sugerido (sem somar Morte+Sucessão nem Invalidez por Acidente+Doença — usa o maior dos dois): <b>${fmtMoney(calc.total)}</b></div>
+      <div style="margin-top:10px"><button class="om-cancel" id="ac-pdf">⬇ Exportar PDF da Análise</button></div>`;
+    document.getElementById('ac-pdf').addEventListener('click', ()=> exportAnaliseCompletaPDF(esCollect(), calcAnaliseCompleta(esCollect(), P)));
+  });
+}
+function exportAnaliseCompletaPDF(e, calc){
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const depsTxt = (e.dependentes||[]).filter(d=>d.nome).map(d=>d.nome+(d.idade!=null?' ('+d.idade+' anos)':'')).join(', ');
+  const imc = imcInfo(e.altura_cm, e.peso_kg);
+  const html = `<div class="pr-page">
+      <div class="pr-header"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><span class="pr-tag">Análise de Necessidade de Proteção</span></div>
+      <h1 class="pr-title">Análise Completa de Proteção Patrimonial</h1>
+      <p class="pr-sub">Preparado para <b>${escapeHtml(e.cliente_nome||'cliente')}</b> em ${hoje}. Este material reúne uma sugestão de capital ideal por cobertura, com base no perfil financeiro e familiar informado, para apoiar a decisão sobre a proteção adequada — sem compromisso e sujeito à análise de subscrição de cada seguradora.</p>
+      <p class="pr-section-title">Dados considerados</p>
+      <div class="pr-cols">
+        <div class="pr-box"><h4>Perfil</h4><ul>
+          <li>Renda mensal: ${fmtMoney(e.renda_mensal)}</li><li>Gastos mensais: ${fmtMoney(e.gastos_mensais)}</li>
+          <li>Patrimônio bruto: ${fmtMoney(e.patrimonio_bruto)}</li><li>Patrimônio financeiro: ${fmtMoney(e.patrimonio_financeiro)}</li>
+          ${depsTxt?`<li>Dependentes: ${escapeHtml(depsTxt)}</li>`:'<li>Sem dependentes informados</li>'}
+        </ul></div>
+        <div class="pr-box"><h4>Saúde</h4><ul>
+          <li>IMC: ${imc?imc.imc+' ('+imc.label+')':'não informado'}</li>
+          <li>Fumante: ${e.fumante?'Sim':'Não'}</li>
+          <li>Fator de atenção: ${e.comorbidade?('Sim'+(e.comorbidade_obs?' — '+escapeHtml(e.comorbidade_obs):'')):'Não'}</li>
+        </ul></div>
+      </div>
+      <p class="pr-section-title">Capital sugerido por cobertura</p>
+      ${calc.rows.map(r=>`<div class="pr-box" style="margin-bottom:10px"><h4>${escapeHtml(r.label)} — <span style="color:#0018FC">${r.diaria?fmtMoney(r.valor)+'/dia':fmtMoney(r.valor)}</span></h4><p style="font-size:11.5px;color:#565c6e;margin:4px 0">${escapeHtml(covProtect(r.key))}</p><p style="font-size:10.5px;color:#8990a3;margin:0">Cálculo: ${escapeHtml(r.texto)}</p></div>`).join('')}
+      <div class="pr-box" style="border-top:4px solid #0018FC"><h4>Capital total sugerido</h4><p style="font-size:22px;font-weight:800;color:#0018FC;margin:2px 0">${fmtMoney(calc.total)}</p><p style="font-size:10.5px;color:#8990a3;margin:6px 0 0">Não soma Morte com Sucessão, nem Invalidez por Acidente com Invalidez por Doença — nesses casos considera o maior valor entre as duas coberturas.</p></div>
+      <div class="pr-footer"><span>CallMed Proteção Patrimonial — análise gerada pelo CallMed CRM Aliança</span><span>Gerado em ${hoje}</span></div>
+    </div>`;
+  document.getElementById('print-report').innerHTML = html;
+  setTimeout(()=>window.print(), 80);
+}
 function esShow(e){
   ES.cur = e; const a = esAnalise(e);
   const dias = e.vigencia_fim ? Math.round((new Date(e.vigencia_fim)-new Date())/86400000) : null;
@@ -2839,6 +2934,7 @@ function esShow(e){
       <div class="ql" style="margin-top:12px">Ranking por seguradora + cotações</div>
       <table class="ca-table"><thead><tr><th>Seguradora</th><th>Fecha</th><th>Como</th><th>Cotação (R$/ano)</th><th>vs. atual</th></tr></thead><tbody>${rankRows||'<tr><td colspan="5">Sem lacunas cobertas pelo catálogo.</td></tr>'}</tbody></table>
       <div class="hint">O catálogo ainda não tem tabela de preços — lance aqui as cotações que você tirar em cada seguradora para ver a economia real frente ao prêmio atual.</div></div>
+    ${esAnaliseBoxHtml()}
     <div class="es-box"><div class="ql">Parecer / observações</div><textarea id="es-obs" rows="5">${escapeHtml(e.observacoes||'')}</textarea>
       <div class="es-actions"><button class="om-cancel" id="es-parecer">Gerar parecer automático</button><span style="flex:1"></span><button class="om-save" id="es-save">Salvar estudo</button></div></div>`;
   const $ = id=>document.getElementById(id);
@@ -2847,6 +2943,7 @@ function esShow(e){
   if($('es-unlink')) $('es-unlink').addEventListener('click', async ev=>{ ev.preventDefault(); await sb.from('crm_estudos').update({pessoa_id:null}).eq('id',e.id); renderEstudos(); });
   if($('es-newp')) $('es-newp').addEventListener('click', ()=> openNovoCliente({nome:e.cliente_nome, cpf:e.cliente_cpf}, async p=>{ await sb.from('crm_estudos').update({pessoa_id:p.id, cliente_nome:p.nome}).eq('id',e.id); renderEstudos(); }));
   adnBind();
+  esBindAnaliseBox();
   if($('es-busca')){ let t; $('es-busca').addEventListener('input', ev=>{ clearTimeout(t); t = setTimeout(async ()=>{
     const q = ev.target.value.trim(); if(q.length<2){ $('es-busca-res').innerHTML=''; return; }
     const { data } = await sb.from('crm_pessoas').select('id,nome,cpf,crm').or(`nome.ilike.%${q}%,cpf.ilike.%${q}%,crm.ilike.%${q}%`).limit(8);
