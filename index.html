@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0018fc">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
-<title>CRM — CallMed Proteção Patrimonial</title>
+<title>CallMed CRM Aliança</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -180,7 +180,7 @@
 <div id="login-screen">
   <div class="login-card">
     <img class="logo" src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial">
-    <div class="sub" style="margin-top:-10px;">CRM — Acesso restrito — Luiz e Amanda.</div>
+    <div class="sub" style="margin-top:-10px;">CallMed CRM Aliança — acesso restrito — Luiz e Amanda.</div>
     <div class="field"><label>Email</label><input id="login-email" type="email" autocomplete="username"></div>
     <div class="field"><label>Senha</label><input id="login-pass" type="password" autocomplete="current-password"></div>
     <button class="btn btn-primary" id="btn-login">Entrar</button>
@@ -540,6 +540,13 @@
   .cv-row{ display:flex; align-items:center; gap:8px; font-size:12.5px; padding:2px 0;} .cv-row .chk{ flex:1; min-width:0;}
   .cv-row input[type=number]{ width:108px; border:1px solid var(--border); border-radius:6px; padding:4px 7px; font-size:12px;}
   .cv-row input[type=number]:disabled{ background:var(--surface-2); color:var(--ink-faint);}
+  .es-warn{ background:var(--amber-soft); border:1px solid var(--amber-line); border-radius:var(--radius-sm); padding:8px 12px; font-size:12.5px;}
+  .tgl-grid{ display:flex; flex-wrap:wrap; gap:10px 18px; margin-top:6px;}
+  .tgl{ display:flex; align-items:center; gap:8px; font-size:12.5px; cursor:pointer;}
+  .tgl input{ display:none;}
+  .tgl-track{ width:34px; height:19px; border-radius:99px; background:var(--border); position:relative; transition:background .15s; flex:none;}
+  .tgl-thumb{ position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:left .15s;}
+  .tgl input:checked + .tgl-track{ background:var(--brand);} .tgl input:checked + .tgl-track .tgl-thumb{ left:17px;}
   .person-actions{ display:flex; gap:10px; margin:14px 0;}
   .pl-tag{ color:var(--ink-faint);} .pl-tag.hot{ color:var(--green); font-weight:600;} .pl-tag.warm{ color:var(--amber-ink); font-weight:600;}
   #sg-text{ width:100%; border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 12px; font-size:14px; font-family:inherit; resize:vertical;}
@@ -2668,6 +2675,111 @@ async function esCreate(file, person){
   }catch(e){ box.querySelector('.dlg-body').innerHTML = '<div class="om-err">Erro: '+escapeHtml(e.message||e)+'</div>'; }
 }
 
+
+// ---------- ADN — Análise da Necessidade (dentro do Novo Estudo) ----------
+const MODULOS_ADN = [['sucessao','Sucessão'],['familia','Proteção Familiar'],['doencas_graves','Doenças Graves'],['cirurgias','Cirurgias'],['dih','Diária de Internação'],['invalidez','Invalidez'],['dit','Incapacidade Temporária'],['funeral','Assistência Funeral']];
+function imcInfo(alturaCm, pesoKg){
+  if(!alturaCm || !pesoKg) return null;
+  const m = alturaCm/100; const imc = pesoKg/(m*m);
+  let label, color;
+  if(imc<18.5){label='Abaixo do peso'; color='var(--amber-ink)';}
+  else if(imc<25){label='Peso normal'; color='var(--green)';}
+  else if(imc<30){label='Sobrepeso'; color='var(--amber-ink)';}
+  else if(imc<35){label='Obesidade grau 1'; color='var(--red)';}
+  else if(imc<40){label='Obesidade grau 2'; color='var(--red)';}
+  else {label='Obesidade grau 3'; color='var(--red)';}
+  return {imc:imc.toFixed(1), label, color};
+}
+function adnDepRows(qtd, deps){
+  deps = deps || []; let html = '';
+  for(let i=0;i<qtd;i++){ const d = deps[i]||{};
+    html += `<div class="cv-row" style="gap:8px"><input class="adn-dep-nome" data-i="${i}" placeholder="Nome do dependente" value="${escapeHtml(d.nome||'')}" style="flex:1.4;min-width:0"><input class="adn-dep-idade" data-i="${i}" type="number" placeholder="Idade" value="${d.idade!=null?d.idade:''}" style="width:70px"><input class="adn-dep-custo" data-i="${i}" type="number" placeholder="Educação R$/mês" value="${d.custo_educacao!=null?d.custo_educacao:''}" style="width:140px"></div>`; }
+  return html;
+}
+function adnCollectDeps(box, qtd){
+  const out = [];
+  for(let i=0;i<qtd;i++){
+    const nome = box.querySelector(`.adn-dep-nome[data-i="${i}"]`)?.value.trim() || '';
+    const idadeEl = box.querySelector(`.adn-dep-idade[data-i="${i}"]`); const custoEl = box.querySelector(`.adn-dep-custo[data-i="${i}"]`);
+    out.push({ nome, idade: idadeEl && idadeEl.value!=='' ? Number(idadeEl.value) : null, custo_educacao: custoEl && custoEl.value!=='' ? Number(custoEl.value) : null });
+  }
+  return out;
+}
+function adnRenderDeps(){
+  const box = document.getElementById('es-detail'); if(!box) return;
+  const qtd = parseInt(document.getElementById('adn-dep-qtd').value,10)||0;
+  const cur = adnCollectDeps(box, (ES.cur.dependentes||[]).length);
+  document.getElementById('adn-dep-rows').innerHTML = adnDepRows(qtd, cur.length?cur:(ES.cur.dependentes||[]));
+  adnUpdateEducTotal();
+}
+function adnUpdateEducTotal(){
+  const box = document.getElementById('es-detail'); if(!box) return;
+  let total = 0; box.querySelectorAll('.adn-dep-custo').forEach(i=>{ if(i.value!=='') total += Number(i.value); });
+  const el = document.getElementById('adn-educ-total'); if(el) el.textContent = total ? 'Total educação: '+fmtMoney(total)+'/mês' : '';
+}
+function adnUpdateImc(){
+  const box = document.getElementById('es-detail'); if(!box) return;
+  const alt = Number(document.getElementById('adn-altura').value)||0, peso = Number(document.getElementById('adn-peso').value)||0;
+  const info = imcInfo(alt, peso); const el = document.getElementById('adn-imc-box');
+  el.innerHTML = info ? `IMC: <b>${info.imc}</b> <span class="tagx" style="background:transparent;border:1px solid ${info.color};color:${info.color}">${info.label}</span>` : '';
+}
+function adnUpdateFatores(){
+  const box = document.getElementById('es-detail'); if(!box) return;
+  const fuma = document.getElementById('adn-fuma').checked, com = document.getElementById('adn-comorb').checked;
+  document.getElementById('adn-comorb-obs-wrap').style.display = com ? 'block' : 'none';
+  const list = []; if(fuma) list.push('Fumante'); if(com){ const o = document.getElementById('adn-comorb-obs').value.trim(); list.push('Comorbidade'+(o?': '+escapeHtml(o):' (diabetes, pressão alta ou outra)')); }
+  const el = document.getElementById('adn-fatores-box');
+  el.innerHTML = list.length ? `<div class="es-warn">⚠️ <b>Fatores de atenção:</b> ${list.map(x=>'<span class="tagx warn" style="margin-right:4px">'+x+'</span>').join('')}</div>` : '';
+}
+function adnHtml(e){
+  const deps = e.dependentes||[]; const qtd = e.dependentes_qtd!=null ? e.dependentes_qtd : deps.length;
+  const info = imcInfo(e.altura_cm, e.peso_kg);
+  const modChecks = MODULOS_ADN.map(([k,l])=>`<label class="tgl"><input type="checkbox" class="adn-mod" data-k="${k}" ${((e.modulos_visiveis||{})[k]!==false)?'checked':''}><span class="tgl-track"><span class="tgl-thumb"></span></span><span class="tgl-lbl">${l}</span></label>`).join('');
+  return `<div class="es-box"><div class="ql">ADN — Análise da Necessidade</div>
+    <div class="hint" style="margin-bottom:10px">Monte o ADN mesmo sem apólice atual — os dados abaixo são a base do estudo. A categoria e o status (Frio/Quente/Call Hot) vêm do cadastro do cliente.</div>
+    ${e.pessoa_id ? `<div class="hint" style="margin-bottom:10px">Categoria: <b>${escapeHtml(ES.cur._pessoaOrigem||'—')}</b> · Status: <b>${escapeHtml(ES.cur._pessoaClass||'—')}</b> · <a href="#" id="es-open-p2">editar no cadastro</a></div>` : ''}
+    <div class="fgrid">
+      <label class="fl"><span>Estado civil</span><select id="adn-ecivil"><option value="">—</option>${['Solteiro(a)','Casado(a)','União estável','Divorciado(a)','Viúvo(a)'].map(o=>`<option ${e.estado_civil===o?'selected':''}>${o}</option>`).join('')}</select></label>
+      <label class="fl"><span>Gênero</span><select id="adn-sexo"><option value="">—</option><option value="M" ${e.sexo==='M'?'selected':''}>Masculino</option><option value="F" ${e.sexo==='F'?'selected':''}>Feminino</option></select></label>
+      ${fld('adn-nasc','Data de nascimento',e.data_nascimento,'date')}${fld('adn-prof','Profissão (opcional)',e.profissao)}
+      <label class="fl"><span>Dependentes</span><select id="adn-dep-qtd">${Array.from({length:11},(_,i)=>i).map(n=>`<option value="${n}" ${qtd===n?'selected':''}>${n} dependente${n===1?'':'s'}</option>`).join('')}</select></label>
+      <div></div>
+    </div>
+    <div id="adn-dep-rows" style="margin-top:6px;display:flex;flex-direction:column;gap:4px">${adnDepRows(qtd, deps)}</div>
+    <div id="adn-educ-total" class="hint" style="margin-top:4px"></div>
+    <div class="fgrid" style="margin-top:12px">
+      ${fld('adn-renda','Renda mensal (R$)',e.renda_mensal,'number')}${fld('adn-gastos','Gastos mensais (R$)',e.gastos_mensais,'number')}
+      ${fld('adn-patbruto','Patrimônio bruto (R$)',e.patrimonio_bruto,'number')}${fld('adn-patfin','Patrimônio financeiro (R$)',e.patrimonio_financeiro,'number')}
+      ${fld('adn-altura','Altura (cm)',e.altura_cm,'number')}${fld('adn-peso','Peso (kg)',e.peso_kg,'number')}
+    </div>
+    <div id="adn-imc-box" style="margin-top:6px;font-size:13px">${info?`IMC: <b>${info.imc}</b> <span class="tagx" style="background:transparent;border:1px solid ${info.color};color:${info.color}">${info.label}</span>`:''}</div>
+    <div class="ql" style="margin-top:14px">Fatores de saúde</div>
+    <label class="chk"><input type="checkbox" id="adn-fuma" ${e.fumante?'checked':''}> Fumou nos últimos 12 meses</label>
+    <label class="chk" style="margin-left:14px"><input type="checkbox" id="adn-comorb" ${e.comorbidade?'checked':''}> Diabetes, pressão alta ou outro fator de saúde</label>
+    <div id="adn-comorb-obs-wrap" style="display:${e.comorbidade?'block':'none'};margin-top:6px">${fld('adn-comorb-obs','Qual(is)',e.comorbidade_obs,'text',true)}</div>
+    <div id="adn-fatores-box" style="margin-top:8px"></div>
+    <div class="ql" style="margin-top:14px">Módulos incluídos na análise</div>
+    <div class="tgl-grid">${modChecks}</div>
+  </div>`;
+}
+function adnBind(){
+  const box = document.getElementById('es-detail');
+  document.getElementById('adn-dep-qtd').addEventListener('change', adnRenderDeps);
+  box.addEventListener('input', e=>{ if(e.target.classList.contains('adn-dep-custo')) adnUpdateEducTotal(); if(e.target.id==='adn-altura'||e.target.id==='adn-peso') adnUpdateImc(); if(e.target.id==='adn-comorb-obs') adnUpdateFatores(); });
+  document.getElementById('adn-fuma').addEventListener('change', adnUpdateFatores);
+  document.getElementById('adn-comorb').addEventListener('change', adnUpdateFatores);
+  const p2 = document.getElementById('es-open-p2'); if(p2) p2.addEventListener('click', ev=>{ ev.preventDefault(); goToPersonView(ES.cur.pessoa_id); });
+  adnUpdateFatores();
+}
+function adnCollect(box){
+  const g = id=>document.getElementById(id).value.trim(); const n = id=> g(id)===''?null:Number(g(id));
+  const qtd = parseInt(document.getElementById('adn-dep-qtd').value,10)||0;
+  const mods = {}; box.querySelectorAll('.adn-mod').forEach(c=>{ mods[c.dataset.k] = c.checked; });
+  return { estado_civil:g('adn-ecivil')||null, sexo:document.getElementById('adn-sexo').value||null, data_nascimento:g('adn-nasc')||null, profissao:g('adn-prof')||null,
+    dependentes_qtd:qtd, dependentes:adnCollectDeps(box, qtd), renda_mensal:n('adn-renda'), gastos_mensais:n('adn-gastos'), patrimonio_bruto:n('adn-patbruto'), patrimonio_financeiro:n('adn-patfin'),
+    altura_cm:n('adn-altura'), peso_kg:n('adn-peso'), fumante:document.getElementById('adn-fuma').checked, comorbidade:document.getElementById('adn-comorb').checked, comorbidade_obs:g('adn-comorb-obs')||null,
+    modulos_visiveis:mods };
+}
 function esAnalise(e){
   const have = new Set(e.coberturas_atuais||[]);
   const missCore = ES_CORE.filter(k=>!have.has(k)), missOpt = ES_OPT.filter(k=>!have.has(k));
@@ -2711,10 +2823,11 @@ function esShow(e){
     <div class="es-head"><div><h2>${escapeHtml(e.cliente_nome||'Estudo sem cliente')}</h2><div class="sub">${janela}${e.documento_path?` · <a href="#" id="es-file-open">📎 ver apólice atual</a>`:''}</div></div>
       <select id="es-status">${ES_STATUS.map(s=>`<option value="${s[0]}" ${e.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></div>
     <div class="es-box"><div class="ql">Cliente</div>
-      ${e.pessoa_id?`<div>✓ Vinculado ao cadastro <a href="#" id="es-open-p">abrir cadastro completo</a> · <a href="#" id="es-unlink">desvincular</a></div>`:`<div class="hint">Este estudo ainda não está ligado a um cliente cadastrado.</div>
+      ${e.pessoa_id?`<div>✓ Vinculado ao cadastro <a href="#" id="es-open-p">abrir cadastro completo</a> · <a href="#" id="es-unlink">desvincular</a></div>`:`<div class="hint">Este estudo ainda não está ligado a um cliente cadastrado. Pode montar o ADN mesmo assim, e vincular ou criar o cadastro depois.</div>
         <div class="es-linkrow"><input id="es-busca" class="ca-inp" placeholder="Buscar cliente cadastrado (nome, CPF, CRM)..."><button class="om-cancel" id="es-newp">＋ Criar cadastro a partir do estudo</button></div><div id="es-busca-res"></div>`}
       ${renda?`<div class="hint">Renda com a CallMed nos últimos 12 meses: <b>${fmtMoney(renda)}</b> (${pl.meses_12m||0} meses ativos)${mult!==null?` · capital atual = <b>${mult.toFixed(1)}× a renda anual</b> <small>(referência prática de mercado: 5 a 10×)</small>`:''}</div>`:''}</div>
-    <div class="es-box"><div class="ql">Apólice atual (outro corretor)</div><div class="fgrid">
+    ${adnHtml(e)}
+    <div class="es-box"><div class="ql">Apólice atual (outro corretor) <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— opcional, se o cliente já tiver uma</small></div><div class="fgrid">
       ${fld('es-seg','Seguradora atual',e.seguradora_atual)}${fld('es-cor','Corretor atual',e.corretor_atual)}${fld('es-tipo','Produto',e.tipo_seguro)}${fld('es-num','Nº da apólice',e.numero_apolice)}
       ${fld('es-ini','Início',e.vigencia_inicio,'date')}${fld('es-fim','Fim',e.vigencia_fim,'date')}${fld('es-prem','Prêmio anual (R$)',e.premio_anual===null?'':String(e.premio_anual),'number')}</div>
       <div class="ql" style="margin-top:10px">Coberturas e o valor de cada uma (R$)</div><div class="cv-grid">${covValueRows('es', [...a.have], e.coberturas_valores||{})}</div></div>
@@ -2733,6 +2846,7 @@ function esShow(e){
   if($('es-open-p')) $('es-open-p').addEventListener('click', ev=>{ ev.preventDefault(); goToPersonView(e.pessoa_id); });
   if($('es-unlink')) $('es-unlink').addEventListener('click', async ev=>{ ev.preventDefault(); await sb.from('crm_estudos').update({pessoa_id:null}).eq('id',e.id); renderEstudos(); });
   if($('es-newp')) $('es-newp').addEventListener('click', ()=> openNovoCliente({nome:e.cliente_nome, cpf:e.cliente_cpf}, async p=>{ await sb.from('crm_estudos').update({pessoa_id:p.id, cliente_nome:p.nome}).eq('id',e.id); renderEstudos(); }));
+  adnBind();
   if($('es-busca')){ let t; $('es-busca').addEventListener('input', ev=>{ clearTimeout(t); t = setTimeout(async ()=>{
     const q = ev.target.value.trim(); if(q.length<2){ $('es-busca-res').innerHTML=''; return; }
     const { data } = await sb.from('crm_pessoas').select('id,nome,cpf,crm').or(`nome.ilike.%${q}%,cpf.ilike.%${q}%,crm.ilike.%${q}%`).limit(8);
@@ -2748,13 +2862,18 @@ function esShow(e){
   if(e.pessoa_id && (!ES.plant || ES.plant.pessoa_id!==e.pessoa_id)){
     sb.from('crm_plantoes_resumo').select('*').eq('pessoa_id', e.pessoa_id).maybeSingle().then(({data})=>{ ES.plant = data || {pessoa_id:e.pessoa_id}; if(ES.cur && ES.cur.id===e.id && data) esShow(ES.cur); });
   }
+  if(e.pessoa_id && ES.cur._pessoaOrigem===undefined){
+    sb.from('crm_pessoas').select('origem,classificacao').eq('id', e.pessoa_id).single().then(({data})=>{ if(!data) return; ES.cur._pessoaOrigem = data.origem||'não informada'; ES.cur._pessoaClass = CLASSIF[data.classificacao]||'não classificado'; if(ES.cur && ES.cur.id===e.id) esShow(ES.cur); });
+  }
 }
 function esCollect(){
+  const box = document.getElementById('es-detail');
   const g = id=>document.getElementById(id).value.trim(); const n = id=> g(id)===''?null:Number(g(id));
   const cots = {}; document.querySelectorAll('#es-detail .cot').forEach(i=>{ if(i.value!=='') cots[i.dataset.seg] = Number(i.value); });
   const covVals = covValueCollect(document.getElementById('es-detail'), 'es');
   const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
-  return { ...ES.cur, seguradora_atual:g('es-seg')||null, corretor_atual:g('es-cor')||null, tipo_seguro:g('es-tipo')||null, numero_apolice:g('es-num')||null,
+  const adn = adnCollect(box);
+  return { ...ES.cur, ...adn, seguradora_atual:g('es-seg')||null, corretor_atual:g('es-cor')||null, tipo_seguro:g('es-tipo')||null, numero_apolice:g('es-num')||null,
     vigencia_inicio:g('es-ini')||null, vigencia_fim:g('es-fim')||null, premio_anual:n('es-prem'), capital_segurado:capTotal,
     coberturas_atuais:[...document.querySelectorAll('#es-detail .es-cov:checked')].map(c=>c.value), coberturas_valores:covVals, cotacoes:cots, status:document.getElementById('es-status').value, observacoes:g('es-obs')||null };
 }
@@ -2763,6 +2882,9 @@ async function esSave(silent){
   const e = esCollect();
   const { error } = await sb.from('crm_estudos').update({ seguradora_atual:e.seguradora_atual, corretor_atual:e.corretor_atual, tipo_seguro:e.tipo_seguro, numero_apolice:e.numero_apolice,
     vigencia_inicio:e.vigencia_inicio, vigencia_fim:e.vigencia_fim, premio_anual:e.premio_anual, capital_segurado:e.capital_segurado, coberturas_atuais:e.coberturas_atuais, coberturas_valores:e.coberturas_valores,
+    estado_civil:e.estado_civil, sexo:e.sexo, data_nascimento:e.data_nascimento, profissao:e.profissao, dependentes_qtd:e.dependentes_qtd, dependentes:e.dependentes,
+    renda_mensal:e.renda_mensal, gastos_mensais:e.gastos_mensais, patrimonio_bruto:e.patrimonio_bruto, patrimonio_financeiro:e.patrimonio_financeiro,
+    altura_cm:e.altura_cm, peso_kg:e.peso_kg, fumante:e.fumante, comorbidade:e.comorbidade, comorbidade_obs:e.comorbidade_obs, modulos_visiveis:e.modulos_visiveis,
     cotacoes:e.cotacoes, status:e.status, observacoes:e.observacoes, analise:{gerado_em:new Date().toISOString(), lacunas:esAnalise(e).missCore}, updated_at:new Date().toISOString() }).eq('id', e.id);
   if(error){ showToast('Erro: '+error.message); return; }
   if(!silent) showToast('Estudo salvo');
@@ -2771,6 +2893,12 @@ async function esSave(silent){
 function esParecer(e, a){
   const L = [];
   L.push(`ESTUDO DE APÓLICE — ${e.cliente_nome||'cliente'}`);
+  const depsTxt = (e.dependentes||[]).filter(d=>d.nome).map(d=>d.nome+(d.idade!=null?' ('+d.idade+' anos)':'')).join(', ');
+  const educTotal = (e.dependentes||[]).reduce((t,d)=>t+(Number(d.custo_educacao)||0),0);
+  if(e.renda_mensal || e.gastos_mensais || depsTxt) L.push(`Perfil: renda ${fmtMoney(e.renda_mensal)}/mês, gastos ${fmtMoney(e.gastos_mensais)}/mês${depsTxt?', dependentes: '+depsTxt:''}${educTotal?' (educação: '+fmtMoney(educTotal)+'/mês)':''}.`);
+  if(e.patrimonio_bruto || e.patrimonio_financeiro) L.push(`Patrimônio: bruto ${fmtMoney(e.patrimonio_bruto)}, financeiro ${fmtMoney(e.patrimonio_financeiro)}.`);
+  const imc = imcInfo(e.altura_cm, e.peso_kg); const fat = []; if(e.fumante) fat.push('fumante'); if(e.comorbidade) fat.push('comorbidade'+(e.comorbidade_obs?' ('+e.comorbidade_obs+')':''));
+  if(imc || fat.length) L.push(`Saúde: ${imc?'IMC '+imc.imc+' ('+imc.label+')':''}${imc&&fat.length?' · ':''}${fat.join(', ')}`);
   L.push(`Apólice atual: ${e.tipo_seguro||'—'} · ${e.seguradora_atual||'—'}${e.corretor_atual?' (corretor '+e.corretor_atual+')':''}${e.numero_apolice?' · nº '+e.numero_apolice:''}`);
   L.push(`Vigência: ${opFmt(opD(e.vigencia_inicio))||'—'} a ${opFmt(opD(e.vigencia_fim))||'—'} · Prêmio anual: ${fmtMoney(e.premio_anual)} · Capital: ${fmtMoney(e.capital_segurado)}`);
   L.push(`Coberturas atuais: ${(e.coberturas_atuais||[]).map(k=>{ const v=(e.coberturas_valores||{})[k]; return covLabel(k)+(v!=null?' ('+fmtMoney(v)+')':''); }).join(', ')||'não identificadas'}`);
