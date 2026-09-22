@@ -221,12 +221,20 @@
     <div id="view-operacao" class="view active">
       <div class="op-top">
         <div class="op-title">
-          <h2>Aliança</h2>
-          <span class="sub">Cada médico é um parceiro da CallMed — toda a jornada dele numa linha do tempo: faixa do funil comercial + uma linha por produto. Clique na faixa do funil para marcar/desmarcar uma etapa na data; clique no nome para abrir o cadastro completo.</span>
+          <h2>Aliança <span class="info-ico" tabindex="0" title="Cada médico é um parceiro da CallMed — toda a jornada dele numa linha do tempo: faixa do funil comercial + uma linha por produto. Clique na faixa do funil para marcar/desmarcar uma etapa na data; clique no nome para abrir o cadastro completo.">ⓘ</span></h2>
           <div class="op-kpis" id="op-kpis"></div>
         </div>
         <div class="op-filters">
-          <input id="op-search" placeholder="Buscar por nome, CPF, CRM ou telefone..."><button id="op-ftoggle" class="om-cancel">⚙ Filtros</button>
+          <input id="op-search" placeholder="Buscar por nome, CPF, CRM ou telefone...">
+          <button id="op-ftoggle" class="om-cancel">⚙ Filtros<span id="op-fcount" class="op-fcount" style="display:none"></span></button>
+          <button id="op-prev12" title="Voltar 12 meses">«</button><button id="op-prev" title="Voltar 1 mês">‹</button>
+          <span id="op-range"></span>
+          <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button><button id="op-today" title="Começar no mês atual">Mês atual</button>
+          <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
+          <button id="op-hoje" class="om-cancel" style="margin-left:auto">☀️ Hoje</button><button id="op-callhot" class="om-cancel">🔥 Call Hot da semana</button><button id="op-import" class="om-cancel">⬆ Importar contatos</button><button id="op-newcli" class="om-save">＋ Novo cliente</button>
+          <span id="op-chip"></span>
+        </div>
+        <div class="op-filters-more" id="op-filters-more">
           <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option></select>
           <select id="op-f-class"><option value="">Classificação: todas</option><option value="call_hot">Call Hot</option><option value="quente">Quente</option><option value="frio">Frio</option></select>
           <select id="op-f-tag"><option value="">Qualquer tag</option></select>
@@ -246,12 +254,6 @@
             <option value="etapa">Ordenar: etapa mais avançada</option>
             <option value="plantao">Ordenar: plantão mais recente</option>
           </select>
-          <button id="op-prev12" title="Voltar 12 meses">«</button><button id="op-prev" title="Voltar 1 mês">‹</button>
-          <span id="op-range"></span>
-          <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button><button id="op-today" title="Começar no mês atual">Mês atual</button>
-          <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
-          <button id="op-hoje" class="om-cancel" style="margin-left:auto">☀️ Hoje</button><button id="op-callhot" class="om-cancel">🔥 Call Hot da semana</button><button id="op-import" class="om-cancel">⬆ Importar contatos</button><button id="op-newcli" class="om-save">＋ Novo cliente</button>
-          <span id="op-chip"></span>
         </div>
       </div>
       <div id="op-scroll"><div class="op-more">Carregando médicos...</div></div>
@@ -413,15 +415,18 @@
   .op-top{ padding:16px 24px 12px; display:flex; flex-direction:column; gap:10px; background:var(--surface); border-bottom:1px solid var(--border);}
   .op-title{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;}
   .op-title h2{ font-size:1.25rem;}
-  .op-title .sub{ color:var(--ink-soft); font-size:12px; max-width:640px;}
+  .info-ico{ display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:var(--brand-soft); color:var(--brand); font-size:11px; font-family:'Poppins',sans-serif; cursor:help; vertical-align:middle; margin-left:4px;}
   .op-kpis{ display:flex; gap:8px; flex-wrap:wrap; margin-left:auto;}
   .op-kpi{ background:var(--brand-soft); border-radius:999px; padding:3px 12px; font-size:12px; color:var(--ink-soft);}
   .op-kpi b{ color:var(--brand); font-family:'Poppins',sans-serif;}
   .op-filters{ display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
   .op-filters input, .op-filters select, .op-filters button{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink); cursor:pointer;}
   .op-filters input{ width:240px; cursor:text;}
-  #op-ftoggle{ display:none;}
   .op-filters button:hover{ background:var(--brand-soft);}
+  .op-fcount{ display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; padding:0 4px; margin-left:5px; border-radius:999px; background:var(--brand); color:#fff; font-size:10px; font-family:'Poppins',sans-serif;}
+  .op-filters-more{ display:none; gap:8px; flex-wrap:wrap; align-items:center; padding-top:2px;}
+  .op-filters-more.open{ display:flex;}
+  .op-filters-more select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink); cursor:pointer;}
   #op-range{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); min-width:150px; text-align:center;}
   #op-scroll{ overflow:auto; position:relative; --oplw:290px;}
   .op-inner{ min-width:calc(var(--oplw) + 1080px);}
@@ -590,10 +595,9 @@
     .view-container{ grid-column:1; grid-row:2;}
     input, select, textarea{ font-size:16px !important;}
     .om-save, .om-cancel, .btn-export-pdf{ min-height:40px;}
-    .op-top{ padding:12px;} .op-title .sub{ display:none;} .op-filters input{ width:100%;} .op-filters select{ flex:1 1 46%;}
+    .op-top{ padding:12px;} .op-filters input{ width:100%;} .op-filters-more select{ flex:1 1 46%;}
     #op-range, #op-prev, #op-next, #op-prev12, #op-next12, #op-today, #op-reset, #op-import{ display:none;}
-    #op-ftoggle{ display:inline-block; order:-1;}
-    #view-operacao .op-filters:not(.open) select{ display:none;}
+    #op-ftoggle{ order:-1;}
     #op-search{ order:-3; flex:1 1 100%;} #op-hoje, #op-callhot, #op-newcli{ order:-2; flex:1 1 30%; margin-left:0 !important; font-size:13px; padding:9px 6px;}
     .op-inner{ min-width:0 !important;} .op-head, .op-sumbox{ display:none;} .op-right{ display:none;}
     .op-left{ position:static; width:100%; flex:1 1 100%; border-right:none; padding:10px 14px;}
@@ -1611,6 +1615,14 @@ function opApplyFilters(keep, scrollToList){
   if(scrollToList){ const h = scroller.querySelector('.op-head'); if(h) scroller.scrollTop = h.offsetTop; }
   opRenderKpis();
   opRenderChip();
+  opRenderFilterCount();
+}
+
+function opRenderFilterCount(){
+  const ids = ['op-f-perfil','op-f-class','op-f-tag','op-f-next','op-f-situacao','op-f-etapa','op-f-plantao','op-f-produto'];
+  const n = ids.reduce((t,id)=> t + (document.getElementById(id).value ? 1 : 0), 0);
+  const badge = document.getElementById('op-fcount');
+  if(n){ badge.textContent = n; badge.style.display = 'inline-flex'; } else { badge.style.display = 'none'; }
 }
 
 function opRenderChip(){
@@ -1877,7 +1889,7 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
 ['op-f-perfil','op-f-next','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
-document.getElementById('op-ftoggle').addEventListener('click', ()=> document.querySelector('#view-operacao .op-filters').classList.toggle('open'));
+document.getElementById('op-ftoggle').addEventListener('click', ()=> document.getElementById('op-filters-more').classList.toggle('open'));
 const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
 document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
 document.getElementById('op-next').addEventListener('click', ()=>opShift(1));
