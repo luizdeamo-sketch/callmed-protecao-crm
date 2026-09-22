@@ -425,9 +425,9 @@
   .op-filters-more.open{ display:flex;}
   .op-filters-more select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink); cursor:pointer;}
   .op-nav-pill{ display:flex; align-items:center; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden;}
-  .op-nav-pill button{ border:none !important; border-radius:0 !important; padding:7px 9px !important; background:var(--surface);}
+  .op-nav-pill button{ border:none !important; border-radius:0 !important; padding:7px 7px !important; background:var(--surface); font-size:12px;}
   .op-nav-pill button:not(:last-child){ border-right:1px solid var(--border) !important;}
-  #op-range{ font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); min-width:130px; text-align:center; padding:0 8px;}
+  #op-range{ font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-soft); min-width:auto; white-space:nowrap; text-align:center; padding:0 6px;}
   #op-scroll{ overflow:auto; position:relative; --oplw:290px;}
   .op-inner{ min-width:calc(var(--oplw) + 1080px);}
   .op-row{ display:flex; border-bottom:1px solid var(--border-soft); background:var(--surface);}
@@ -1705,7 +1705,7 @@ function opRenderAll(prevShown){
   const now = new Date();
   host.style.setProperty('--opgrid', opGridCss());
   const lastM = new Date(OP.start.getFullYear(), OP.start.getMonth()+11, 1);
-  document.getElementById('op-range').textContent = `${OP_MESES[OP.start.getMonth()]}/${OP.start.getFullYear()} – ${OP_MESES[lastM.getMonth()]}/${lastM.getFullYear()}`;
+  document.getElementById('op-range').textContent = `${OP_MESES[OP.start.getMonth()]}/${String(OP.start.getFullYear()).slice(2)}–${OP_MESES[lastM.getMonth()]}/${String(lastM.getFullYear()).slice(2)}`;
   const anyExp = OP.months.some(m=>m.exp);
   const heads = OP.months.map(mo=>{
     const days = mo.exp ? Array.from({length:mo.days},(_,d)=>`<span class="op-dh" style="left:${d/mo.days*100}%;width:${100/mo.days}%">${d+1}</span>`).join('') : '';
