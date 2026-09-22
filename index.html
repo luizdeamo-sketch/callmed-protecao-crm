@@ -453,6 +453,9 @@
   .op-mh small{ font-weight:500; font-size:9.5px; color:var(--ink-faint);}
   .op-mh.cur{ background:#e8ecff; color:var(--brand);}
   .op-sumbox{ border-bottom:2px solid var(--border);}
+  .op-resize-handle{ height:7px; margin-top:-2px; cursor:ns-resize; position:relative; z-index:8;}
+  .op-resize-handle::after{ content:''; position:absolute; left:50%; top:2px; width:36px; height:3px; margin-left:-18px; border-radius:99px; background:var(--border);}
+  .op-resize-handle:hover::after, .op-resize-handle.dragging::after{ background:var(--brand);}
   .op-sumtitle{ display:flex; align-items:center; gap:10px; padding:8px 12px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); position:sticky; left:0; width:var(--oplw); background:var(--surface); cursor:pointer;}
   .op-sumrow{ display:flex; border-top:1px solid var(--border-soft); background:var(--surface);}
   .op-sumrow .op-left{ cursor:default; padding:3px 12px; font-size:12px; display:flex; align-items:center; gap:8px; font-weight:500;}
@@ -1456,8 +1459,10 @@ const OP_SORT_OPTS = [
 ];
 const OP_UNIT_PX = 88;
 const OP_EXPANDED_W = 11;
+let OP_SUM_HEIGHT_INIT = null;
+try{ const h = localStorage.getItem('op-sum-h'); if(h) OP_SUM_HEIGHT_INIT = parseInt(h,10); }catch(e){}
 const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
-             plant:new Map(), dirty:false, start:new Date(2026,9,1), sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null };
+             plant:new Map(), dirty:false, start:new Date(2026,9,1), sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null, sumHeight:OP_SUM_HEIGHT_INIT };
 const OP_PAGE = 120;
 const TIPOS_PESSOA = {medico:'Médico', profissional_saude:'Outro profissional de saúde', empresa:'Empresa / PJ', outro:'Outro (não médico)'};
 const isMedico = (p)=> (p.tipo||'medico')==='medico';
@@ -1731,7 +1736,8 @@ function opRenderAll(prevShown){
   host.innerHTML = `<div class="op-inner" style="min-width:calc(var(--oplw) + ${OP.total*OP_UNIT_PX}px)">
     <div class="op-sumbox">
       <div class="op-sumtitle" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal <span class="info-ico" tabindex="0" title="Médicos por etapa do funil (situação ao fim de cada mês). Clique num número para filtrar.">ⓘ</span></div>
-      <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'}">${opSumRowsHtml()}</div>
+      <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'};${OP.sumHeight?`height:${OP.sumHeight}px;overflow-y:auto;`:''}">${opSumRowsHtml()}</div>
+      ${OP.sumOpen?'<div class="op-resize-handle" id="op-resize-handle" title="Arraste para redimensionar"></div>':''}
     </div>
     <div class="op-row op-head"><div class="op-left op-sort-wrap"><button id="op-sort-quick" title="Clique para ordenar a lista">${OP.filtered.length} de ${OP.pessoas.length} médicos ▾</button><div class="op-sort-menu" id="op-sort-menu">${OP_SORT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-sort').value===o.v?' sel':''}" data-sortv="${o.v}">${o.l}</button>`).join('')}</div></div><div class="op-right" style="height:${anyExp?60:38}px">${heads}</div></div>
     <div id="op-body"></div><div class="op-more" id="op-more"></div></div>`;
@@ -1864,6 +1870,25 @@ function opRefreshRow(pid){
   opRenderKpis();
 }
 
+document.getElementById('view-operacao').addEventListener('mousedown', (e)=>{
+  const handle = e.target.closest('#op-resize-handle'); if(!handle) return;
+  e.preventDefault();
+  const rows = document.getElementById('op-sumrows');
+  const startY = e.clientY, startH = rows.offsetHeight;
+  handle.classList.add('dragging');
+  function onMove(ev){
+    const h = Math.max(28, Math.min(500, startH + (ev.clientY - startY)));
+    rows.style.height = h+'px'; rows.style.overflowY = 'auto'; OP.sumHeight = h;
+  }
+  function onUp(){
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    handle.classList.remove('dragging');
+    try{ localStorage.setItem('op-sum-h', String(OP.sumHeight)); }catch(err){}
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
 document.addEventListener('click', (e)=>{
   if(e.target.closest('#op-sort-quick') || e.target.closest('#op-sort-menu')) return;
   const m = document.getElementById('op-sort-menu'); if(m) m.classList.remove('open');
