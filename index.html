@@ -1888,11 +1888,12 @@ const DOCS_COVS = [
   {k:'ipa', l:'Invalidez por acidente (IPA)', re:/invalidez\s*permanente[^.\n]{0,40}acidente|\bIPA\b|\bIPTA\b/i},
   {k:'invalidez_doenca', l:'Invalidez por doença', re:/invalidez[^.\n]{0,50}doen[çc]a|\bIFPD\b|\bIPD\b/i},
   {k:'doencas_graves', l:'Doenças graves', re:/doen[çc]as?\s*graves|antecipa[çc][ãa]o[^.\n]{0,30}doen[çc]a|c[âa]ncer/i},
-  {k:'dit', l:'Diária por incapacidade (DIT)', re:/di[áa]rias?\s*(por|de)\s*incapacidade|\bDIT\b|incapacidade\s*tempor[áa]ria|\bDIH\b/i},
+  {k:'dit', l:'Diária por incapacidade (DIT)', re:/di[áa]rias?\s*(por|de)\s*incapacidade|\bDIT\b|incapacidade\s*tempor[áa]ria(?!\s*hospitalar)/i},
+  {k:'dih', l:'Diária de internação hospitalar (DIH)', re:/di[áa]ria[s]?\s*de\s*interna[çc][ãa]o|\bDIH\b/i},
   {k:'funeral', l:'Funeral / assistência funeral', re:/funeral/i},
   {k:'renda', l:'Renda (família / invalidez)', re:/renda\s*(mensal|por|familiar|temporária)|pens[ãa]o/i},
   {k:'sucessao', l:'Sucessão / vida inteira', re:/sucess[ãa]o|vida\s*inteira|whole\s*life/i},
-  {k:'previdencia', l:'Previdência', re:/previd[êe]ncia|\bVGBL\b|\bPGBL\b/i},
+  {k:'previdencia', l:'Previdência', re:/previd[êe]ncia(?!\s*social)|\bVGBL\b|\bPGBL\b/i},
   {k:'rc_prof', l:'RC profissional', re:/responsabilidade\s*civil\s*profissional|erro\s*m[ée]dico/i},
 ];
 const DOCS_TIPOS = [
@@ -1978,9 +1979,21 @@ function docsExtract(text){
   for(const [n,re] of DOCS_INSURERS){ if(re.test(t)){ f.seguradora = n; break; } }
   for(const [n,re] of DOCS_TIPOS){ if(re.test(t)){ f.tipo_seguro = n; break; } }
   if(/vida\s*em\s*grupo|coletiv|estipulante/i.test(t)) f.tipo_contratacao = 'Grupo'; else if(f.tipo_seguro) f.tipo_contratacao = 'Individual';
-  const vg = t.match(/vig[êe]ncia[^\d]{0,70}(\d{2}\/\d{2}\/\d{4})[^\d]{1,60}(\d{2}\/\d{2}\/\d{4})/is);
+  const vg = t.match(/vig[êe]ncia[^\d]{0,100}(\d{2}\/\d{2}\/\d{4})[^\d]{1,80}(\d{2}\/\d{2}\/\d{4})/is);
   if(vg){ f.vig_ini = brToIso(vg[1]); f.vig_fim = brToIso(vg[2]); }
-  else { const ds = (t.match(/\d{2}\/\d{2}\/\d{4}/g)||[]); const h24 = t.match(/24\s*h(?:oras)?[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})[^\d]{1,40}24\s*h(?:oras)?[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})/is); if(h24){ f.vig_ini = brToIso(h24[1]); f.vig_fim = brToIso(h24[2]); } }
+  else { const h24 = t.match(/24\s*h(?:oras)?[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})[^\d]{1,40}24\s*h(?:oras)?[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})/is);
+    if(h24){ f.vig_ini = brToIso(h24[1]); f.vig_fim = brToIso(h24[2]); }
+    else {
+      const ini2 = t.match(/in[íi]cio(?:\s*d[ae]\s*vig[êe]ncia)?[^\d]{0,40}(\d{2}\/\d{2}\/\d{4})/i);
+      const fim2 = t.match(/(?:t[ée]rmino|fim|final)(?:\s*d[ae]\s*vig[êe]ncia)?[^\d]{0,40}(\d{2}\/\d{2}\/\d{4})/i);
+      if(ini2) f.vig_ini = brToIso(ini2[1]);
+      if(fim2) f.vig_fim = brToIso(fim2[1]);
+      if(!f.vig_ini || !f.vig_fim){
+        const per = t.match(/per[íi]odo\s*de\s*cobertura[^\d]{0,40}(\d{2}\/\d{2}\/\d{4})[^\d]{1,60}(\d{2}\/\d{2}\/\d{4})/is);
+        if(per){ f.vig_ini = f.vig_ini || brToIso(per[1]); f.vig_fim = f.vig_fim || brToIso(per[2]); }
+      }
+    }
+  }
   const pr = t.match(/pr[êe]mio\s*(total|anual|l[ií]quido|mensal)?[^\d]{0,35}(?:R\$)?\s*([\d.]+,\d{2})/i);
   if(pr){ const v = moneyBR(pr[2]); const mensal = /mensal/i.test(pr[1]||'') || /parcela|mensalidade/i.test(pr[0]); f.premio = v; f.premio_periodo = mensal ? 'mensal' : 'anual'; }
   const cap = t.match(/(?:import[âa]ncia\s*segurada|capital\s*segurado|valor\s*segurado|capital)[^\d]{0,45}(?:R\$)?\s*([\d.]+,\d{2})/i); if(cap) f.capital = moneyBR(cap[1]);
@@ -2069,8 +2082,7 @@ function openNovoCliente(prefill, onSaved){
         <label class="fl"><span>Sexo</span><select id="nc-sexo"><option value="">—</option><option value="M">Masculino</option><option value="F">Feminino</option></select></label>
         <label class="fl"><span>Estado civil</span><select id="nc-estado_civil"><option value="">—</option><option>solteiro</option><option>casado</option><option>união estável</option><option>divorciado</option><option>viúvo</option></select></label>
         <label class="fl"><span>Origem do cliente</span><select id="nc-origem"><option value="">—</option><option>CallMed Plantões</option><option>Indicação</option><option>Instagram</option><option>Evento</option><option>Outro</option></select></label>
-        ${fld('nc-quem_indicou','Quem indicou *','')}
-        <label class="chk" style="align-self:end;padding-bottom:8px"><input type="checkbox" id="nc-sem-ind"> Sem indicação (contato direto / base própria)</label>
+        ${fld('nc-quem_indicou','Quem indicou (opcional)','')}
         ${fld('nc-sobrenome','Sobrenome (opcional — junto ao nome)','')}
         ${pfExtraFieldsHtml('nc-')}
       </div>
@@ -2169,7 +2181,6 @@ async function ncCheckDup(){
 async function ncSave(){
   const err = document.getElementById('nc-err'); err.textContent = '';
   if(!ncVal('nome')){ err.textContent = 'Informe o nome. Se anexou um documento e o nome não foi lido, digite-o para eu criar o lead.'; return; }
-  if(!ncVal('quem_indicou') && !document.getElementById('nc-sem-ind').checked){ err.textContent = 'Informe quem indicou — ou marque “Sem indicação”.'; return; }
   const btn = document.getElementById('nc-save');
   try{
     if(!NC.pessoaId){
@@ -2183,7 +2194,7 @@ async function ncSave(){
     }
     btn.disabled = true; btn.textContent = 'Salvando...';
     let data;
-    const row = ncRow(); if(document.getElementById('nc-sem-ind').checked && !row.quem_indicou) row.quem_indicou = 'Sem indicação (contato direto)';
+    const row = ncRow();
     if(NC.pessoaId){
       const r = await sb.from('crm_pessoas').update(row).eq('id', NC.pessoaId).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
       const i = OP.pessoas.findIndex(x=>x.id===data.id); if(i>=0) OP.pessoas[i] = data;
@@ -2546,7 +2557,7 @@ async function caSave(file, f){
 // ---------- ESTUDO (comparativo com nossas seguradoras) ----------
 const ES = { list:[], cat:[], open:null, cur:null, plant:null, filter:null };
 const ES_CORE = ['morte','ipa','invalidez_doenca','doencas_graves','dit'];
-const ES_OPT = ['funeral','renda','sucessao','previdencia'];
+const ES_OPT = ['funeral','renda','sucessao','previdencia','dih'];
 const ES_STATUS = [['aberto','Aberto'],['analise','Em análise'],['proposta','Proposta enviada'],['fechado','Fechado'],['perdido','Perdido']];
 function covLabel(k){ return (DOCS_COVS.find(c=>c.k===k)||{l:k}).l; }
 async function renderEstudos(){
