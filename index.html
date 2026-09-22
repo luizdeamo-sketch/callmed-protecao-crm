@@ -229,8 +229,7 @@
           <button id="op-ftoggle" class="om-cancel">⚙ Filtros<span id="op-fcount" class="op-fcount" style="display:none"></span></button>
           <button id="op-prev12" title="Voltar 12 meses">«</button><button id="op-prev" title="Voltar 1 mês">‹</button>
           <span id="op-range"></span>
-          <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button><button id="op-today" title="Começar no mês atual">Mês atual</button>
-          <button id="op-reset" title="Voltar para Out/2026">Out/2026</button>
+          <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button>
           <button id="op-hoje" class="om-cancel" style="margin-left:auto">☀️ Hoje</button><button id="op-callhot" class="om-cancel">🔥 Call Hot da semana</button><button id="op-import" class="om-cancel">⬆ Importar contatos</button><button id="op-newcli" class="om-save">＋ Novo cliente</button>
           <span id="op-chip"></span>
         </div>
@@ -596,7 +595,7 @@
     input, select, textarea{ font-size:16px !important;}
     .om-save, .om-cancel, .btn-export-pdf{ min-height:40px;}
     .op-top{ padding:12px;} .op-filters input{ width:100%;} .op-filters-more select{ flex:1 1 46%;}
-    #op-range, #op-prev, #op-next, #op-prev12, #op-next12, #op-today, #op-reset, #op-import{ display:none;}
+    #op-range, #op-prev, #op-next, #op-prev12, #op-next12, #op-import{ display:none;}
     #op-ftoggle{ order:-1;}
     #op-search{ order:-3; flex:1 1 100%;} #op-hoje, #op-callhot, #op-newcli{ order:-2; flex:1 1 30%; margin-left:0 !important; font-size:13px; padding:9px 6px;}
     .op-inner{ min-width:0 !important;} .op-head, .op-sumbox{ display:none;} .op-right{ display:none;}
@@ -1895,8 +1894,6 @@ document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
 document.getElementById('op-next').addEventListener('click', ()=>opShift(1));
 document.getElementById('op-prev12').addEventListener('click', ()=>opShift(-12));
 document.getElementById('op-next12').addEventListener('click', ()=>opShift(12));
-document.getElementById('op-today').addEventListener('click', ()=>{ const n = new Date(); OP.start = new Date(n.getFullYear(), n.getMonth(), 1); OP.sumFilter = null; opApplyFilters(true); });
-document.getElementById('op-reset').addEventListener('click', ()=>{ OP.start = new Date(2026,9,1); OP.sumFilter = null; opApplyFilters(true); });
 
 // ---------- DOCUMENTOS: leitura automática (PDF/imagem) ----------
 const DOCS_INSURERS = [
