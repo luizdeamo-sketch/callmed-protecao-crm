@@ -439,8 +439,10 @@
   .op-left .cli{ display:inline-block; font-size:9.5px; background:var(--green-soft); color:var(--green); border-radius:4px; padding:0 5px; margin-left:6px; font-family:'IBM Plex Mono',monospace; font-weight:600; vertical-align:1px;}
   .op-right{ position:relative; flex:1; background-image:var(--opgrid);}
   .op-head{ position:sticky; top:0; z-index:5; background:#f2f3f9; border-bottom:1px solid var(--border);}
-  .op-head .op-left{ background:#f2f3f9; z-index:6; cursor:default; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; display:flex; align-items:center;}
+  .op-head .op-left{ background:#f2f3f9; z-index:6; cursor:default; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; display:flex; align-items:center; gap:6px;}
   .op-head .op-right{ height:38px; background-image:none;}
+  #op-sumtoggle{ cursor:pointer;}
+  .op-countrow .op-left{ cursor:default; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; display:flex; align-items:center;}
   .op-sort-wrap{ position:relative;}
   #op-sort-quick{ background:none; border:none; font:inherit; text-transform:inherit; letter-spacing:inherit; color:inherit; cursor:pointer; padding:0;}
   #op-sort-quick:hover{ color:var(--brand);}
@@ -456,7 +458,6 @@
   .op-resize-handle{ height:7px; margin-top:-2px; cursor:ns-resize; position:relative; z-index:8;}
   .op-resize-handle::after{ content:''; position:absolute; left:50%; top:2px; width:36px; height:3px; margin-left:-18px; border-radius:99px; background:var(--border);}
   .op-resize-handle:hover::after, .op-resize-handle.dragging::after{ background:var(--brand);}
-  .op-sumtitle{ display:flex; align-items:center; gap:10px; padding:8px 12px; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-soft); position:sticky; left:0; width:var(--oplw); background:var(--surface); cursor:pointer;}
   .op-sumrow{ display:flex; border-top:1px solid var(--border-soft); background:var(--surface);}
   .op-sumrow .op-left{ cursor:default; padding:3px 12px; font-size:12px; display:flex; align-items:center; gap:8px; font-weight:500;}
   .op-sumrow .op-left:hover{ background:var(--surface);}
@@ -612,7 +613,7 @@
     .op-nav-pill, #op-import{ display:none;}
     #op-ftoggle{ order:-1;}
     #op-search{ order:-3; flex:1 1 100%;} #op-hoje, #op-callhot, #op-newcli{ order:-2; flex:1 1 30%; margin-left:0 !important; font-size:13px; padding:9px 6px;}
-    .op-inner{ min-width:0 !important;} .op-head, .op-sumbox{ display:none;} .op-right{ display:none;}
+    .op-inner{ min-width:0 !important;} .op-head, .op-sumbox, .op-countrow{ display:none;} .op-right{ display:none;}
     .op-left{ position:static; width:100%; flex:1 1 100%; border-right:none; padding:10px 14px;}
     .op-left .n{ font-size:14px; white-space:normal;} .op-left .m{ white-space:normal;}
     #main{ padding:10px 12px;} .person-actions{ flex-wrap:wrap;} .pv-next{ flex-direction:column; align-items:flex-start;}
@@ -1734,12 +1735,12 @@ function opRenderAll(prevShown){
     return `<div class="op-mh${(now>=mo.s&&now<mo.e)?' cur':''}${mo.exp?' exp':''}" style="left:${mo.l}%;width:${mo.w}%"><div class="op-mt"><span>${mo.name}<small>${mo.yr}</small></span><button class="op-mtoggle" data-mkey="${mo.key}" title="${mo.exp?'Minimizar mês':'Abrir o mês inteiro (dias)'}">${mo.exp?'⤡':'⤢'}</button></div>${days}</div>`;
   }).join('');
   host.innerHTML = `<div class="op-inner" style="min-width:calc(var(--oplw) + ${OP.total*OP_UNIT_PX}px)">
+    <div class="op-row op-head"><div class="op-left" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal <span class="info-ico" tabindex="0" title="Médicos por etapa do funil (situação ao fim de cada mês). Clique num número para filtrar.">ⓘ</span></div><div class="op-right" style="height:${anyExp?60:38}px">${heads}</div></div>
     <div class="op-sumbox">
-      <div class="op-sumtitle" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal <span class="info-ico" tabindex="0" title="Médicos por etapa do funil (situação ao fim de cada mês). Clique num número para filtrar.">ⓘ</span></div>
       <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'};${OP.sumHeight?`height:${OP.sumHeight}px;overflow-y:auto;`:''}">${opSumRowsHtml()}</div>
       ${OP.sumOpen?'<div class="op-resize-handle" id="op-resize-handle" title="Arraste para redimensionar"></div>':''}
     </div>
-    <div class="op-row op-head"><div class="op-left op-sort-wrap"><button id="op-sort-quick" title="Clique para ordenar a lista">${OP.filtered.length} de ${OP.pessoas.length} médicos ▾</button><div class="op-sort-menu" id="op-sort-menu">${OP_SORT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-sort').value===o.v?' sel':''}" data-sortv="${o.v}">${o.l}</button>`).join('')}</div></div><div class="op-right" style="height:${anyExp?60:38}px">${heads}</div></div>
+    <div class="op-row op-countrow"><div class="op-left op-sort-wrap"><button id="op-sort-quick" title="Clique para ordenar a lista">${OP.filtered.length} de ${OP.pessoas.length} médicos ▾</button><div class="op-sort-menu" id="op-sort-menu">${OP_SORT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-sort').value===o.v?' sel':''}" data-sortv="${o.v}">${o.l}</button>`).join('')}</div></div></div>
     <div id="op-body"></div><div class="op-more" id="op-more"></div></div>`;
   opAppendRows(Math.max(prevShown||0, OP_PAGE));
 }
