@@ -1011,8 +1011,28 @@ async function pvResumo(body, p){
     </div></div>
     <div class="es-box" id="pv-lead"><div class="ql">Quem é o Lead?</div><div class="op-more">Carregando...</div></div>
   </div>
-  <div class="es-box" id="pv-opps-resumo"></div>`;
+  <div class="es-box" id="pv-opps-resumo"></div>
+  <div class="es-box" id="pv-ia">
+    <div class="ql">🤖 Perguntar à IA sobre este cliente</div>
+    <div class="hint" style="margin-bottom:8px">Responde com base só no que já está registrado (cadastro, diagnóstico, apólices, estudos, histórico) — não inventa dado.</div>
+    <div class="sg-row"><input id="ia-pergunta" class="ca-inp" style="flex:1;min-width:220px" placeholder="Ex.: quanto de cobertura de vida esse cliente já tem?"><button class="om-save" id="ia-perguntar">Perguntar</button></div>
+    <div id="ia-resposta" style="margin-top:10px"></div>
+  </div>`;
   pvLead(p); pvOppsResumo(p);
+  const iaBtn = document.getElementById('ia-perguntar'), iaInp = document.getElementById('ia-pergunta'), iaOut = document.getElementById('ia-resposta');
+  const iaAsk = async ()=>{
+    const pergunta = iaInp.value.trim(); if(!pergunta) return;
+    iaBtn.disabled = true; iaBtn.textContent = 'Perguntando...'; iaOut.innerHTML = '<div class="op-more">Consultando IA...</div>';
+    try{
+      const { data, error } = await sb.functions.invoke('chat-cliente', { body: { pessoa_id: p.id, pergunta } });
+      if(error) throw error;
+      if(data?.error) throw new Error(data.error);
+      iaOut.innerHTML = `<div class="lead-txt">${escapeHtml(data.resposta).replace(/\n/g,'<br>')}</div>`;
+    }catch(e){ iaOut.innerHTML = `<div class="om-err">Erro: ${escapeHtml(e.message||String(e))}</div>`; }
+    iaBtn.disabled = false; iaBtn.textContent = 'Perguntar';
+  };
+  iaBtn.addEventListener('click', iaAsk);
+  iaInp.addEventListener('keydown', e=>{ if(e.key==='Enter') iaAsk(); });
 }
 async function pvLead(p){
   const host = document.getElementById('pv-lead'); if(!host) return;
