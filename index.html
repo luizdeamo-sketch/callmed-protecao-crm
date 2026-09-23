@@ -3593,19 +3593,45 @@ document.getElementById('sg-list').addEventListener('click', async e=>{
   if(a.dataset.act==='status') sgStatusDialog(r);
 });
 function sgStatusDialog(r){
+  window._sgRespFiles = [];
   const box = dlgOpen(`<div class="om-title"><div><h3>Alterar status</h3><div class="om-sub">${escapeHtml((r.texto||'').slice(0,140))}${(r.texto||'').length>140?'…':''}</div></div><button data-close>✕</button></div>
     <div class="dlg-body"><label class="fl"><span>Novo status</span><select id="sg-new-status">${SG_STATUS.map(s=>`<option value="${s[0]}" ${r.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
       <label class="fl" style="margin-top:10px"><span>Resposta / nota (visível para quem sugeriu)</span><textarea id="sg-note" rows="4" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
+      <label class="fl" style="margin-top:10px"><span>Anexar print(s) ou arquivo(s) — opcional</span>
+        <div class="dz" id="sg-resp-dz" style="padding:14px">📎 Arraste, cole (Ctrl+V) ou clique para anexar<input type="file" id="sg-resp-file" multiple accept=".pdf,image/*" hidden></div>
+        <div id="sg-resp-files" class="sg-files"></div>
+      </label>
       <div class="om-err" id="sg-err"></div></div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="sg-save-status">Salvar</button></div>`);
+  const dz = box.querySelector('#sg-resp-dz'), inp = box.querySelector('#sg-resp-file'), filesHost = box.querySelector('#sg-resp-files');
+  const drawRespFiles = ()=>{ filesHost.innerHTML = window._sgRespFiles.map((f,i)=>`<div class="sg-fchip">${/^image\//.test(f.type)?`<img src="${URL.createObjectURL(f)}">`:'<span class="ico">📄</span>'}<span class="nm">${escapeHtml(f.name)}</span><button data-rm="${i}" title="Remover">✕</button></div>`).join(''); };
+  const addRespFiles = (list)=>{ window._sgRespFiles.push(...[...list]); drawRespFiles(); };
+  dz.addEventListener('click', ()=>inp.click());
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); addRespFiles(e.dataTransfer.files); });
+  inp.addEventListener('change', ()=>{ addRespFiles(inp.files); inp.value=''; });
+  filesHost.addEventListener('click', e=>{ const b = e.target.closest('[data-rm]'); if(!b) return; window._sgRespFiles.splice(parseInt(b.dataset.rm,10),1); drawRespFiles(); });
+  box.querySelector('.dlg-body').addEventListener('paste', e=>{
+    const items = [...(e.clipboardData?.items||[])].filter(i=>i.kind==='file'); if(!items.length) return; e.preventDefault();
+    addRespFiles(items.map((it,n)=>{ const f = it.getAsFile(); const ext = (f.type.split('/')[1]||'png').replace('jpeg','jpg'); return f.name && f.name!=='image.png' ? f : new File([f], `print-${Date.now()}-${n+1}.${ext}`, {type:f.type}); }));
+  });
   box.querySelector('#sg-save-status').addEventListener('click', async ()=>{
+    const btn = document.getElementById('sg-save-status');
     const para = document.getElementById('sg-new-status').value, nota = document.getElementById('sg-note').value.trim();
-    if(para===r.status && !nota){ dlgClose(); return; }
-    const hist = (r.historico||[]).concat([{em:new Date().toISOString(), por:document.getElementById('sg-who').value, de:r.status, para, nota:nota||null}]);
-    const upd = { status:para, historico:hist, atualizado_em:new Date().toISOString() }; if(nota) upd.resposta = nota;
+    if(para===r.status && !nota && !window._sgRespFiles.length){ dlgClose(); return; }
+    btn.disabled = true; btn.textContent = 'Salvando...';
+    let novosAnexos = [];
+    try{
+      for(const f of window._sgRespFiles){ const path = await docsUpload(f, 'sugestoes'); novosAnexos.push({path, nome:f.name, mime:f.type, tamanho:f.size, por:document.getElementById('sg-who').value||null, em:new Date().toISOString()}); }
+    }catch(e){ document.getElementById('sg-err').textContent = 'Erro ao anexar arquivo: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar'; return; }
+    const hist = (r.historico||[]).concat([{em:new Date().toISOString(), por:document.getElementById('sg-who').value, de:r.status, para, nota:nota||null, anexos:novosAnexos.length||undefined}]);
+    const upd = { status:para, historico:hist, atualizado_em:new Date().toISOString() };
+    if(nota) upd.resposta = nota;
+    if(novosAnexos.length) upd.anexos = (r.anexos||[]).concat(novosAnexos);
     const { error } = await sb.from('crm_sugestoes').update(upd).eq('id', r.id);
-    if(error){ document.getElementById('sg-err').textContent = 'Erro: '+error.message; return; }
-    Object.assign(r, upd); dlgClose(); showToast('Status atualizado'); sgDraw();
+    if(error){ document.getElementById('sg-err').textContent = 'Erro: '+error.message; btn.disabled = false; btn.textContent = 'Salvar'; return; }
+    Object.assign(r, upd); window._sgRespFiles = []; dlgClose(); showToast('Status atualizado'); sgDraw();
   });
 }
 
