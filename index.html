@@ -1247,7 +1247,9 @@ async function pvDiagnostico(p){
     const payload = { preenchido_por:curUserName() };
     host.querySelectorAll('[data-dg]').forEach(el=>{ const k = el.dataset.dg; let v = el.value; if(v===''){ payload[k] = null; return; } if(el.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true'; else if(el.type==='number') v = parseFloat(v); payload[k] = v; });
     const res = row.id ? await sb.from('crm_diagnostico').update(payload).eq('id', row.id) : await sb.from('crm_diagnostico').insert({...payload, pessoa_id:p.id});
-    if(res.error){ showToast('Erro: '+res.error.message); return; } showToast('Diagnóstico salvo'); pvDiagnostico(p); });
+    if(res.error){ showToast('Erro: '+res.error.message); return; }
+    await diagPushToADN(p.id, payload);
+    showToast('Diagnóstico salvo'); pvDiagnostico(p); });
 }
 
 // ---- RELACIONAMENTO ----
@@ -2156,8 +2158,14 @@ function docsExtract(text){
   for(const [n,re] of DOCS_INSURERS){ if(re.test(t)){ f.seguradora = n; break; } }
   for(const [n,re] of DOCS_TIPOS){ if(re.test(t)){ f.tipo_seguro = n; break; } }
   if(/vida\s*em\s*grupo|coletiv|estipulante/i.test(t)) f.tipo_contratacao = 'Grupo'; else if(f.tipo_seguro) f.tipo_contratacao = 'Individual';
-  const vg = t.match(/vig[êe]ncia[^\d]{0,100}(\d{2}\/\d{2}\/\d{4})[^\d]{1,80}(\d{2}\/\d{2}\/\d{4})/is);
-  if(vg){ f.vig_ini = brToIso(vg[1]); f.vig_fim = brToIso(vg[2]); }
+  // tabela com cabeçalhos "Início de Vigência" / "Término de Vigência" seguidos pelas duas datas na mesma ordem
+  const vgHead = t.match(/in[íi]cio\s*(?:d[ae]\s*)?vig[êe]ncia[^\d]{0,15}t[ée]rmino\s*(?:d[ae]\s*)?vig[êe]ncia[\s\S]{0,25}?(\d{2}\/\d{2}\/\d{4})(?:\s*\d{1,2}:\d{2})?[\s\S]{0,20}?(\d{2}\/\d{2}\/\d{4})/i);
+  // "Início de Vigência DATA1 ... Término de Vigência DATA2" (rótulo e valor intercalados)
+  const vgInterl = !vgHead && t.match(/in[íi]cio\s*(?:d[ae]\s*)?vig[êe]ncia[^\d]{0,40}(\d{2}\/\d{2}\/\d{4})(?:\s*\d{1,2}:\d{2})?[\s\S]{0,80}?t[ée]rmino\s*(?:d[ae]\s*)?vig[êe]ncia[^\d]{0,40}(\d{2}\/\d{2}\/\d{4})/i);
+  const vg = !vgHead && !vgInterl && t.match(/vig[êe]ncia[^\d]{0,100}(\d{2}\/\d{2}\/\d{4})(?:\s*\d{1,2}:\d{2})?[\s\S]{1,80}?(\d{2}\/\d{2}\/\d{4})/is);
+  if(vgHead){ f.vig_ini = brToIso(vgHead[1]); f.vig_fim = brToIso(vgHead[2]); }
+  else if(vgInterl){ f.vig_ini = brToIso(vgInterl[1]); f.vig_fim = brToIso(vgInterl[2]); }
+  else if(vg){ f.vig_ini = brToIso(vg[1]); f.vig_fim = brToIso(vg[2]); }
   else { const h24 = t.match(/24\s*h(?:oras)?[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})[^\d]{1,40}24\s*h(?:oras)?[^\d]{0,25}(\d{2}\/\d{2}\/\d{4})/is);
     if(h24){ f.vig_ini = brToIso(h24[1]); f.vig_fim = brToIso(h24[2]); }
     else {
@@ -2171,6 +2179,8 @@ function docsExtract(text){
       }
     }
   }
+  // segurança: início e término não podem ser a mesma data — se saírem iguais, a extração falhou; deixa em branco para preenchimento manual
+  if(f.vig_ini && f.vig_fim && f.vig_ini === f.vig_fim) f.vig_fim = null;
   const pr = t.match(/pr[êe]mio\s*(total|anual|l[ií]quido|mensal)?[^\d]{0,35}(?:R\$)?\s*([\d.]+,\d{2})/i);
   if(pr){ const v = moneyBR(pr[2]); const mensal = /mensal/i.test(pr[1]||'') || /parcela|mensalidade/i.test(pr[0]); f.premio = v; f.premio_periodo = mensal ? 'mensal' : 'anual'; }
   const cap = t.match(/(?:import[âa]ncia\s*segurada|capital\s*segurado|valor\s*segurado|capital)[^\d]{0,45}(?:R\$)?\s*([\d.]+,\d{2})/i); if(cap) f.capital = moneyBR(cap[1]);
@@ -2810,10 +2820,14 @@ async function caSave(file, f){
     const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
     const num = id=>{ const v = g(id); return v==='' ? null : Number(v); };
     if(tipo==='estudo' || tipo==='concorrente'){
+      const adnPre = pessoaId ? await adnPrefillFromDiagECadastro(pessoaId, {}) : {};
       const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id:pessoaId, cliente_nome:f.nome||g('ca-n-nome')||null, cliente_cpf:f.cpf||g('ca-n-cpf')||null,
         seguradora_atual:g('ca-seg'), corretor_atual:g('ca-vend')||null, tipo_seguro:g('ca-prod'), numero_apolice:g('ca-num')||null,
         vigencia_inicio:g('ca-ini')||null, vigencia_fim:g('ca-fim')||null, premio_anual:num('ca-prem'), capital_segurado:capTotal, coberturas_atuais:covs, coberturas_valores:covVals,
-        dados_extraidos:{origem:tipo, vinculo_comercial:g('ca-vinc'), movimento:g('ca-mov'), tomador:g('ca-tom')||null, beneficiarios:g('ca-benef')||null, contratacao:g('ca-contr'), pagamento:g('ca-pag')||null, extraido:f}, documento_path:path, observacoes:g('ca-obs')||null }).select('id').single();
+        dados_extraidos:{origem:tipo, vinculo_comercial:g('ca-vinc'), movimento:g('ca-mov'), tomador:g('ca-tom')||null, beneficiarios:g('ca-benef')||null, contratacao:g('ca-contr'), pagamento:g('ca-pag')||null, extraido:f}, documento_path:path, observacoes:g('ca-obs')||null,
+        sexo:adnPre.sexo||null, estado_civil:adnPre.estado_civil||null, data_nascimento:adnPre.data_nascimento||null, profissao:adnPre.profissao||null,
+        renda_mensal:adnPre.renda_mensal??null, gastos_mensais:adnPre.gastos_mensais??null, patrimonio_bruto:adnPre.patrimonio_bruto??null, patrimonio_financeiro:adnPre.patrimonio_financeiro??null,
+        altura_cm:adnPre.altura_cm??null, peso_kg:adnPre.peso_kg??null, dependentes_qtd:adnPre.dependentes_qtd??null, fumante:adnPre.fumante??null }).select('id').single();
       if(error) throw error;
       await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
       window._dlgOnClose = null; dlgClose(); showToast('Enviada para o Estudo');
@@ -2895,6 +2909,71 @@ function estudoDialog(person){
   inp.addEventListener('change', ()=> esCreate(inp.files[0], person));
   box.querySelector('#es-manual').addEventListener('click', e=>{ e.preventDefault(); esCreate(null, person); });
 }
+// ---- unifica campos em comum entre Diagnóstico de Proteção (cadastro) e ADN (Novo Estudo) ----
+const EC_ADN2PESSOA = {'Solteiro(a)':'solteiro','Casado(a)':'casado','União estável':'união estável','Divorciado(a)':'divorciado','Viúvo(a)':'viúvo'};
+const EC_PESSOA2ADN = {solteiro:'Solteiro(a)', casado:'Casado(a)', 'união estável':'União estável', divorciado:'Divorciado(a)', viúvo:'Viúvo(a)'};
+async function adnPrefillFromDiagECadastro(pessoaId, base){
+  base = base || {};
+  const [{ data: diag }, { data: pessoa }] = await Promise.all([
+    sb.from('crm_diagnostico').select('*').eq('pessoa_id', pessoaId).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+    sb.from('crm_pessoas').select('sexo,estado_civil,data_nascimento,profissao').eq('id', pessoaId).maybeSingle(),
+  ]);
+  const p = {...base};
+  const need = k => p[k]===null || p[k]===undefined || p[k]==='';
+  if(pessoa){
+    if(need('sexo') && pessoa.sexo) p.sexo = pessoa.sexo;
+    if(need('estado_civil') && pessoa.estado_civil) p.estado_civil = EC_PESSOA2ADN[pessoa.estado_civil] || pessoa.estado_civil;
+    if(need('data_nascimento') && pessoa.data_nascimento) p.data_nascimento = pessoa.data_nascimento;
+    if(need('profissao') && pessoa.profissao) p.profissao = pessoa.profissao;
+  }
+  if(diag){
+    if(need('renda_mensal') && diag.renda_mensal_valor_exato!=null) p.renda_mensal = diag.renda_mensal_valor_exato;
+    if(need('gastos_mensais') && diag.despesas_mensais!=null) p.gastos_mensais = diag.despesas_mensais;
+    if(need('patrimonio_bruto') && diag.valor_bens_totais!=null) p.patrimonio_bruto = diag.valor_bens_totais;
+    if(need('patrimonio_financeiro') && diag.patrimonio_financeiro!=null) p.patrimonio_financeiro = diag.patrimonio_financeiro;
+    if(need('altura_cm') && diag.altura!=null) p.altura_cm = Math.round(Number(diag.altura)*100);
+    if(need('peso_kg') && diag.peso!=null) p.peso_kg = diag.peso;
+    if(!p.dependentes_qtd && diag.dependentes!=null) p.dependentes_qtd = diag.dependentes;
+    if(p.fumante==null && diag.fuma!=null) p.fumante = diag.fuma;
+  }
+  return p;
+}
+async function adnPushToDiagECadastro(e){
+  if(!e.pessoa_id) return;
+  const pessoaUpd = {};
+  if(e.sexo) pessoaUpd.sexo = e.sexo;
+  if(e.estado_civil) pessoaUpd.estado_civil = EC_ADN2PESSOA[e.estado_civil] || e.estado_civil;
+  if(e.data_nascimento) pessoaUpd.data_nascimento = e.data_nascimento;
+  if(e.profissao) pessoaUpd.profissao = e.profissao;
+  if(Object.keys(pessoaUpd).length) await sb.from('crm_pessoas').update(pessoaUpd).eq('id', e.pessoa_id);
+  const diagUpd = {};
+  if(e.renda_mensal!=null) diagUpd.renda_mensal_valor_exato = e.renda_mensal;
+  if(e.gastos_mensais!=null) diagUpd.despesas_mensais = e.gastos_mensais;
+  if(e.patrimonio_bruto!=null) diagUpd.valor_bens_totais = e.patrimonio_bruto;
+  if(e.patrimonio_financeiro!=null) diagUpd.patrimonio_financeiro = e.patrimonio_financeiro;
+  if(e.altura_cm!=null) diagUpd.altura = Number(e.altura_cm)/100;
+  if(e.peso_kg!=null) diagUpd.peso = e.peso_kg;
+  if(e.dependentes_qtd!=null) diagUpd.dependentes = e.dependentes_qtd;
+  if(e.fumante!=null) diagUpd.fuma = e.fumante;
+  if(!Object.keys(diagUpd).length) return;
+  const { data: diagRow } = await sb.from('crm_diagnostico').select('id').eq('pessoa_id', e.pessoa_id).order('created_at',{ascending:false}).limit(1).maybeSingle();
+  if(diagRow) await sb.from('crm_diagnostico').update(diagUpd).eq('id', diagRow.id);
+  else await sb.from('crm_diagnostico').insert({...diagUpd, pessoa_id:e.pessoa_id, preenchido_por:curUserName()});
+}
+async function diagPushToADN(pessoaId, diag){
+  const estUpd = {};
+  if(diag.renda_mensal_valor_exato!=null) estUpd.renda_mensal = diag.renda_mensal_valor_exato;
+  if(diag.despesas_mensais!=null) estUpd.gastos_mensais = diag.despesas_mensais;
+  if(diag.valor_bens_totais!=null) estUpd.patrimonio_bruto = diag.valor_bens_totais;
+  if(diag.patrimonio_financeiro!=null) estUpd.patrimonio_financeiro = diag.patrimonio_financeiro;
+  if(diag.altura!=null) estUpd.altura_cm = Math.round(Number(diag.altura)*100);
+  if(diag.peso!=null) estUpd.peso_kg = diag.peso;
+  if(diag.dependentes!=null) estUpd.dependentes_qtd = diag.dependentes;
+  if(diag.fuma!=null) estUpd.fumante = diag.fuma;
+  if(!Object.keys(estUpd).length) return;
+  const { data: estRow } = await sb.from('crm_estudos').select('id').eq('pessoa_id', pessoaId).order('created_at',{ascending:false}).limit(1).maybeSingle();
+  if(estRow) await sb.from('crm_estudos').update(estUpd).eq('id', estRow.id);
+}
 async function esCreate(file, person){
   const box = document.getElementById('dlg'); box.querySelector('.dlg-body').innerHTML = '<div class="op-more">⏳ Lendo a apólice e cruzando com o catálogo...</div>';
   try{
@@ -2903,9 +2982,14 @@ async function esCreate(file, person){
     const found = await findPessoas({cpf:f.cpf, nome:f.nome});
     const strong = person ? {id:person.id, nome:person.nome} : found.find(isStrong);
     const prem = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : null;
+    let adnPre = {};
+    if(strong) adnPre = await adnPrefillFromDiagECadastro(strong.id, {});
     const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id: strong ? strong.id : null, cliente_nome: strong ? strong.nome : (f.nome||null), cliente_cpf:f.cpf||null,
       seguradora_atual:f.seguradora||null, tipo_seguro:f.tipo_seguro||null, numero_apolice:f.numero_apolice||null, vigencia_inicio:f.vig_ini||null, vigencia_fim:f.vig_fim||null,
-      premio_anual:prem, capital_segurado:f.capital||null, coberturas_atuais:f.coberturas||[], coberturas_valores:f.coberturas_valores||{}, dados_extraidos:{origem:'estudo', extraido:f}, documento_path:path }).select('id').single();
+      premio_anual:prem, capital_segurado:f.capital||null, coberturas_atuais:f.coberturas||[], coberturas_valores:f.coberturas_valores||{}, dados_extraidos:{origem:'estudo', extraido:f}, documento_path:path,
+      sexo:adnPre.sexo||null, estado_civil:adnPre.estado_civil||null, data_nascimento:adnPre.data_nascimento||null, profissao:adnPre.profissao||null,
+      renda_mensal:adnPre.renda_mensal??null, gastos_mensais:adnPre.gastos_mensais??null, patrimonio_bruto:adnPre.patrimonio_bruto??null, patrimonio_financeiro:adnPre.patrimonio_financeiro??null,
+      altura_cm:adnPre.altura_cm??null, peso_kg:adnPre.peso_kg??null, dependentes_qtd:adnPre.dependentes_qtd??null, fumante:adnPre.fumante??null }).select('id').single();
     if(error) throw error;
     if(path) await sb.from('crm_documentos').insert({pessoa_id: strong?strong.id:null, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
     dlgClose(); showEstudoView(strong?strong.id:null, data.id);
@@ -3366,7 +3450,7 @@ async function esSave(silent){
     reposicao_ativa:e.reposicao_ativa, reposicao_horizonte_anos:e.reposicao_horizonte_anos, reposicao_inflacao_pct:e.reposicao_inflacao_pct, reposicao_rentabilidade_pct:e.reposicao_rentabilidade_pct, reposicao_renda_conjuge:e.reposicao_renda_conjuge, outros_objetivos:e.outros_objetivos,
     cotacoes:e.cotacoes, status:e.status, observacoes:e.observacoes, analise:{gerado_em:new Date().toISOString(), lacunas:esAnalise(e).missCore}, updated_at:new Date().toISOString() }).eq('id', e.id);
   if(error){ showToast('Erro: '+error.message); return; }
-  if(!silent) showToast('Estudo salvo');
+  if(!silent){ await adnPushToDiagECadastro(e); showToast('Estudo salvo'); }
   if(silent){ ES.cur = e; const i = ES.list.findIndex(x=>x.id===e.id); if(i>=0) ES.list[i] = e; esShow(e); } else renderEstudos();
 }
 function esParecer(e, a){
