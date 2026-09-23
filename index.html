@@ -1242,6 +1242,75 @@ function pvDiagField(k, v, def){
   if(def[2]==='select') return `<label class="fl"><span>${def[1]}</span><select data-dg="${k}"><option value="">—</option>${def[3].map(o=>`<option ${val===o?'selected':''}>${o}</option>`).join('')}</select></label>`;
   return `<label class="fl"><span>${def[1]}</span><input data-dg="${k}" type="${def[2]==='number'?'number':'text'}" step="any" value="${escapeHtml(String(val))}"></label>`;
 }
+const PD = { objetivos:[], deps:[] };
+function pdAdnAvancadoHtml(row){
+  const deps = row.dependentes_detalhe||[]; const qtd = row.dependentes!=null ? row.dependentes : deps.length;
+  PD.deps = deps; PD.objetivos = row.outros_objetivos||[];
+  const modChecks = MODULOS_ADN.map(([k,l])=>`<label class="tgl"><input type="checkbox" class="pd-mod" data-k="${k}" ${((row.modulos_visiveis||{})[k]!==false)?'checked':''}><span class="tgl-track"><span class="tgl-thumb"></span></span><span class="tgl-lbl">${l}</span></label>`).join('');
+  return `<div class="hint">Nº de dependentes vem do campo acima — aqui só o detalhe de cada um.</div>
+    <div id="pd-dep-rows" style="margin-top:6px;display:flex;flex-direction:column;gap:4px">${adnDepRows(qtd, deps)}</div>
+    <div id="pd-educ-total" class="hint" style="margin-top:4px"></div>
+    <div class="ql" style="margin-top:14px">Sucessão e proteção de renda (base do cálculo de Morte/Sucessão/Invalidez)</div>
+    <div class="hint" style="margin-bottom:8px">Regime de bens evita duplicar valor entre Morte e Sucessão; % de representatividade ajusta o capital de Morte ao quanto o segurado sustenta a família.</div>
+    <div class="fgrid">
+      <label class="fl"><span>Regime de bens</span><select id="pd-regime">${['—',...REGIMES_BENS].map(o=>`<option value="${o==='—'?'':o}" ${row.regime_bens===o?'selected':''}>${o}</option>`).join('')}</select></label>
+      ${fld('pd-provedor','% de representatividade na renda familiar',row.provedor_pct,'number')}
+      ${fld('pd-renda-desejada','Renda desejada para deixar à família (R$/mês)',row.renda_desejada_familia,'number')}
+    </div>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--ink-soft)">Avançado — percentuais e prazos (deixe em branco para usar o padrão do sistema)</summary>
+      <div class="fgrid" style="margin-top:8px">
+        ${fld('pd-itcmd','ITCMD % (padrão do sistema se vazio)',row.itcmd_pct_override,'number')}
+        ${fld('pd-cartorio','Cartório % (padrão do sistema se vazio)',row.cartorio_pct_override,'number')}
+        ${fld('pd-advogado','Advogado % (padrão do sistema se vazio)',row.advogado_pct_override,'number')}
+        ${fld('pd-reajedu','Reajuste anual educação % (padrão 6% se vazio)',row.reajuste_educacao_pct_override,'number')}
+        ${fld('pd-mreserva','Meses de reserva p/ padrão de vida (padrão 24 se vazio)',row.meses_reserva_override,'number')}
+        <div></div>
+      </div>
+    </details>
+    <div class="ql" style="margin-top:14px">Reposição de Renda (opcional)</div>
+    <label class="chk"><input type="checkbox" id="pd-repo-ativa" ${row.reposicao_ativa?'checked':''}> Incluir bloco de Reposição de Renda no cálculo de Morte</label>
+    <div id="pd-repo-fields" class="fgrid" style="margin-top:8px;display:${row.reposicao_ativa?'grid':'none'}">
+      ${fld('pd-repo-horiz','Horizonte de substituição (anos)',row.reposicao_horizonte_anos,'number')}
+      ${fld('pd-repo-infl','Inflação estimada (% a.a.)',row.reposicao_inflacao_pct,'number')}
+      ${fld('pd-repo-rent','Rentabilidade estimada (% a.a.)',row.reposicao_rentabilidade_pct,'number')}
+      ${fld('pd-repo-conjuge','Renda do cônjuge, se houver (R$/mês)',row.reposicao_renda_conjuge,'number')}
+    </div>
+    <div class="ql" style="margin-top:14px">Outros objetivos (opcional)</div>
+    <div id="pd-obj-rows" style="display:flex;flex-direction:column;gap:4px">${adnObjRows(row.outros_objetivos)}</div>
+    <button type="button" class="om-cancel" id="pd-obj-add" style="margin-top:6px">＋ Adicionar objetivo</button>
+    <div class="ql" style="margin-top:14px">Módulos incluídos na Análise Completa</div>
+    <div class="tgl-grid">${modChecks}</div>`;
+}
+function pdRenderDeps(host){
+  const qtdEl = host.querySelector('[data-dg="dependentes"]'); const qtd = qtdEl ? (parseInt(qtdEl.value,10)||0) : 0;
+  const cur = adnCollectDeps(host, PD.deps.length);
+  PD.deps = cur.length ? cur : PD.deps;
+  host.querySelector('#pd-dep-rows').innerHTML = adnDepRows(qtd, PD.deps);
+  pdUpdateEducTotal(host);
+}
+function pdUpdateEducTotal(host){
+  let total = 0; host.querySelectorAll('.adn-dep-custo').forEach(i=>{ if(i.value!=='') total += Number(i.value); });
+  const el = host.querySelector('#pd-educ-total'); if(el) el.textContent = total ? 'Total educação: '+fmtMoney(total)+'/mês' : '';
+}
+function pdRenderObjRows(host){
+  host.querySelector('#pd-obj-rows').innerHTML = adnObjRows(PD.objetivos);
+}
+function pdBindAvancado(host){
+  const dgDeps = host.querySelector('[data-dg="dependentes"]'); if(dgDeps) dgDeps.addEventListener('input', ()=>pdRenderDeps(host));
+  host.addEventListener('input', e=>{ if(e.target.classList.contains('adn-dep-custo')) pdUpdateEducTotal(host); });
+  host.querySelector('#pd-repo-ativa').addEventListener('change', e=>{ host.querySelector('#pd-repo-fields').style.display = e.target.checked?'grid':'none'; });
+  host.querySelector('#pd-obj-add').addEventListener('click', ()=>{ PD.objetivos = adnCollectObjetivos(host); PD.objetivos.push({descricao:'', valor:null}); pdRenderObjRows(host); });
+  host.addEventListener('click', e=>{ const rm = e.target.closest('.adn-obj-rm'); if(!rm) return; const i = parseInt(rm.dataset.i,10); PD.objetivos = adnCollectObjetivos(host); PD.objetivos.splice(i,1); pdRenderObjRows(host); });
+}
+function pdCollectAvancado(host){
+  const g = id=>{ const el = host.querySelector('#'+id); return el ? el.value.trim() : ''; }; const n = id=> g(id)===''?null:Number(g(id));
+  const qtdEl = host.querySelector('[data-dg="dependentes"]'); const qtd = qtdEl && qtdEl.value!=='' ? parseInt(qtdEl.value,10) : 0;
+  const mods = {}; host.querySelectorAll('.pd-mod').forEach(c=>{ mods[c.dataset.k] = c.checked; });
+  return { dependentes_detalhe: adnCollectDeps(host, qtd), regime_bens:g('pd-regime')||null, provedor_pct:n('pd-provedor'), renda_desejada_familia:n('pd-renda-desejada'),
+    itcmd_pct_override:n('pd-itcmd'), cartorio_pct_override:n('pd-cartorio'), advogado_pct_override:n('pd-advogado'), reajuste_educacao_pct_override:n('pd-reajedu'), meses_reserva_override:n('pd-mreserva'),
+    reposicao_ativa: host.querySelector('#pd-repo-ativa').checked, reposicao_horizonte_anos:n('pd-repo-horiz'), reposicao_inflacao_pct:n('pd-repo-infl'), reposicao_rentabilidade_pct:n('pd-repo-rent'), reposicao_renda_conjuge:n('pd-repo-conjuge'),
+    outros_objetivos: adnCollectObjetivos(host), modulos_visiveis: mods };
+}
 async function pvDiagnostico(p){
   const host = document.getElementById('pp-diag'); if(!host) return;
   const { data } = await sb.from('crm_diagnostico').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false}).limit(1);
@@ -1255,11 +1324,14 @@ async function pvDiagnostico(p){
     <div class="fgrid">${DIAG_ESSENCIAL.map(d=>pvDiagField(d[0], row[d[0]], d)).join('')}</div>
     <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">🔒 Saúde e subscrição <small style="color:var(--ink-faint);font-weight:400">— dado sensível: preencher só quando necessário para cotação (LGPD)</small></summary>
       <div class="fgrid" style="margin-top:8px">${DIAG_SAUDE.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div>${imc?`<div class="hint">IMC calculado: <b>${imc}</b></div>`:''}</details>
+    <details style="margin-top:8px" open><summary style="cursor:pointer;font-weight:600">🧮 ADN completo <small style="color:var(--ink-faint);font-weight:400">— usado no cálculo da Análise Completa; preenchido aqui, já aparece no Novo Estudo</small></summary>
+      <div style="margin-top:8px">${pdAdnAvancadoHtml(row)}</div></details>
     <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Avançado <small style="color:var(--ink-faint);font-weight:400">— objetivos, trabalho, patrimônio detalhado</small></summary>
       <div class="fgrid" style="margin-top:8px">${avanc.map(f=>pvDiagField(f.name, row[f.name], [f.name,f.label,f.type,f.options])).join('')}</div></details>
     <div style="margin-top:10px"><button class="om-save" id="dg-save">Salvar diagnóstico</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
+  pdBindAvancado(host);
   host.querySelector('#dg-save').addEventListener('click', async ()=>{
-    const payload = { preenchido_por:curUserName() };
+    const payload = { preenchido_por:curUserName(), ...pdCollectAvancado(host) };
     host.querySelectorAll('[data-dg]').forEach(el=>{ const k = el.dataset.dg; let v = el.value; if(v===''){ payload[k] = null; return; }
       if(k==='quais_esportes'){ payload[k] = v.split(',').map(s=>s.trim()).filter(Boolean); return; }
       if(el.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true'; else if(el.type==='number') v = parseFloat(v); payload[k] = v; });
@@ -2961,6 +3033,22 @@ async function adnPrefillFromDiagECadastro(pessoaId, base){
     if(need('peso_kg') && diag.peso!=null) p.peso_kg = diag.peso;
     if(need('dependentes_qtd') && diag.dependentes!=null) p.dependentes_qtd = diag.dependentes;
     if(p.fumante==null && diag.fuma!=null) p.fumante = diag.fuma;
+    if((!p.dependentes || !p.dependentes.length) && diag.dependentes_detalhe!=null) p.dependentes = diag.dependentes_detalhe;
+    if(need('regime_bens') && diag.regime_bens!=null) p.regime_bens = diag.regime_bens;
+    if(need('provedor_pct') && diag.provedor_pct!=null) p.provedor_pct = diag.provedor_pct;
+    if(need('renda_desejada_familia') && diag.renda_desejada_familia!=null) p.renda_desejada_familia = diag.renda_desejada_familia;
+    if(need('itcmd_pct_override') && diag.itcmd_pct_override!=null) p.itcmd_pct_override = diag.itcmd_pct_override;
+    if(need('cartorio_pct_override') && diag.cartorio_pct_override!=null) p.cartorio_pct_override = diag.cartorio_pct_override;
+    if(need('advogado_pct_override') && diag.advogado_pct_override!=null) p.advogado_pct_override = diag.advogado_pct_override;
+    if(need('reajuste_educacao_pct_override') && diag.reajuste_educacao_pct_override!=null) p.reajuste_educacao_pct_override = diag.reajuste_educacao_pct_override;
+    if(need('meses_reserva_override') && diag.meses_reserva_override!=null) p.meses_reserva_override = diag.meses_reserva_override;
+    if(p.reposicao_ativa==null && diag.reposicao_ativa!=null) p.reposicao_ativa = diag.reposicao_ativa;
+    if(need('reposicao_horizonte_anos') && diag.reposicao_horizonte_anos!=null) p.reposicao_horizonte_anos = diag.reposicao_horizonte_anos;
+    if(need('reposicao_inflacao_pct') && diag.reposicao_inflacao_pct!=null) p.reposicao_inflacao_pct = diag.reposicao_inflacao_pct;
+    if(need('reposicao_rentabilidade_pct') && diag.reposicao_rentabilidade_pct!=null) p.reposicao_rentabilidade_pct = diag.reposicao_rentabilidade_pct;
+    if(need('reposicao_renda_conjuge') && diag.reposicao_renda_conjuge!=null) p.reposicao_renda_conjuge = diag.reposicao_renda_conjuge;
+    if((!p.outros_objetivos || !p.outros_objetivos.length) && diag.outros_objetivos!=null) p.outros_objetivos = diag.outros_objetivos;
+    if(!p.modulos_visiveis && diag.modulos_visiveis!=null) p.modulos_visiveis = diag.modulos_visiveis;
   }
   return p;
 }
@@ -2984,6 +3072,22 @@ async function adnPushToDiagECadastro(e){
   if(e.peso_kg!=null) diagUpd.peso = e.peso_kg;
   if(e.dependentes_qtd!=null) diagUpd.dependentes = e.dependentes_qtd;
   if(e.fumante!=null) diagUpd.fuma = e.fumante;
+  if(e.dependentes && e.dependentes.length) diagUpd.dependentes_detalhe = e.dependentes;
+  if(e.regime_bens!=null) diagUpd.regime_bens = e.regime_bens;
+  if(e.provedor_pct!=null) diagUpd.provedor_pct = e.provedor_pct;
+  if(e.renda_desejada_familia!=null) diagUpd.renda_desejada_familia = e.renda_desejada_familia;
+  if(e.itcmd_pct_override!=null) diagUpd.itcmd_pct_override = e.itcmd_pct_override;
+  if(e.cartorio_pct_override!=null) diagUpd.cartorio_pct_override = e.cartorio_pct_override;
+  if(e.advogado_pct_override!=null) diagUpd.advogado_pct_override = e.advogado_pct_override;
+  if(e.reajuste_educacao_pct_override!=null) diagUpd.reajuste_educacao_pct_override = e.reajuste_educacao_pct_override;
+  if(e.meses_reserva_override!=null) diagUpd.meses_reserva_override = e.meses_reserva_override;
+  if(e.reposicao_ativa!=null) diagUpd.reposicao_ativa = e.reposicao_ativa;
+  if(e.reposicao_horizonte_anos!=null) diagUpd.reposicao_horizonte_anos = e.reposicao_horizonte_anos;
+  if(e.reposicao_inflacao_pct!=null) diagUpd.reposicao_inflacao_pct = e.reposicao_inflacao_pct;
+  if(e.reposicao_rentabilidade_pct!=null) diagUpd.reposicao_rentabilidade_pct = e.reposicao_rentabilidade_pct;
+  if(e.reposicao_renda_conjuge!=null) diagUpd.reposicao_renda_conjuge = e.reposicao_renda_conjuge;
+  if(e.outros_objetivos && e.outros_objetivos.length) diagUpd.outros_objetivos = e.outros_objetivos;
+  if(e.modulos_visiveis) diagUpd.modulos_visiveis = e.modulos_visiveis;
   if(!Object.keys(diagUpd).length) return {ok:true};
   const { data: diagRow } = await sb.from('crm_diagnostico').select('id').eq('pessoa_id', e.pessoa_id).order('created_at',{ascending:false}).limit(1).maybeSingle();
   const { error } = diagRow ? await sb.from('crm_diagnostico').update(diagUpd).eq('id', diagRow.id)
@@ -3001,11 +3105,32 @@ async function diagPushToADN(pessoaId, diag){
   if(diag.peso!=null) estUpd.peso_kg = diag.peso;
   if(diag.dependentes!=null) estUpd.dependentes_qtd = diag.dependentes;
   if(diag.fuma!=null) estUpd.fumante = diag.fuma;
+  if(diag.dependentes_detalhe && diag.dependentes_detalhe.length) estUpd.dependentes = diag.dependentes_detalhe;
+  if(diag.regime_bens!=null) estUpd.regime_bens = diag.regime_bens;
+  if(diag.provedor_pct!=null) estUpd.provedor_pct = diag.provedor_pct;
+  if(diag.renda_desejada_familia!=null) estUpd.renda_desejada_familia = diag.renda_desejada_familia;
+  if(diag.itcmd_pct_override!=null) estUpd.itcmd_pct_override = diag.itcmd_pct_override;
+  if(diag.cartorio_pct_override!=null) estUpd.cartorio_pct_override = diag.cartorio_pct_override;
+  if(diag.advogado_pct_override!=null) estUpd.advogado_pct_override = diag.advogado_pct_override;
+  if(diag.reajuste_educacao_pct_override!=null) estUpd.reajuste_educacao_pct_override = diag.reajuste_educacao_pct_override;
+  if(diag.meses_reserva_override!=null) estUpd.meses_reserva_override = diag.meses_reserva_override;
+  if(diag.reposicao_ativa!=null) estUpd.reposicao_ativa = diag.reposicao_ativa;
+  if(diag.reposicao_horizonte_anos!=null) estUpd.reposicao_horizonte_anos = diag.reposicao_horizonte_anos;
+  if(diag.reposicao_inflacao_pct!=null) estUpd.reposicao_inflacao_pct = diag.reposicao_inflacao_pct;
+  if(diag.reposicao_rentabilidade_pct!=null) estUpd.reposicao_rentabilidade_pct = diag.reposicao_rentabilidade_pct;
+  if(diag.reposicao_renda_conjuge!=null) estUpd.reposicao_renda_conjuge = diag.reposicao_renda_conjuge;
+  if(diag.outros_objetivos && diag.outros_objetivos.length) estUpd.outros_objetivos = diag.outros_objetivos;
+  if(diag.modulos_visiveis) estUpd.modulos_visiveis = diag.modulos_visiveis;
   if(!Object.keys(estUpd).length) return {ok:true};
   const { data: estRow } = await sb.from('crm_estudos').select('id').eq('pessoa_id', pessoaId).order('created_at',{ascending:false}).limit(1).maybeSingle();
-  if(!estRow) return {ok:true};
-  const { error } = await sb.from('crm_estudos').update(estUpd).eq('id', estRow.id);
-  if(error){ console.warn('diagPushToADN', error); return {ok:false, error}; }
+  if(estRow){
+    const { error } = await sb.from('crm_estudos').update(estUpd).eq('id', estRow.id);
+    if(error){ console.warn('diagPushToADN', error); return {ok:false, error}; }
+  } else {
+    const { data: pessoa } = await sb.from('crm_pessoas').select('nome,cpf').eq('id', pessoaId).maybeSingle();
+    const { error } = await sb.from('crm_estudos').insert({ pessoa_id:pessoaId, cliente_nome:pessoa?.nome||null, cliente_cpf:pessoa?.cpf||null, status:'aberto', ...estUpd });
+    if(error){ console.warn('diagPushToADN/insert', error); return {ok:false, error}; }
+  }
   return {ok:true};
 }
 async function esCreate(file, person){
