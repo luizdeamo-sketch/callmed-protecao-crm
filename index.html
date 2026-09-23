@@ -1156,7 +1156,7 @@ async function pvApolices(p){
   host.innerHTML = `<div class="ql">Apólices do cliente (${rows.length})</div>
     ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Seguradora</th><th>Vigência</th><th>Prêmio</th><th>Origem / vínculo</th><th>Status</th></tr></thead><tbody>${rows.map(a=>{ const d = daysTo(a.data_vencimento); return `<tr><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${escapeHtml(a.seguradora||'—')}</td><td>${fmtDate(a.data_emissao)||'—'} → <b>${fmtDate(a.data_vencimento)||'—'}</b>${d!==null&&d>=0&&d<=60?` <span class="tagx warn">${d}d</span>`:''}</td><td>${fmtMoney(a.valor_premio)}</td><td>${escapeHtml(CA_ORIGENS[a.origem_apolice]||a.origem_apolice||'—')} · ${escapeHtml(a.vinculo_comercial||'—')}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td></tr>`; }).join('')}</tbody></table>`:'<div class="hint">Nenhuma apólice vinculada. Use “Anexar apólice” no topo ou a Central de Apólices.</div>'}
     <div class="ql" style="margin-top:12px">Proteção atual (coberturas nas apólices)</div>
-    <div class="chks">${ES_CORE.concat(ES_OPT).map(k=>`<span class="tagx" style="${have.has(k)?'':'background:#f2f3f9;color:var(--ink-faint);text-decoration:line-through'}" title="${escapeHtml(covProtect(k))}">${covLabel(k)}</span>`).join(' ')}</div>
+    <div class="chks">${ES_CORE.concat(ES_OPT).concat(['rc_profissional']).map(k=>`<span class="tagx" style="${have.has(k)?'':'background:#f2f3f9;color:var(--ink-faint);text-decoration:line-through'}" title="${escapeHtml(covProtect(k))}">${covLabel(k)}</span>`).join(' ')}</div>
     ${cap?`<div class="hint">Capital de vida já segurado: <b>${fmtMoney(cap)}</b></div>`:''}`;
 }
 
