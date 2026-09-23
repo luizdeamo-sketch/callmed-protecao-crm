@@ -976,6 +976,7 @@ function pvShowTab(tab){
   if(tab==='plantoes') pvPlantoes(body, p);
 }
 document.getElementById('person-view').addEventListener('click', e=>{
+  if(e.target.closest('#btn-op-back')){ document.querySelector('.nav-btn[data-view="operacao"]').click(); return; }
   const t = e.target.closest('.pv-tab'); if(t){ pvGoto(t.dataset.tab); return; }
   if(e.target.id==='pv-next-edit') pvNextDialog();
   if(e.target.id==='pv-next-log') pvGoto('historico');
