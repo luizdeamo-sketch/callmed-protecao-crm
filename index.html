@@ -2178,7 +2178,35 @@ function docsExtract(text){
   f.coberturas_valores = extractPerCoverageValues(t, f.coberturas);
   if(!f.capital && Object.keys(f.coberturas_valores).length) f.capital = Object.values(f.coberturas_valores).reduce((a,b)=>a+b,0);
   f._chars = t.length;
+  f.multiplas = extractMultiPessoas(t);
   return f;
+}
+// Documento pode trazer várias pessoas juntas (ex.: um PDF só com N certificados). Não assumimos um layout
+// fixo: procuramos todo CPF válido no texto e tentamos achar um nome próximo dele (mesma linha ou linhas
+// vizinhas), pra qualquer formato de documento que apareça.
+function extractMultiPessoas(text){
+  const lines = String(text||'').split('\n');
+  const cpfRe = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g;
+  // nomes usam espaço simples entre palavras; 2+ espaços/tab costuma ser separador de coluna, então
+  // tratamos como quebra de "segmento" pra não grudar o nome com o rótulo do campo vizinho (ex.: "CPF").
+  const nameRe = /^([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú'.-]+(?: (?:d[aeo]s?|e) )?(?: [A-ZÀ-Ú][A-ZÀ-Úa-zà-ú'.-]+){1,6})$/;
+  const STOP = /\b(CPF|CNPJ|CRM|RG|DATA|NASC|EMAIL|E-MAIL|TELEFONE|ENDERE[CÇ]O|CEP|AP[ÓO]LICE|SEGURADORA|VIG[ÊE]NCIA|COBERTURA|VALOR|CERTIFICADO|SEGURO|PLANO|PR[ÊE]MIO|MATR[ÍI]CULA|C[ÓO]DIGO)\b/i;
+  const LABEL_PREFIX = /^(segurado|nome|titular|proponente|cliente)\s*(\(a\))?\s*[:\-]?\s*/i;
+  const segments = (s)=> s.split(/\s{2,}|\t/).map(x=>x.trim().replace(LABEL_PREFIX,'').trim()).filter(Boolean);
+  const bestNameIn = (segs)=>{ for(const seg of segs){ if(STOP.test(seg)) continue; const m = seg.match(nameRe); if(m) return m[1]; } return null; };
+  const out = []; const seen = new Set();
+  lines.forEach((line, idx)=>{
+    let m; cpfRe.lastIndex = 0;
+    while((m = cpfRe.exec(line))){
+      const cpfRaw = m[0]; if(!validCPF(cpfRaw)) continue;
+      const cpf = fmtCPF(cpfRaw); if(seen.has(cpf)) continue;
+      let nome = bestNameIn(segments(line.slice(0, m.index)).reverse());
+      if(!nome) nome = bestNameIn(segments(line.slice(m.index+cpfRaw.length)));
+      if(!nome){ for(const d of [-1,1,-2,2]){ const L = lines[idx+d]; if(!L) continue; const n2 = bestNameIn(segments(L)); if(n2){ nome = n2; break; } } }
+      seen.add(cpf); out.push({cpf, nome: nome?titleCase(nome.trim()):null});
+    }
+  });
+  return out;
 }
 async function docsRead(file){
   const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(file.name);
@@ -2623,8 +2651,71 @@ async function caNext(){
   const box = dlgOpen(`<div class="om-title"><div><h3>Lendo ${escapeHtml(file.name)}...</h3><div class="om-sub">Extraindo texto e identificando os dados da apólice.</div></div></div><div class="dlg-body"><div class="op-more">⏳ Aguarde...</div></div>`, true);
   let f = {};
   try{ f = await docsRead(file); }catch(e){ f = {_erro:e.message}; }
+  if(!window._caFixed && f.multiplas && f.multiplas.length>1){ await caFormMulti(file, f); return; }
   const found = window._caFixed ? [{...window._caFixed, why:'cadastro aberto'}] : await findPessoas({cpf:f.cpf, nome:f.nome});
   caForm(file, f, found);
+}
+async function caFormMulti(file, f){
+  await ensurePessoas();
+  const rows = f.multiplas.map(c=>{
+    const d = dOnly(c.cpf);
+    const match = d.length===11 ? OP.pessoas.find(p=>dOnly(p.cpf)===d) : null;
+    return {...c, match};
+  });
+  const nEncontrados = rows.filter(r=>r.match).length;
+  const covs = covValueRows('cm', f.coberturas||[], f.coberturas_valores||{});
+  const box = dlgOpen(`<div class="om-title"><div><h3>Documento com várias pessoas — ${escapeHtml(file.name)}</h3><div class="om-sub">Achei ${rows.length} CPF(s) no arquivo · ${nEncontrados} já estão no cadastro, ${rows.length-nEncontrados} são novos. Confira e desmarque quem não quiser processar.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body">
+      <div class="q"><div class="ql">1. Dados da apólice (aplicados a todas as pessoas marcadas)</div><div class="fgrid">
+        ${fld('cm-seg','Seguradora *',f.seguradora)}${fld('cm-prod','Produto / tipo *',f.tipo_seguro)}
+        ${fld('cm-ini','Início da vigência',f.vig_ini,'date')}${fld('cm-fim','Fim da vigência',f.vig_fim,'date')}
+        ${fld('cm-cap','Capital / valor de cobertura (R$)',f.capital||'','number')}
+        <label class="fl"><span>Status</span><select id="cm-status"><option value="ativa">Ativa</option><option value="proposta">Proposta em análise</option><option value="aguardando_emissao">Aguardando emissão</option></select></label>
+        <label class="fl"><span>Origem</span><select id="cm-origem"><option value="nova">Nova CallMed</option><option value="carteira">Existente / carteira</option><option value="estudo">Existente p/ análise</option><option value="importada">Importada</option></select></label>
+        <label class="fl"><span>Vínculo comercial *</span><select id="cm-vinc"><option value="CallMed">CallMed</option><option value="Outra corretora">Outra corretora</option><option value="Direto com seguradora">Direto com seguradora</option><option value="Não identificado">Não identificado</option></select></label>
+        <label class="fl"><span>Perfil padrão p/ cadastros novos</span><select id="cm-tipo">${tipoOptions('medico')}</select></label>
+      </div><div class="ql" style="margin-top:8px">Coberturas identificadas (aplicadas a todas)</div><div class="cv-grid">${covs}</div></div>
+      <div class="q"><div class="ql">2. Pessoas encontradas no documento (${rows.length})</div>
+        <table class="ca-table"><thead><tr><th></th><th>Nome (extraído do documento)</th><th>CPF</th><th>Cadastro</th></tr></thead><tbody>
+          ${rows.map((r,i)=>`<tr><td><input type="checkbox" class="cm-row" data-i="${i}" checked></td><td><input type="text" class="cm-nome" data-i="${i}" value="${escapeHtml(r.nome||'')}" placeholder="Sem nome identificado — preencha" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:4px 6px"></td><td class="mono">${escapeHtml(r.cpf)}</td><td>${r.match?`<span class="tagx" style="background:var(--green-soft);color:var(--green)">✔ ${escapeHtml(r.match.nome)}</span>`:'<span class="tagx warn">novo cadastro</span>'}</td></tr>`).join('')}
+        </tbody></table>
+      </div>
+      <div class="om-err" id="cm-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="cm-save">Processar ${rows.length} apólices</button></div>`, true);
+  window._dlgOnClose = ()=>{ if(caQueue.length) caNext(); };
+  covValueBind(box, 'cm');
+  box.querySelector('#cm-save').addEventListener('click', async ()=>{
+    const g = id=>document.getElementById(id).value.trim(); const err = document.getElementById('cm-err'); err.textContent = '';
+    if(!g('cm-seg') || !g('cm-prod')){ err.textContent = 'Informe seguradora e produto.'; return; }
+    const covsSel = [...box.querySelectorAll('.cm-cov:checked')].map(c=>c.value);
+    const covVals = covValueCollect(box, 'cm');
+    const capTotal = Number(g('cm-cap'))||Object.values(covVals).reduce((a,b)=>a+b,0)||null;
+    const btn = document.getElementById('cm-save'); btn.disabled = true; btn.textContent = 'Processando...';
+    let ok = 0, falhas = 0;
+    try{
+      const path = await docsUpload(file, 'apolices');
+      for(let i=0;i<rows.length;i++){
+        const chk = box.querySelector(`.cm-row[data-i="${i}"]`); if(!chk.checked) continue;
+        const nomeInput = box.querySelector(`.cm-nome[data-i="${i}"]`).value.trim();
+        const r = rows[i];
+        try{
+          let pessoaId = r.match ? r.match.id : null;
+          if(!pessoaId){
+            if(!nomeInput){ falhas++; continue; }
+            const { data, error } = await sb.from('crm_pessoas').insert({nome:nomeInput, cpf:r.cpf, tipo:g('cm-tipo')||'medico'}).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single();
+            if(error) throw error; pessoaId = data.id; OP.pessoas.push(data);
+          }
+          const { error: e2 } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, seguradora:g('cm-seg'), tipo_seguro:g('cm-prod'), data_emissao:g('cm-ini')||null, data_vencimento:g('cm-fim')||null,
+            valor_cobertura:capTotal, status:g('cm-status'), origem_apolice:g('cm-origem'), vinculo_comercial:g('cm-vinc'), tipo_movimento:'nova', coberturas:covsSel, coberturas_valores:covVals,
+            arquivo_apolice:path, observacoes:`Importado em lote de "${file.name}" (documento com múltiplas pessoas).` });
+          if(e2) throw e2; ok++;
+        }catch(e){ falhas++; }
+      }
+      OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+      OP.dirty = true; CA.loaded = false; dlgClose();
+      showToast(`${ok} apólice(s) processada(s)${falhas?` · ${falhas} com erro/sem nome`:''}`);
+    }catch(e){ err.textContent = 'Erro: '+(e.message||e); btn.disabled=false; btn.textContent = `Processar ${rows.length} apólices`; }
+  });
 }
 function caForm(file, f, found){
   const top = found[0] && (found[0].why==='CPF idêntico' || found[0].why==='CRM idêntico' || found[0].why==='nome idêntico' || found[0].why==='cadastro aberto') ? found[0].id : null;
