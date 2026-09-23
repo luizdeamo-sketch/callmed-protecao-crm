@@ -2764,15 +2764,15 @@ function imcInfo(alturaCm, pesoKg){
 function adnDepRows(qtd, deps){
   deps = deps || []; let html = '';
   for(let i=0;i<qtd;i++){ const d = deps[i]||{};
-    html += `<div class="cv-row" style="gap:8px"><input class="adn-dep-nome" data-i="${i}" placeholder="Nome do dependente" value="${escapeHtml(d.nome||'')}" style="flex:1.4;min-width:0"><input class="adn-dep-idade" data-i="${i}" type="number" placeholder="Idade" value="${d.idade!=null?d.idade:''}" style="width:70px"><input class="adn-dep-custo" data-i="${i}" type="number" placeholder="Educação R$/mês" value="${d.custo_educacao!=null?d.custo_educacao:''}" style="width:140px"></div>`; }
+    html += `<div class="cv-row" style="gap:8px"><input class="adn-dep-nome" data-i="${i}" placeholder="Nome do dependente" value="${escapeHtml(d.nome||'')}" style="flex:1.4;min-width:0"><input class="adn-dep-idade" data-i="${i}" type="number" placeholder="Idade" value="${d.idade!=null?d.idade:''}" style="width:70px"><input class="adn-dep-custo" data-i="${i}" type="number" placeholder="Educação R$/mês" value="${d.custo_educacao!=null?d.custo_educacao:''}" style="width:140px"><input class="adn-dep-limite" data-i="${i}" type="number" placeholder="Até que idade (faculdade)" value="${d.idade_limite_educacao!=null?d.idade_limite_educacao:''}" style="width:150px"></div>`; }
   return html;
 }
 function adnCollectDeps(box, qtd){
   const out = [];
   for(let i=0;i<qtd;i++){
     const nome = box.querySelector(`.adn-dep-nome[data-i="${i}"]`)?.value.trim() || '';
-    const idadeEl = box.querySelector(`.adn-dep-idade[data-i="${i}"]`); const custoEl = box.querySelector(`.adn-dep-custo[data-i="${i}"]`);
-    out.push({ nome, idade: idadeEl && idadeEl.value!=='' ? Number(idadeEl.value) : null, custo_educacao: custoEl && custoEl.value!=='' ? Number(custoEl.value) : null });
+    const idadeEl = box.querySelector(`.adn-dep-idade[data-i="${i}"]`); const custoEl = box.querySelector(`.adn-dep-custo[data-i="${i}"]`); const limiteEl = box.querySelector(`.adn-dep-limite[data-i="${i}"]`);
+    out.push({ nome, idade: idadeEl && idadeEl.value!=='' ? Number(idadeEl.value) : null, custo_educacao: custoEl && custoEl.value!=='' ? Number(custoEl.value) : null, idade_limite_educacao: limiteEl && limiteEl.value!=='' ? Number(limiteEl.value) : null });
   }
   return out;
 }
@@ -2802,6 +2802,11 @@ function adnUpdateFatores(){
   const el = document.getElementById('adn-fatores-box');
   el.innerHTML = list.length ? `<div class="es-warn">⚠️ <b>Fatores de atenção:</b> ${list.map(x=>'<span class="tagx warn" style="margin-right:4px">'+x+'</span>').join('')}</div>` : '';
 }
+const REGIMES_BENS = ['Comunhão universal de bens','Comunhão parcial de bens','Separação total de bens','Separação obrigatória de bens','Participação final nos aquestos','Não se aplica'];
+function adnObjRows(list){
+  list = list||[]; if(!list.length) return '<div class="hint" id="adn-obj-empty">Nenhum objetivo adicional informado.</div>';
+  return list.map((o,i)=>`<div class="cv-row" style="gap:8px" data-oi="${i}"><input class="adn-obj-desc" data-i="${i}" placeholder="Descrição (ex: quitar dívida, proteção empresarial)" value="${escapeHtml(o.descricao||'')}" style="flex:1.6;min-width:0"><input class="adn-obj-valor" data-i="${i}" type="number" placeholder="Valor R$" value="${o.valor!=null?o.valor:''}" style="width:150px"><button type="button" class="om-cancel adn-obj-rm" data-i="${i}" style="padding:6px 10px">✕</button></div>`).join('');
+}
 function adnHtml(e){
   const deps = e.dependentes||[]; const qtd = e.dependentes_qtd!=null ? e.dependentes_qtd : deps.length;
   const info = imcInfo(e.altura_cm, e.peso_kg);
@@ -2829,9 +2834,52 @@ function adnHtml(e){
     <label class="chk" style="margin-left:14px"><input type="checkbox" id="adn-comorb" ${e.comorbidade?'checked':''}> Diabetes, pressão alta ou outro fator de saúde</label>
     <div id="adn-comorb-obs-wrap" style="display:${e.comorbidade?'block':'none'};margin-top:6px">${fld('adn-comorb-obs','Qual(is)',e.comorbidade_obs,'text',true)}</div>
     <div id="adn-fatores-box" style="margin-top:8px"></div>
+
+    <div class="ql" style="margin-top:14px">Sucessão e proteção de renda (base do cálculo de Morte/Sucessão/Invalidez)</div>
+    <div class="hint" style="margin-bottom:8px">Esses campos alimentam a régua de cálculo da Análise Completa — regime de bens evita duplicar o valor entre Morte e Sucessão; % de representatividade ajusta o capital de Morte ao quanto o segurado sustenta a família.</div>
+    <div class="fgrid">
+      <label class="fl"><span>Regime de bens</span><select id="adn-regime">${['—',...REGIMES_BENS].map(o=>`<option value="${o==='—'?'':o}" ${e.regime_bens===o?'selected':''}>${o}</option>`).join('')}</select></label>
+      ${fld('adn-provedor','% de representatividade na renda familiar',e.provedor_pct,'number')}
+      ${fld('adn-renda-desejada','Renda desejada para deixar à família (R$/mês) — cobertura Renda Familiar',e.renda_desejada_familia,'number')}
+    </div>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--ink-soft)">Avançado — percentuais e prazos (deixe em branco para usar o padrão do sistema)</summary>
+      <div class="fgrid" style="margin-top:8px">
+        ${fld('adn-itcmd','ITCMD % (padrão do sistema se vazio)',e.itcmd_pct_override,'number')}
+        ${fld('adn-cartorio','Cartório % (padrão do sistema se vazio)',e.cartorio_pct_override,'number')}
+        ${fld('adn-advogado','Advogado % (padrão do sistema se vazio)',e.advogado_pct_override,'number')}
+        ${fld('adn-reajedu','Reajuste anual educação % (padrão 6% se vazio)',e.reajuste_educacao_pct_override,'number')}
+        ${fld('adn-mreserva','Meses de reserva p/ padrão de vida (padrão 24 se vazio)',e.meses_reserva_override,'number')}
+        <div></div>
+      </div>
+    </details>
+
+    <div class="ql" style="margin-top:14px">Reposição de Renda (opcional)</div>
+    <label class="chk"><input type="checkbox" id="adn-repo-ativa" ${e.reposicao_ativa?'checked':''}> Incluir bloco de Reposição de Renda no cálculo de Morte</label>
+    <div id="adn-repo-fields" class="fgrid" style="margin-top:8px;display:${e.reposicao_ativa?'grid':'none'}">
+      ${fld('adn-repo-horiz','Horizonte de substituição (anos)',e.reposicao_horizonte_anos,'number')}
+      ${fld('adn-repo-infl','Inflação estimada (% a.a.)',e.reposicao_inflacao_pct,'number')}
+      ${fld('adn-repo-rent','Rentabilidade estimada (% a.a.)',e.reposicao_rentabilidade_pct,'number')}
+      ${fld('adn-repo-conjuge','Renda do cônjuge, se houver (R$/mês)',e.reposicao_renda_conjuge,'number')}
+    </div>
+
+    <div class="ql" style="margin-top:14px">Outros objetivos (opcional)</div>
+    <div id="adn-obj-rows" style="display:flex;flex-direction:column;gap:4px">${adnObjRows(e.outros_objetivos)}</div>
+    <button type="button" class="om-cancel" id="adn-obj-add" style="margin-top:6px">＋ Adicionar objetivo</button>
+
     <div class="ql" style="margin-top:14px">Módulos incluídos na análise</div>
     <div class="tgl-grid">${modChecks}</div>
   </div>`;
+}
+function adnRenderObjRows(){
+  const box = document.getElementById('es-detail'); if(!box) return;
+  document.getElementById('adn-obj-rows').innerHTML = adnObjRows(ES.cur._objetivos||[]);
+}
+function adnCollectObjetivos(box){
+  const out = []; box.querySelectorAll('.adn-obj-desc').forEach(el=>{
+    const i = el.dataset.i; const desc = el.value.trim(); const valEl = box.querySelector(`.adn-obj-valor[data-i="${i}"]`); const valor = valEl && valEl.value!=='' ? Number(valEl.value) : null;
+    if(desc || valor) out.push({descricao:desc, valor});
+  });
+  return out;
 }
 function adnBind(){
   const box = document.getElementById('es-detail');
@@ -2839,6 +2887,14 @@ function adnBind(){
   box.addEventListener('input', e=>{ if(e.target.classList.contains('adn-dep-custo')) adnUpdateEducTotal(); if(e.target.id==='adn-altura'||e.target.id==='adn-peso') adnUpdateImc(); if(e.target.id==='adn-comorb-obs') adnUpdateFatores(); });
   document.getElementById('adn-fuma').addEventListener('change', adnUpdateFatores);
   document.getElementById('adn-comorb').addEventListener('change', adnUpdateFatores);
+  document.getElementById('adn-repo-ativa').addEventListener('change', e2=>{ document.getElementById('adn-repo-fields').style.display = e2.target.checked ? 'grid' : 'none'; });
+  document.getElementById('adn-obj-add').addEventListener('click', ()=>{
+    ES.cur._objetivos = adnCollectObjetivos(box); ES.cur._objetivos.push({descricao:'', valor:null}); adnRenderObjRows();
+  });
+  box.addEventListener('click', e2=>{
+    const rm = e2.target.closest('.adn-obj-rm'); if(!rm) return;
+    const i = parseInt(rm.dataset.i,10); ES.cur._objetivos = adnCollectObjetivos(box); ES.cur._objetivos.splice(i,1); adnRenderObjRows();
+  });
   const p2 = document.getElementById('es-open-p2'); if(p2) p2.addEventListener('click', ev=>{ ev.preventDefault(); goToPersonView(ES.cur.pessoa_id); });
   adnUpdateFatores();
 }
@@ -2849,6 +2905,10 @@ function adnCollect(box){
   return { estado_civil:g('adn-ecivil')||null, sexo:document.getElementById('adn-sexo').value||null, data_nascimento:g('adn-nasc')||null, profissao:g('adn-prof')||null,
     dependentes_qtd:qtd, dependentes:adnCollectDeps(box, qtd), renda_mensal:n('adn-renda'), gastos_mensais:n('adn-gastos'), patrimonio_bruto:n('adn-patbruto'), patrimonio_financeiro:n('adn-patfin'),
     altura_cm:n('adn-altura'), peso_kg:n('adn-peso'), fumante:document.getElementById('adn-fuma').checked, comorbidade:document.getElementById('adn-comorb').checked, comorbidade_obs:g('adn-comorb-obs')||null,
+    regime_bens:g('adn-regime')||null, provedor_pct:n('adn-provedor'), renda_desejada_familia:n('adn-renda-desejada'),
+    itcmd_pct_override:n('adn-itcmd'), cartorio_pct_override:n('adn-cartorio'), advogado_pct_override:n('adn-advogado'), reajuste_educacao_pct_override:n('adn-reajedu'), meses_reserva_override:n('adn-mreserva'),
+    reposicao_ativa:document.getElementById('adn-repo-ativa').checked, reposicao_horizonte_anos:n('adn-repo-horiz'), reposicao_inflacao_pct:n('adn-repo-infl'), reposicao_rentabilidade_pct:n('adn-repo-rent'), reposicao_renda_conjuge:n('adn-repo-conjuge'),
+    outros_objetivos:adnCollectObjetivos(box),
     modulos_visiveis:mods };
 }
 function esAnalise(e){
@@ -2876,10 +2936,13 @@ function esAnalise(e){
 
 
 // ---------- ANÁLISE COMPLETA — régua de cálculo por cobertura (backend) + PDF ----------
-// Fórmulas com base no resumo de 22/09 (Amanda): Morte por representatividade de renda + educação
-// dos filhos; Sucessão por inventário (ITCMD+cartório+advogado); Invalidez por capitalização da renda;
-// Doenças Graves por meses de renda; Diárias (DIT/DIH) por renda/30; Cirurgias/Fratura/Funeral fixos;
-// não duplica Morte+Sucessão nem Invalidez por Acidente+Doença no total (usa o maior dos dois).
+// Revisado em 23/09 a partir do docx "Correções Cálculo Análise Completa" da Amanda:
+// Morte = inventário (parte não repartida com Sucessão) + educação composta até idade-limite + 24 meses
+// de gastos (padrão de vida) + Reposição de Renda (opcional) + Outros Objetivos, tudo × % de representatividade
+// do provedor. Sucessão = inventário repartido pelo regime de bens (comunhão reparte por meação; demais
+// regimes ficam 100% em Sucessão). Invalidez Acidente/Doença = renda÷1%, dividido 50/50 pra não duplicar.
+// Renda Familiar/Invalidez = input direto do cliente, sem fórmula. Doenças Graves por meses de renda;
+// Diárias (DIT/DIH) por renda/30; Cirurgias R$100k, Fratura R$100k, Funeral Familiar R$10k (fixos).
 const MODULO_COVS = { sucessao:['sucessao'], familia:['renda'], doencas_graves:['doencas_graves'], cirurgias:['cirurgias','fratura_ossea'],
   dih:['dih'], invalidez:['ipa','invalidez_doenca'], dit:['dit'], funeral:['funeral_individual','funeral_familiar'] };
 let CALC_PARAMS = null;
@@ -2889,41 +2952,103 @@ async function ensureCalcParams(){
   CALC_PARAMS = {}; (data||[]).forEach(r=>CALC_PARAMS[r.chave]=Number(r.valor));
   return CALC_PARAMS;
 }
+// coberturas fixas/simples que não dependem de repartição cruzada
 function calcCoverageCapital(key, e, P){
-  const renda = Number(e.renda_mensal)||0, patrimonio = Number(e.patrimonio_bruto)||0;
-  const taxa = (P.taxa_juros_mensal||0.7)/100, fator = (P.fator_multiplicador_pct||100)/100;
-  const txJuros = P.taxa_juros_mensal||0.7, txFator = P.fator_multiplicador_pct||100;
-  if(key==='morte'){
-    const perp = taxa>0 ? renda/taxa : 0;
-    const educ = (e.dependentes||[]).reduce((t,d)=>{ const custo=Number(d.custo_educacao)||0, idade=d.idade!=null?Number(d.idade):null; if(!custo) return t; const meses=(idade!=null&&idade<18)?(18-idade)*12:0; return t+custo*meses; },0);
-    return {valor:perp+educ, texto:`Renda capitalizada a ${txJuros}% a.m. (${fmtMoney(perp)}) + educação dos dependentes até 18 anos (${fmtMoney(educ)}).`};
-  }
-  if(key==='sucessao'){
-    const pct=(P.sucessao_itcmd_pct||0)+(P.sucessao_cartorio_pct||0)+(P.sucessao_advogado_pct||0);
-    return {valor:patrimonio*pct/100, texto:`${pct.toFixed(1)}% do patrimônio bruto (ITCMD ${P.sucessao_itcmd_pct||0}% + cartório ${P.sucessao_cartorio_pct||0}% + honorários ${P.sucessao_advogado_pct||0}%), referência para custos de inventário.`};
-  }
-  if(key==='ipa' || key==='invalidez_doenca'){
-    return {valor:(taxa>0?renda/taxa:0)*fator, texto:`Renda capitalizada a ${txJuros}% a.m., com fator multiplicador de ${txFator}%.`};
-  }
+  const renda = Number(e.renda_mensal)||0, fator = (P.fator_multiplicador_pct||100)/100;
   if(key==='doencas_graves'){
-    return {valor:renda*(P.doencas_graves_meses||24)*fator, texto:`${P.doencas_graves_meses||24} meses de renda, com fator multiplicador de ${txFator}%.`};
+    return {valor:renda*(P.doencas_graves_meses||24)*fator, texto:`${P.doencas_graves_meses||24} meses de renda, com fator multiplicador de ${P.fator_multiplicador_pct||100}%.`};
   }
   if(key==='cirurgias') return {valor:P.cirurgias_valor_fixo||0, texto:'Valor fixo de referência para procedimento cirúrgico coberto.'};
   if(key==='fratura_ossea') return {valor:P.fratura_ossea_valor_fixo||0, texto:'Valor fixo de referência para fratura óssea decorrente de acidente.'};
   if(key==='funeral_individual') return {valor:P.funeral_individual_valor||0, texto:'Valor fixo de referência para assistência funeral individual.'};
   if(key==='funeral_familiar') return {valor:P.funeral_familiar_valor||0, texto:'Valor fixo de referência para assistência funeral familiar (cônjuge e filhos).'};
-  if(key==='renda') return {valor:taxa>0?renda/taxa:0, texto:`Renda capitalizada a ${txJuros}% a.m. para manter o padrão de vida da família.`};
   if(key==='dit' || key==='dih') return {valor:renda/30, texto:'Renda mensal dividida por 30 dias — valor de diária sugerido.', diaria:true};
   return {valor:0, texto:''};
 }
+const REGIMES_COMUNHAO = ['Comunhão universal de bens','Comunhão parcial de bens','Participação final nos aquestos'];
+function calcLiquidezSucessoria(patrimonio, P, e){
+  const itcmd = e.itcmd_pct_override!=null?Number(e.itcmd_pct_override):(P.sucessao_itcmd_pct||0);
+  const cartorio = e.cartorio_pct_override!=null?Number(e.cartorio_pct_override):(P.sucessao_cartorio_pct||0);
+  const advogado = e.advogado_pct_override!=null?Number(e.advogado_pct_override):(P.sucessao_advogado_pct||0);
+  const pct = itcmd+cartorio+advogado;
+  return { valor: patrimonio*pct/100, pct, itcmd, cartorio, advogado };
+}
+function calcEducacao(deps, reajustePct){
+  return (deps||[]).reduce((tot,d)=>{
+    const custo = Number(d.custo_educacao)||0, idade = d.idade!=null?Number(d.idade):null, limite = d.idade_limite_educacao!=null?Number(d.idade_limite_educacao):null;
+    if(!custo || idade==null || limite==null || limite<=idade) return tot;
+    let mensalidade = custo, soma = 0;
+    for(let y=0; y<(limite-idade); y++){ soma += mensalidade*12; mensalidade *= (1+reajustePct/100); }
+    return tot+soma;
+  },0);
+}
+function calcReposicaoRenda(e){
+  if(!e.reposicao_ativa) return {valor:0, ativa:false, texto:'Não incluído — bloco "Reposição de Renda" não foi marcado como ativo neste estudo.'};
+  const horiz = Number(e.reposicao_horizonte_anos)||0, infl = e.reposicao_inflacao_pct!=null?Number(e.reposicao_inflacao_pct):null, rent = e.reposicao_rentabilidade_pct!=null?Number(e.reposicao_rentabilidade_pct):null;
+  if(!horiz || infl==null || rent==null) return {valor:0, ativa:true, texto:'Não incluído — faltam parâmetros (horizonte, inflação ou rentabilidade) para calcular a reposição de renda.'};
+  const rendaBase = Number(e.renda_desejada_familia)||Number(e.renda_mensal)||0, rendaConjuge = Number(e.reposicao_renda_conjuge)||0;
+  const rendaNecessaria = Math.max(0, rendaBase-rendaConjuge);
+  if(!rendaNecessaria) return {valor:0, ativa:true, texto:'Não incluído — renda necessária líquida da renda do cônjuge ficou zero.'};
+  const taxaRealAnual = ((1+rent/100)/(1+infl/100))-1, taxaRealMensal = Math.pow(1+taxaRealAnual, 1/12)-1, n = horiz*12;
+  const valor = taxaRealMensal>0 ? rendaNecessaria*(1-Math.pow(1+taxaRealMensal,-n))/taxaRealMensal : rendaNecessaria*n;
+  return {valor, ativa:true, texto:`Valor presente de ${fmtMoney(rendaNecessaria)}/mês por ${horiz} anos, a uma taxa real de ${(taxaRealAnual*100).toFixed(2)}% a.a. (rentabilidade ${rent}% − inflação ${infl}%). Metodologia padrão de valor presente de renda — confirme com a Amanda se é essa a fórmula da especificação.`};
+}
+function calcOutrosObjetivos(e){
+  const list = e.outros_objetivos||[];
+  const valor = list.reduce((t,o)=>t+(Number(o.valor)||0),0);
+  const texto = list.filter(o=>o.descricao||o.valor).map(o=>`${o.descricao||'objetivo'}: ${fmtMoney(o.valor)}`).join('; ');
+  return {valor, texto};
+}
 function calcAnaliseCompleta(e, P){
   const mods = e.modulos_visiveis||{};
-  const keys = ['morte']; Object.entries(MODULO_COVS).forEach(([m,covs])=>{ if(mods[m]!==false) covs.forEach(c=>{ if(!keys.includes(c)) keys.push(c); }); });
-  const rows = keys.map(k=>{ const c = calcCoverageCapital(k, e, P); return {key:k, label:covLabel(k), texto:c.texto, valor:c.valor, diaria:!!c.diaria}; });
-  const overlapGroups = [['morte','sucessao'],['ipa','invalidez_doenca']];
-  let total = 0; const counted = new Set();
-  overlapGroups.forEach(g=>{ const present = rows.filter(r=>!r.diaria && g.includes(r.key)); if(present.length){ total += Math.max(...present.map(r=>r.valor)); present.forEach(r=>counted.add(r.key)); } });
-  rows.forEach(r=>{ if(!r.diaria && !counted.has(r.key)) total += r.valor; });
+  const patrimonio = Number(e.patrimonio_bruto)||0, gastos = Number(e.gastos_mensais)||0, renda = Number(e.renda_mensal)||0;
+  const reajustePct = e.reajuste_educacao_pct_override!=null?Number(e.reajuste_educacao_pct_override):(P.reajuste_educacao_pct||6);
+  const mesesReserva = e.meses_reserva_override!=null?Number(e.meses_reserva_override):(P.reserva_padrao_vida_meses||24);
+  const provedorInformado = e.provedor_pct!=null; const provedorPct = provedorInformado ? Number(e.provedor_pct)/100 : 1;
+  const sucessaoAtiva = mods.sucessao !== false;
+  const liq = calcLiquidezSucessoria(patrimonio, P, e);
+  let liqMorte = 0, liqSucessao = 0, liqTexto = '';
+  if(sucessaoAtiva){
+    const comunhao = REGIMES_COMUNHAO.includes(e.regime_bens);
+    if(comunhao){
+      const meacaoPct = (P.sucessao_meacao_pct||50)/100;
+      liqSucessao = liq.valor*meacaoPct; liqMorte = liq.valor*(1-meacaoPct);
+      liqTexto = `Inventário de ${fmtMoney(liq.valor)} (${liq.pct.toFixed(1)}% do patrimônio bruto: ITCMD ${liq.itcmd}% + Cartório ${liq.cartorio}% + Advogado ${liq.advogado}%), repartido pela meação do regime "${e.regime_bens}" — ${(meacaoPct*100).toFixed(0)}% Sucessão, ${(100-meacaoPct*100).toFixed(0)}% compõe Morte.`;
+    } else {
+      liqSucessao = liq.valor; liqMorte = 0;
+      liqTexto = `Inventário de ${fmtMoney(liq.valor)} (${liq.pct.toFixed(1)}% do patrimônio bruto), integralmente em Sucessão — regime "${e.regime_bens||'não informado'}" não gera meação automática ao cônjuge nesta régua.`;
+    }
+  } else {
+    liqMorte = liq.valor;
+    liqTexto = `Inventário de ${fmtMoney(liq.valor)} (${liq.pct.toFixed(1)}% do patrimônio bruto) integralmente em Morte — cobertura de Sucessão não está marcada neste estudo.`;
+  }
+  const educTotal = calcEducacao(e.dependentes, reajustePct);
+  const reservaTotal = gastos*mesesReserva;
+  const reposicao = calcReposicaoRenda(e);
+  const outros = calcOutrosObjetivos(e);
+  const morteBase = liqMorte+educTotal+reservaTotal+reposicao.valor+outros.valor;
+  const morteValor = morteBase*provedorPct;
+  const rows = [{key:'morte', label:covLabel('morte'), valor:morteValor, texto:
+    `Inventário (parte Morte): ${fmtMoney(liqMorte)}. Educação até a idade-limite informada (composta, reajuste ${reajustePct}% a.a.): ${fmtMoney(educTotal)}. Reserva de padrão de vida (${mesesReserva} meses de gastos): ${fmtMoney(reservaTotal)}. Reposição de renda: ${reposicao.ativa?fmtMoney(reposicao.valor):'não incluída'}. Outros objetivos: ${fmtMoney(outros.valor)}.${!provedorInformado?' % de representatividade do provedor não informado — usando 100%.':(provedorPct<1?` Multiplicado por ${(provedorPct*100).toFixed(0)}% de representatividade do segurado na renda familiar.`:'')} ${liqTexto} ${reposicao.texto}`}];
+  if(sucessaoAtiva) rows.push({key:'sucessao', label:covLabel('sucessao'), valor:liqSucessao, texto:liqTexto});
+  if(mods.invalidez !== false){
+    const taxaInv = (P.invalidez_taxa_pct||1)/100;
+    const full = taxaInv>0 ? renda/taxaInv : 0, half = full/2;
+    const txtInv = `Renda ÷ ${(taxaInv*100)}% = ${fmtMoney(full)} no total, dividido igualmente entre Invalidez por Acidente e Invalidez por Doença para não duplicar no capital total.`;
+    rows.push({key:'ipa', label:covLabel('ipa'), valor:half, texto:txtInv});
+    rows.push({key:'invalidez_doenca', label:covLabel('invalidez_doenca'), valor:half, texto:txtInv});
+  }
+  if(mods.familia !== false){
+    const rd = Number(e.renda_desejada_familia)||0;
+    rows.push({key:'renda', label:covLabel('renda'), valor:rd, texto: rd?'Valor informado diretamente pelo cliente/lead como renda que deseja deixar para a família — sem fórmula automática, sujeito à análise de subscrição da seguradora.':'Nenhum valor informado — preencha "Renda desejada para deixar à família" no ADN.'});
+  }
+  ['doencas_graves','dih','dit','cirurgias','fratura_ossea','funeral_individual','funeral_familiar'].forEach(k=>{
+    const modKey = Object.entries(MODULO_COVS).find(([m,covs])=>covs.includes(k))?.[0];
+    if(modKey && mods[modKey]===false) return;
+    const c = calcCoverageCapital(k, e, P);
+    rows.push({key:k, label:covLabel(k), valor:c.valor, texto:c.texto, diaria:!!c.diaria});
+  });
+  const total = rows.reduce((t,r)=> t+(r.diaria?0:r.valor), 0);
   return {rows, total};
 }
 function esAnaliseBoxHtml(){
@@ -2935,7 +3060,7 @@ function esBindAnaliseBox(){
     btn.disabled = true; btn.textContent = 'Calculando...';
     const P = await ensureCalcParams(); const e = esCollect(); const calc = calcAnaliseCompleta(e, P);
     document.getElementById('ac-result').innerHTML = `<table class="ca-table"><thead><tr><th>Cobertura</th><th>Sugestão</th><th>Como foi calculado</th></tr></thead><tbody>${calc.rows.map(r=>`<tr><td>${escapeHtml(r.label)}</td><td><b>${r.diaria?fmtMoney(r.valor)+'/dia':fmtMoney(r.valor)}</b></td><td><small>${escapeHtml(r.texto)}</small></td></tr>`).join('')}</tbody></table>
-      <div class="hint" style="margin-top:8px">Capital total sugerido (sem somar Morte+Sucessão nem Invalidez por Acidente+Doença — usa o maior dos dois): <b>${fmtMoney(calc.total)}</b></div>
+      <div class="hint" style="margin-top:8px">Capital total sugerido (inventário já repartido entre Morte e Sucessão pelo regime de bens; Invalidez por Acidente e por Doença já divididas para não duplicar): <b>${fmtMoney(calc.total)}</b></div>
       <div style="margin-top:10px"><button class="om-cancel" id="ac-pdf">⬇ Exportar PDF da Análise</button></div>`;
     document.getElementById('ac-pdf').addEventListener('click', ()=> exportAnaliseCompletaPDF(esCollect(), calcAnaliseCompleta(esCollect(), P)));
   });
@@ -2963,7 +3088,7 @@ function exportAnaliseCompletaPDF(e, calc){
       </div>
       <p class="pr-section-title">Capital sugerido por cobertura</p>
       ${calc.rows.map(r=>`<div class="pr-box" style="margin-bottom:10px"><h4>${escapeHtml(r.label)} — <span style="color:#0018FC">${r.diaria?fmtMoney(r.valor)+'/dia':fmtMoney(r.valor)}</span></h4><p style="font-size:11.5px;color:#565c6e;margin:4px 0">${escapeHtml(covProtect(r.key))}</p><p style="font-size:10.5px;color:#8990a3;margin:0">Cálculo: ${escapeHtml(r.texto)}</p></div>`).join('')}
-      <div class="pr-box" style="border-top:4px solid #0018FC"><h4>Capital total sugerido</h4><p style="font-size:22px;font-weight:800;color:#0018FC;margin:2px 0">${fmtMoney(calc.total)}</p><p style="font-size:10.5px;color:#8990a3;margin:6px 0 0">Não soma Morte com Sucessão, nem Invalidez por Acidente com Invalidez por Doença — nesses casos considera o maior valor entre as duas coberturas.</p></div>
+      <div class="pr-box" style="border-top:4px solid #0018FC"><h4>Capital total sugerido</h4><p style="font-size:22px;font-weight:800;color:#0018FC;margin:2px 0">${fmtMoney(calc.total)}</p><p style="font-size:10.5px;color:#8990a3;margin:6px 0 0">O valor do inventário (ITCMD+Cartório+Advogado) já é repartido entre Morte e Sucessão pelo regime de bens informado, sem duplicar. Invalidez por Acidente e por Doença também já vêm divididas para não duplicar o capital.</p></div>
       <div class="pr-footer"><span>CallMed Proteção Patrimonial — análise gerada pelo CallMed CRM Aliança</span><span>Gerado em ${hoje}</span></div>
     </div>`;
   document.getElementById('print-report').innerHTML = html;
@@ -3053,6 +3178,9 @@ async function esSave(silent){
     estado_civil:e.estado_civil, sexo:e.sexo, data_nascimento:e.data_nascimento, profissao:e.profissao, dependentes_qtd:e.dependentes_qtd, dependentes:e.dependentes,
     renda_mensal:e.renda_mensal, gastos_mensais:e.gastos_mensais, patrimonio_bruto:e.patrimonio_bruto, patrimonio_financeiro:e.patrimonio_financeiro,
     altura_cm:e.altura_cm, peso_kg:e.peso_kg, fumante:e.fumante, comorbidade:e.comorbidade, comorbidade_obs:e.comorbidade_obs, modulos_visiveis:e.modulos_visiveis,
+    regime_bens:e.regime_bens, provedor_pct:e.provedor_pct, renda_desejada_familia:e.renda_desejada_familia,
+    itcmd_pct_override:e.itcmd_pct_override, cartorio_pct_override:e.cartorio_pct_override, advogado_pct_override:e.advogado_pct_override, reajuste_educacao_pct_override:e.reajuste_educacao_pct_override, meses_reserva_override:e.meses_reserva_override,
+    reposicao_ativa:e.reposicao_ativa, reposicao_horizonte_anos:e.reposicao_horizonte_anos, reposicao_inflacao_pct:e.reposicao_inflacao_pct, reposicao_rentabilidade_pct:e.reposicao_rentabilidade_pct, reposicao_renda_conjuge:e.reposicao_renda_conjuge, outros_objetivos:e.outros_objetivos,
     cotacoes:e.cotacoes, status:e.status, observacoes:e.observacoes, analise:{gerado_em:new Date().toISOString(), lacunas:esAnalise(e).missCore}, updated_at:new Date().toISOString() }).eq('id', e.id);
   if(error){ showToast('Erro: '+error.message); return; }
   if(!silent) showToast('Estudo salvo');
