@@ -1600,7 +1600,7 @@ function opClienteNoMes(pid, mi){
   return (OP.apo.get(pid)||[]).some(a=>{ if(a.status==='cancelada') return false; const r = opApoRange(a); return r.start && r.end && r.start < mo.e && r.end >= mo.s; });
 }
 function opIsCliente(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status!=='cancelada'); }
-function opIsClienteAtivo(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status==='ativa'); }
+function opIsClienteAtivo(pid){ return (OP.apo.get(pid)||[]).some(a=>caEfetivo(a)==='ativa'); }
 
 async function opFetchAll(table, cols, orderCols){
   let out = [], from = 0;
