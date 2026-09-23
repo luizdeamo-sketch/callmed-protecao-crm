@@ -241,7 +241,8 @@
           <select id="op-f-acao"><option value="">Tipo de ação: qualquer</option></select>
           <select id="op-f-situacao">
             <option value="">Todas as situações</option>
-            <option value="cliente">Clientes (com apólice)</option>
+            <option value="cliente_ativo">Clientes ativos (apólice ativa)</option>
+            <option value="cliente">Clientes (qualquer apólice)</option>
             <option value="funil">Em funil (sem apólice)</option>
             <option value="novo">Sem contato ainda</option>
           </select>
@@ -453,6 +454,8 @@
   .op-sort-opt{ text-align:left; background:none; border:none; padding:8px 10px; font-size:12.5px; text-transform:none; letter-spacing:normal; font-weight:500; color:var(--ink); border-radius:6px; cursor:pointer;}
   .op-sort-opt:hover{ background:var(--brand-soft);}
   .op-sort-opt.sel{ background:var(--brand-soft); color:var(--brand); font-weight:700;}
+  .op-sort-lbl{ font-family:'IBM Plex Mono',monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); padding:8px 10px 3px; border-top:1px solid var(--border-soft);}
+  .op-sort-lbl:first-child{ border-top:none;}
   .op-mh{ position:absolute; top:0; bottom:0; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; color:var(--ink-soft); border-left:1px solid var(--border); line-height:1.15;}
   .op-mh small{ font-weight:500; font-size:9.5px; color:var(--ink-faint);}
   .op-mh.cur{ background:#e8ecff; color:var(--brand);}
@@ -1460,6 +1463,13 @@ const OP_SORT_OPTS = [
   {v:'etapa', l:'Etapa mais avançada'},
   {v:'plantao', l:'Plantão mais recente'},
 ];
+const OP_SIT_OPTS = [
+  {v:'', l:'Todas as situações'},
+  {v:'cliente_ativo', l:'🟢 Clientes ativos (apólice ativa)'},
+  {v:'cliente', l:'Clientes (qualquer apólice)'},
+  {v:'funil', l:'Em funil (sem apólice)'},
+  {v:'novo', l:'Sem contato ainda'},
+];
 const OP_UNIT_PX = 88;
 const OP_EXPANDED_W = 11;
 let OP_SUM_HEIGHT_INIT = null;
@@ -1543,6 +1553,7 @@ function opClienteNoMes(pid, mi){
   return (OP.apo.get(pid)||[]).some(a=>{ if(a.status==='cancelada') return false; const r = opApoRange(a); return r.start && r.end && r.start < mo.e && r.end >= mo.s; });
 }
 function opIsCliente(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status!=='cancelada'); }
+function opIsClienteAtivo(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status==='ativa'); }
 
 async function opFetchAll(table, cols, orderCols){
   let out = [], from = 0;
@@ -1624,6 +1635,7 @@ function opApplyFilters(keep, scrollToList){
     if(ftag && !(p.tags||[]).includes(ftag)) return false;
     if(facao && p.proxima_acao!==facao) return false;
     const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id);
+    if(sit==='cliente_ativo' && !opIsClienteAtivo(p.id)) return false;
     if(sit==='cliente' && !cli) return false;
     if(sit==='funil' && !(idx>=0 && !cli)) return false;
     if(sit==='novo' && !(idx<0 && !cli)) return false;
@@ -1745,7 +1757,12 @@ function opRenderAll(prevShown){
       <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'};${OP.sumHeight?`height:${OP.sumHeight}px;overflow-y:auto;`:''}">${opSumRowsHtml()}</div>
       ${OP.sumOpen?'<div class="op-resize-handle" id="op-resize-handle" title="Arraste para redimensionar"></div>':''}
     </div>
-    <div class="op-row op-countrow"><div class="op-left op-sort-wrap"><button id="op-sort-quick" title="Clique para ordenar a lista">${OP.filtered.length} de ${OP.pessoas.length} médicos ▾</button><div class="op-sort-menu" id="op-sort-menu">${OP_SORT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-sort').value===o.v?' sel':''}" data-sortv="${o.v}">${o.l}</button>`).join('')}</div></div></div>
+    <div class="op-row op-countrow"><div class="op-left op-sort-wrap"><button id="op-sort-quick" title="Clique para filtrar ou ordenar a lista">${OP.filtered.length} de ${OP.pessoas.length} médicos ▾</button><div class="op-sort-menu" id="op-sort-menu">
+      <div class="op-sort-lbl">Filtrar</div>
+      ${OP_SIT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-f-situacao').value===o.v?' sel':''}" data-sitv="${o.v}">${o.l}</button>`).join('')}
+      <div class="op-sort-lbl">Ordenar</div>
+      ${OP_SORT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-sort').value===o.v?' sel':''}" data-sortv="${o.v}">${o.l}</button>`).join('')}
+    </div></div></div>
     <div id="op-body"></div><div class="op-more" id="op-more"></div></div>`;
   opAppendRows(Math.max(prevShown||0, OP_PAGE));
 }
@@ -1903,7 +1920,11 @@ document.getElementById('view-operacao').addEventListener('click', (e)=>{
   const sq = e.target.closest('#op-sort-quick');
   if(sq){ e.stopPropagation(); document.getElementById('op-sort-menu').classList.toggle('open'); return; }
   const so = e.target.closest('.op-sort-opt');
-  if(so){ document.getElementById('op-sort').value = so.dataset.sortv; opApplyFilters(false); return; }
+  if(so){
+    if(so.dataset.sitv!==undefined) document.getElementById('op-f-situacao').value = so.dataset.sitv;
+    else document.getElementById('op-sort').value = so.dataset.sortv;
+    opApplyFilters(false); return;
+  }
   if(!e.target.closest('#op-sort-menu')){ const m = document.getElementById('op-sort-menu'); if(m) m.classList.remove('open'); }
   const kn = e.target.closest('[data-fnext]'); if(kn){ document.getElementById('op-f-next').value = kn.dataset.fnext; opApplyFilters(false); return; }
   if(e.target.closest('#op-dups')){ opDupDialog(); return; }
