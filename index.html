@@ -2282,7 +2282,14 @@ function pessoaOptionHtml(p, name, checked){
 function dlgOpen(html, wide){
   let box = document.getElementById('dlg');
   if(!box){ box = document.createElement('div'); box.id = 'dlg'; document.body.appendChild(box);
-    box.addEventListener('click', e=>{ if(e.target.id==='dlg' || e.target.closest('[data-close]')) dlgClose(); }); }
+    box.addEventListener('click', e=>{ if(e.target.id==='dlg' || e.target.closest('[data-close]')) dlgClose(); });
+    // qualquer diálogo do sistema que mostre um erro/aviso (classe .om-err) rola a tela até ele —
+    // sem isso, uma validação que falha com o usuário rolado pra outra parte do formulário longo
+    // aparenta "não fazer nada" ao clicar em Salvar (bug real reportado pela Amanda em 23/09).
+    new MutationObserver(muts=>{
+      for(const m of muts){ const t = m.target; if(t.nodeType===1 && t.classList && t.classList.contains('om-err') && t.textContent.trim()){ t.scrollIntoView({behavior:'smooth', block:'center'}); break; } }
+    }).observe(box, {subtree:true, childList:true, characterData:true});
+  }
   box.innerHTML = `<div class="dlg-card${wide?' wide':''}">${html}</div>`; box.style.display = 'flex';
   return box;
 }
