@@ -337,6 +337,7 @@
           <select id="ca-f-prod"><option value="">Todos os produtos</option></select>
           <select id="ca-f-vinc"><option value="">Todos os vínculos</option><option value="__nova">Só novas vendas CallMed</option><option>CallMed</option><option>Outra corretora</option><option>Direto com seguradora</option><option>Não identificado</option><option>Não informado</option></select>
           <select id="ca-f-venc"><option value="">Qualquer vencimento</option><option value="vencidas">Já vencidas</option><option value="30">Vencem em 30 dias</option><option value="60">Vencem em 60 dias</option><option value="90">Vencem em 90 dias</option></select>
+          <select id="ca-f-entrega"><option value="">Entrega: qualquer</option><option value="pendente">Certificado pendente de entrega</option><option value="feita">Já entregue</option></select>
         </div>
         <div class="dz" id="ca-dz">📄 Arraste apólices (PDF ou foto) aqui ou clique — o sistema lê, identifica o cliente e pergunta o que for preciso<input type="file" id="ca-file" multiple accept=".pdf,image/*" hidden></div>
         <div id="ca-list"></div>
@@ -916,7 +917,7 @@ const BLOCKS = [
 // ---------- CADASTRO DO CLIENTE (5 seções) ----------
 const PV = { person:null, tab:'resumo' };
 const PV_TABS = [['resumo','Resumo'],['historico','Histórico'],['protecao','Proteção'],['relacionamento','Relacionamento'],['plantoes','CallMed Plantões']];
-const ACOES = ['Realizar primeiro contato','Fazer nova tentativa','Agendar reunião','Confirmar reunião','Realizar diagnóstico','Preparar proposta','Apresentar proposta','Realizar follow-up','Tratar objeção','Solicitar documentação','Concluir fechamento','Reativar contato','Outra'];
+const ACOES = ['Realizar primeiro contato','Fazer nova tentativa','Agendar reunião','Confirmar reunião','Realizar diagnóstico','Preparar proposta','Apresentar proposta','Realizar follow-up','Tratar objeção','Solicitar documentação','Concluir fechamento','Entregar apólice/certificado','Reativar contato','Outra'];
 const MOTIVOS = ['Sem interesse','Já possui proteção','Preço','Cobertura','Momento financeiro','Precisa pensar','Precisa falar com outra pessoa','Não respondeu','Não foi possível contato','Fora do perfil','Fechou com outra corretora','Outro'];
 const MOTIVOS_PAUSA = ['Precisa pensar','Momento financeiro','Não respondeu','Não foi possível contato'];
 const TIPOS_ATIV = [['ligacao','📞 Ligação'],['whatsapp','💬 WhatsApp'],['email','✉️ E-mail'],['reuniao','🤝 Reunião'],['visita','🚗 Visita'],['proposta','📑 Proposta'],['outro','📝 Outro']];
@@ -2342,7 +2343,7 @@ async function renderCentral(force){
   if(CA.loaded && !force){ caApply(); return; }
   host.innerHTML = '<div class="op-more">Carregando apólices...</div>';
   try{
-    CA.data = await opFetchAll('crm_apolices','id,pessoa_id,numero_apolice,seguradora,tipo_seguro,data_emissao,data_vencimento,valor_premio,valor_cobertura,status,origem_apolice,tipo_contratacao,arquivo_apolice,comissao_pct,forma_pagamento,corretor_origem,observacoes,vinculo_comercial,tipo_movimento,tomador,beneficiarios,created_at,crm_pessoas(nome,cpf)',['id']);
+    CA.data = await opFetchAll('crm_apolices','id,pessoa_id,numero_apolice,seguradora,tipo_seguro,data_emissao,data_vencimento,valor_premio,valor_cobertura,status,origem_apolice,tipo_contratacao,arquivo_apolice,comissao_pct,forma_pagamento,corretor_origem,observacoes,vinculo_comercial,tipo_movimento,tomador,beneficiarios,entrega_certificado,data_entrega,created_at,crm_pessoas(nome,cpf)',['id']);
     CA.loaded = true;
     const uniq = (k)=>[...new Set(CA.data.map(r=>r[k]).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     const fill = (id, label, vals)=>{ const el = document.getElementById(id); const cur = el.value; el.innerHTML = `<option value="">${label}</option>`+vals.map(v=>`<option>${escapeHtml(v)}</option>`).join(''); el.value = cur; };
@@ -2352,7 +2353,7 @@ async function renderCentral(force){
 }
 function caApply(){
   const q = (document.getElementById('ca-search').value||'').toLowerCase();
-  const fs = document.getElementById('ca-f-status').value, fseg = document.getElementById('ca-f-seg').value, fpr = document.getElementById('ca-f-prod').value, fv = document.getElementById('ca-f-venc').value, fvinc = document.getElementById('ca-f-vinc').value;
+  const fs = document.getElementById('ca-f-status').value, fseg = document.getElementById('ca-f-seg').value, fpr = document.getElementById('ca-f-prod').value, fv = document.getElementById('ca-f-venc').value, fvinc = document.getElementById('ca-f-vinc').value, fent = document.getElementById('ca-f-entrega').value;
   const now = new Date(new Date().toDateString());
   let rows = CA.data.filter(r=>{
     if(q && !((r.crm_pessoas?.nome||'').toLowerCase().includes(q) || (r.seguradora||'').toLowerCase().includes(q) || (r.numero_apolice||'').toLowerCase().includes(q) || (r.tipo_seguro||'').toLowerCase().includes(q) || dOnly(r.crm_pessoas?.cpf).includes(dOnly(q)) && dOnly(q).length>=4)) return false;
@@ -2361,6 +2362,8 @@ function caApply(){
     if(fvinc && (fvinc==='__nova' ? !(r.origem_apolice==='nova' && r.vinculo_comercial==='CallMed') : (r.vinculo_comercial||'Não informado')!==fvinc)) return false;
     if(fpr && r.tipo_seguro!==fpr) return false;
     if(fv){ if(!r.data_vencimento) return false; const dias = Math.round((new Date(r.data_vencimento)-now)/86400000); if(fv==='vencidas'){ if(dias>=0) return false; } else if(dias<0 || dias>parseInt(fv,10)) return false; }
+    if(fent==='pendente' && r.entrega_certificado) return false;
+    if(fent==='feita' && !r.entrega_certificado) return false;
     return true;
   });
   const {k, dir} = CA.sort;
@@ -2371,10 +2374,11 @@ function caApply(){
   const v60 = ativas.filter(r=>r.data_vencimento && (new Date(r.data_vencimento)-now)/86400000 <= 60).length;
   const vendas = CA.data.filter(r=>r.origem_apolice==='nova' && r.vinculo_comercial==='CallMed' && r.status!=='cancelada');
   const vprem = vendas.reduce((t,r)=>t+(Number(r.valor_premio)||0),0);
-  document.getElementById('ca-kpis').innerHTML = `<span class="op-kpi" style="background:var(--green-soft)"><b style="color:var(--green)">${vendas.length}</b> novas vendas CallMed · prêmio <b style="color:var(--green)">${fmtMoney(vprem)}</b></span><span class="op-kpi"><b>${CA.data.length}</b> apólices no banco</span><span class="op-kpi"><b>${ativas.length}</b> ativas</span><span class="op-kpi">prêmio anual ativo <b>${fmtMoney(prem)}</b></span><span class="op-kpi" style="background:var(--amber-soft)"><b style="color:var(--amber-ink)">${v60}</b> vencem em até 60 dias</span><span class="op-kpi">exibindo <b>${rows.length}</b></span>`;
+  const pendEntrega = ativas.filter(r=>r.origem_apolice==='nova' && r.vinculo_comercial==='CallMed' && !r.entrega_certificado).length;
+  document.getElementById('ca-kpis').innerHTML = `<span class="op-kpi" style="background:var(--green-soft)"><b style="color:var(--green)">${vendas.length}</b> novas vendas CallMed · prêmio <b style="color:var(--green)">${fmtMoney(vprem)}</b></span><span class="op-kpi"><b>${CA.data.length}</b> apólices no banco</span><span class="op-kpi"><b>${ativas.length}</b> ativas</span><span class="op-kpi">prêmio anual ativo <b>${fmtMoney(prem)}</b></span><span class="op-kpi" style="background:var(--amber-soft)"><b style="color:var(--amber-ink)">${v60}</b> vencem em até 60 dias</span>${pendEntrega?`<button class="op-kpi" id="ca-pend-entrega" style="border:none;cursor:pointer;background:var(--amber-soft)">📦 <b style="color:var(--amber-ink)">${pendEntrega}</b> aguardando entrega do certificado</button>`:''}<span class="op-kpi">exibindo <b>${rows.length}</b></span>`;
   document.getElementById('ca-count').textContent = '';
   const th = (key,label)=>`<th class="sortable" data-k="${key}">${label}${CA.sort.k===key?(CA.sort.dir>0?' ▲':' ▼'):''}</th>`;
-  document.getElementById('ca-list').innerHTML = rows.length ? `<table class="ca-table"><thead><tr>${th('cliente','Cliente')}${th('seguradora','Seguradora')}${th('tipo_seguro','Produto')}${th('numero_apolice','Nº')}${th('data_vencimento','Vigência')}${th('valor_premio','Prêmio anual')}${th('status','Status')}<th>Origem</th><th>Vínculo</th><th></th></tr></thead><tbody id="ca-body"></tbody></table><div class="op-more" id="ca-more"></div>` : '<div class="op-more">Nenhuma apólice encontrada. Arraste um PDF, ou use “Importar planilha” para carregar sua base.</div>';
+  document.getElementById('ca-list').innerHTML = rows.length ? `<table class="ca-table"><thead><tr>${th('cliente','Cliente')}${th('seguradora','Seguradora')}${th('tipo_seguro','Produto')}${th('numero_apolice','Nº')}${th('data_vencimento','Vigência')}${th('valor_premio','Prêmio anual')}${th('status','Status')}<th>Origem</th><th>Vínculo</th><th>Entrega</th><th></th></tr></thead><tbody id="ca-body"></tbody></table><div class="op-more" id="ca-more"></div>` : '<div class="op-more">Nenhuma apólice encontrada. Arraste um PDF, ou use “Importar planilha” para carregar sua base.</div>';
   caAppend();
 }
 function caAppend(){
@@ -2383,7 +2387,7 @@ function caAppend(){
   body.insertAdjacentHTML('beforeend', slice.map(r=>{
     const ef = caEfetivo(r); const cls = ef==='vencida'||ef==='cancelada' ? 'bad' : (ef==='ativa'?'':'warn');
     const dias = r.data_vencimento ? Math.round((new Date(r.data_vencimento)-new Date(new Date().toDateString()))/86400000) : null;
-    return `<tr class="ca-row" data-id="${r.id}"><td><a href="#" data-openp="${r.pessoa_id}">${escapeHtml(r.crm_pessoas?.nome||'?')}</a></td><td>${escapeHtml(r.seguradora||'—')}</td><td>${escapeHtml(r.tipo_seguro||'—')}</td><td class="mono">${escapeHtml(r.numero_apolice||'—')}</td><td>${fmtDate(r.data_emissao)||'—'} → <b>${fmtDate(r.data_vencimento)||'—'}</b>${dias!==null&&ef==='ativa'&&dias<=60?` <span class="tagx warn">${dias}d</span>`:''}</td><td>${fmtMoney(r.valor_premio)}</td><td><span class="tagx ${cls}">${ef==='vencida'?'Vencida':escapeHtml(caStatusLabel(ef))}</span></td><td><span class="tagx">${escapeHtml(CA_ORIGENS[r.origem_apolice]||r.origem_apolice||'—')}</span></td><td>${escapeHtml(r.vinculo_comercial||'—')}</td><td>${r.arquivo_apolice?'📎':''}</td></tr>`; }).join(''));
+    return `<tr class="ca-row" data-id="${r.id}"><td><a href="#" data-openp="${r.pessoa_id}">${escapeHtml(r.crm_pessoas?.nome||'?')}</a></td><td>${escapeHtml(r.seguradora||'—')}</td><td>${escapeHtml(r.tipo_seguro||'—')}</td><td class="mono">${escapeHtml(r.numero_apolice||'—')}</td><td>${fmtDate(r.data_emissao)||'—'} → <b>${fmtDate(r.data_vencimento)||'—'}</b>${dias!==null&&ef==='ativa'&&dias<=60?` <span class="tagx warn">${dias}d</span>`:''}</td><td>${fmtMoney(r.valor_premio)}</td><td><span class="tagx ${cls}">${ef==='vencida'?'Vencida':escapeHtml(caStatusLabel(ef))}</span></td><td><span class="tagx">${escapeHtml(CA_ORIGENS[r.origem_apolice]||r.origem_apolice||'—')}</span></td><td>${escapeHtml(r.vinculo_comercial||'—')}</td><td>${r.entrega_certificado?`<span class="tagx" style="background:var(--green-soft);color:var(--green)">✔ ${fmtDate(r.data_entrega)||''}</span>`:'<span class="tagx warn">pendente</span>'}</td><td>${r.arquivo_apolice?'📎':''}</td></tr>`; }).join(''));
   CA.shown += slice.length;
   const more = document.getElementById('ca-more'); if(more) more.textContent = CA.shown < CA.filtered.length ? `Mostrando ${CA.shown} de ${CA.filtered.length} — role para carregar mais` : `Fim da lista (${CA.filtered.length})`;
 }
@@ -2394,7 +2398,8 @@ document.getElementById('ca-list').addEventListener('click', e=>{
   const tr = e.target.closest('.ca-row'); if(tr) caEdit(tr.dataset.id);
 });
 document.querySelector('#view-central .pg').addEventListener('scroll', e=>{ const el = e.target; if(el.scrollTop + el.clientHeight > el.scrollHeight - 400 && CA.shown < CA.filtered.length) caAppend(); });
-['ca-f-status','ca-f-seg','ca-f-prod','ca-f-venc','ca-f-vinc'].forEach(id=> document.getElementById(id).addEventListener('change', caApply));
+['ca-f-status','ca-f-seg','ca-f-prod','ca-f-venc','ca-f-vinc','ca-f-entrega'].forEach(id=> document.getElementById(id).addEventListener('change', caApply));
+document.getElementById('ca-kpis').addEventListener('click', e=>{ if(e.target.closest('#ca-pend-entrega')){ document.getElementById('ca-f-entrega').value = 'pendente'; caApply(); } });
 
 function caEdit(id){
   const r = CA.data.find(x=>x.id===id); if(!r) return;
@@ -2411,6 +2416,9 @@ function caEdit(id){
       ${fld('ce-tom','Tomador / estipulante',r.tomador)}${fld('ce-benef','Beneficiários',r.beneficiarios)}
       <label class="fl"><span>Status</span><select id="ce-status">${CA_STATUS.map(s=>`<option value="${s[0]}" ${r.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
       ${fld('ce-obs','Observações',r.observacoes,'text',true)}</div>
+      <div class="ql" style="margin-top:10px">Entrega do certificado / apólice ao médico</div>
+      <label class="chk"><input type="checkbox" id="ce-entregue" ${r.entrega_certificado?'checked':''}> Certificado já entregue</label>
+      <div id="ce-entrega-data-wrap" style="margin-top:6px;display:${r.entrega_certificado?'block':'none'}">${fld('ce-entrega-data','Data da entrega',r.data_entrega,'date')}</div>
       <div class="ql" style="margin-top:10px">Coberturas e o valor de cada uma (R$)</div><div class="cv-grid">${covValueRows('ce', r.coberturas||[], r.coberturas_valores||{})}</div>
       ${r.arquivo_apolice?`<div class="hint" style="margin-top:10px">📎 <a href="#" id="ce-file" style="color:var(--brand);font-weight:600">abrir arquivo da apólice</a></div>`:''}
       <div class="om-err" id="ce-err"></div></div>
@@ -2419,11 +2427,14 @@ function caEdit(id){
   box.querySelector('#ce-openp').addEventListener('click', ev=>{ ev.preventDefault(); dlgClose(); goToPersonView(r.pessoa_id); });
   const fl = box.querySelector('#ce-file'); if(fl) fl.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(r.arquivo_apolice),'_blank'); }catch(x){ showToast('Erro: '+x.message); } });
   covValueBind(box, 'ce');
+  box.querySelector('#ce-entregue').addEventListener('change', e=>{ document.getElementById('ce-entrega-data-wrap').style.display = e.target.checked ? 'block' : 'none'; });
   box.querySelector('#ce-save').addEventListener('click', async ()=>{
     const covVals = covValueCollect(box, 'ce'); const covs = [...box.querySelectorAll('.ce-cov:checked')].map(c=>c.value);
     const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
+    const entregue = document.getElementById('ce-entregue').checked;
     const upd = { seguradora:g('ce-seg')||null, tipo_seguro:g('ce-prod')||null, numero_apolice:g('ce-num')||null, tipo_contratacao:g('ce-contr')||null, data_emissao:g('ce-ini')||null, data_vencimento:g('ce-fim')||null,
-      valor_premio:n('ce-prem'), valor_cobertura:capTotal, coberturas:covs, coberturas_valores:covVals, comissao_pct:n('ce-com'), forma_pagamento:g('ce-pag')||null, corretor_origem:g('ce-vend')||null, status:g('ce-status'), observacoes:g('ce-obs')||null, vinculo_comercial:g('ce-vinc')||null, tipo_movimento:g('ce-mov')||null, tomador:g('ce-tom')||null, beneficiarios:g('ce-benef')||null };
+      valor_premio:n('ce-prem'), valor_cobertura:capTotal, coberturas:covs, coberturas_valores:covVals, comissao_pct:n('ce-com'), forma_pagamento:g('ce-pag')||null, corretor_origem:g('ce-vend')||null, status:g('ce-status'), observacoes:g('ce-obs')||null, vinculo_comercial:g('ce-vinc')||null, tipo_movimento:g('ce-mov')||null, tomador:g('ce-tom')||null, beneficiarios:g('ce-benef')||null,
+      entrega_certificado:entregue, data_entrega:entregue?(g('ce-entrega-data')||ymdToday()):null };
     if(r.origem_apolice==='nova' && upd.vinculo_comercial && upd.vinculo_comercial!=='CallMed'){ document.getElementById('ce-err').textContent = 'Incoerente: apólice "Nova CallMed" não pode ter vínculo em "'+upd.vinculo_comercial+'".'; return; }
     const { error } = await sb.from('crm_apolices').update(upd).eq('id', id);
     if(error){ document.getElementById('ce-err').textContent = 'Erro: '+error.message; return; }
