@@ -1087,9 +1087,15 @@ async function pvSaveAtividade(p){
     proxima_acao:encerrar?null:pAcao, proxima_data:encerrar?null:pData, proximo_responsavel:encerrar?null:pResp, motivo_perda:motivo, data_reativacao:reat });
   if(error){ err.textContent = 'Erro: '+error.message; return; }
   const upd = { proxima_acao:pAcao, proxima_data:pData, proximo_responsavel:pResp };
-  await sb.from('crm_pessoas').update(upd).eq('id', p.id); Object.assign(p, upd);
-  if(encerrar && oppId){ await sb.from('crm_oportunidades').update({ status: reat?'pausada':'perdida', motivo_perda:motivo, data_reativacao:reat, fechada_em: reat?null:new Date().toISOString(), updated_at:new Date().toISOString() }).eq('id', oppId); }
-  showToast('Atividade registrada'); pvRefreshNext(); pvHistorico(document.getElementById('pv-body'), p);
+  const { error: errPessoa } = await sb.from('crm_pessoas').update(upd).eq('id', p.id);
+  if(errPessoa){ console.warn('pvSaveAtividade/crm_pessoas', errPessoa); showToast('Atividade registrada, mas a próxima ação do cadastro não foi atualizada: '+errPessoa.message); }
+  else Object.assign(p, upd);
+  if(encerrar && oppId){
+    const { error: errOpp } = await sb.from('crm_oportunidades').update({ status: reat?'pausada':'perdida', motivo_perda:motivo, data_reativacao:reat, fechada_em: reat?null:new Date().toISOString(), updated_at:new Date().toISOString() }).eq('id', oppId);
+    if(errOpp){ console.warn('pvSaveAtividade/crm_oportunidades', errOpp); showToast('Atividade registrada, mas a oportunidade não foi atualizada: '+errOpp.message); }
+  }
+  if(!errPessoa) showToast('Atividade registrada');
+  pvRefreshNext(); pvHistorico(document.getElementById('pv-body'), p);
   if(motivo==='Já possui proteção' && confirm('O cliente já possui proteção. Quer registrar a apólice atual para estudo agora?')) estudoDialog({id:p.id, nome:p.nome});
 }
 async function pvTimeline(p){
@@ -1248,8 +1254,9 @@ async function pvDiagnostico(p){
     host.querySelectorAll('[data-dg]').forEach(el=>{ const k = el.dataset.dg; let v = el.value; if(v===''){ payload[k] = null; return; } if(el.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true'; else if(el.type==='number') v = parseFloat(v); payload[k] = v; });
     const res = row.id ? await sb.from('crm_diagnostico').update(payload).eq('id', row.id) : await sb.from('crm_diagnostico').insert({...payload, pessoa_id:p.id});
     if(res.error){ showToast('Erro: '+res.error.message); return; }
-    await diagPushToADN(p.id, payload);
-    showToast('Diagnóstico salvo'); pvDiagnostico(p); });
+    const sync = await diagPushToADN(p.id, payload);
+    showToast(sync.ok ? 'Diagnóstico salvo' : 'Diagnóstico salvo, mas falhou ao sincronizar com o Estudo: '+(sync.error?.message||'erro desconhecido'));
+    pvDiagnostico(p); });
 }
 
 // ---- RELACIONAMENTO ----
@@ -2933,19 +2940,22 @@ async function adnPrefillFromDiagECadastro(pessoaId, base){
     if(need('patrimonio_financeiro') && diag.patrimonio_financeiro!=null) p.patrimonio_financeiro = diag.patrimonio_financeiro;
     if(need('altura_cm') && diag.altura!=null) p.altura_cm = Math.round(Number(diag.altura)*100);
     if(need('peso_kg') && diag.peso!=null) p.peso_kg = diag.peso;
-    if(!p.dependentes_qtd && diag.dependentes!=null) p.dependentes_qtd = diag.dependentes;
+    if(need('dependentes_qtd') && diag.dependentes!=null) p.dependentes_qtd = diag.dependentes;
     if(p.fumante==null && diag.fuma!=null) p.fumante = diag.fuma;
   }
   return p;
 }
 async function adnPushToDiagECadastro(e){
-  if(!e.pessoa_id) return;
+  if(!e.pessoa_id) return {ok:true};
   const pessoaUpd = {};
   if(e.sexo) pessoaUpd.sexo = e.sexo;
   if(e.estado_civil) pessoaUpd.estado_civil = EC_ADN2PESSOA[e.estado_civil] || e.estado_civil;
   if(e.data_nascimento) pessoaUpd.data_nascimento = e.data_nascimento;
   if(e.profissao) pessoaUpd.profissao = e.profissao;
-  if(Object.keys(pessoaUpd).length) await sb.from('crm_pessoas').update(pessoaUpd).eq('id', e.pessoa_id);
+  if(Object.keys(pessoaUpd).length){
+    const { error } = await sb.from('crm_pessoas').update(pessoaUpd).eq('id', e.pessoa_id);
+    if(error){ console.warn('adnPushToDiagECadastro/pessoas', error); return {ok:false, error}; }
+  }
   const diagUpd = {};
   if(e.renda_mensal!=null) diagUpd.renda_mensal_valor_exato = e.renda_mensal;
   if(e.gastos_mensais!=null) diagUpd.despesas_mensais = e.gastos_mensais;
@@ -2955,10 +2965,12 @@ async function adnPushToDiagECadastro(e){
   if(e.peso_kg!=null) diagUpd.peso = e.peso_kg;
   if(e.dependentes_qtd!=null) diagUpd.dependentes = e.dependentes_qtd;
   if(e.fumante!=null) diagUpd.fuma = e.fumante;
-  if(!Object.keys(diagUpd).length) return;
+  if(!Object.keys(diagUpd).length) return {ok:true};
   const { data: diagRow } = await sb.from('crm_diagnostico').select('id').eq('pessoa_id', e.pessoa_id).order('created_at',{ascending:false}).limit(1).maybeSingle();
-  if(diagRow) await sb.from('crm_diagnostico').update(diagUpd).eq('id', diagRow.id);
-  else await sb.from('crm_diagnostico').insert({...diagUpd, pessoa_id:e.pessoa_id, preenchido_por:curUserName()});
+  const { error } = diagRow ? await sb.from('crm_diagnostico').update(diagUpd).eq('id', diagRow.id)
+    : await sb.from('crm_diagnostico').insert({...diagUpd, pessoa_id:e.pessoa_id, preenchido_por:curUserName()});
+  if(error){ console.warn('adnPushToDiagECadastro/diagnostico', error); return {ok:false, error}; }
+  return {ok:true};
 }
 async function diagPushToADN(pessoaId, diag){
   const estUpd = {};
@@ -2970,9 +2982,12 @@ async function diagPushToADN(pessoaId, diag){
   if(diag.peso!=null) estUpd.peso_kg = diag.peso;
   if(diag.dependentes!=null) estUpd.dependentes_qtd = diag.dependentes;
   if(diag.fuma!=null) estUpd.fumante = diag.fuma;
-  if(!Object.keys(estUpd).length) return;
+  if(!Object.keys(estUpd).length) return {ok:true};
   const { data: estRow } = await sb.from('crm_estudos').select('id').eq('pessoa_id', pessoaId).order('created_at',{ascending:false}).limit(1).maybeSingle();
-  if(estRow) await sb.from('crm_estudos').update(estUpd).eq('id', estRow.id);
+  if(!estRow) return {ok:true};
+  const { error } = await sb.from('crm_estudos').update(estUpd).eq('id', estRow.id);
+  if(error){ console.warn('diagPushToADN', error); return {ok:false, error}; }
+  return {ok:true};
 }
 async function esCreate(file, person){
   const box = document.getElementById('dlg'); box.querySelector('.dlg-body').innerHTML = '<div class="op-more">⏳ Lendo a apólice e cruzando com o catálogo...</div>';
@@ -3450,7 +3465,7 @@ async function esSave(silent){
     reposicao_ativa:e.reposicao_ativa, reposicao_horizonte_anos:e.reposicao_horizonte_anos, reposicao_inflacao_pct:e.reposicao_inflacao_pct, reposicao_rentabilidade_pct:e.reposicao_rentabilidade_pct, reposicao_renda_conjuge:e.reposicao_renda_conjuge, outros_objetivos:e.outros_objetivos,
     cotacoes:e.cotacoes, status:e.status, observacoes:e.observacoes, analise:{gerado_em:new Date().toISOString(), lacunas:esAnalise(e).missCore}, updated_at:new Date().toISOString() }).eq('id', e.id);
   if(error){ showToast('Erro: '+error.message); return; }
-  if(!silent){ await adnPushToDiagECadastro(e); showToast('Estudo salvo'); }
+  if(!silent){ const sync = await adnPushToDiagECadastro(e); showToast(sync.ok ? 'Estudo salvo' : 'Estudo salvo, mas falhou ao sincronizar com o Diagnóstico: '+(sync.error?.message||'erro desconhecido')); }
   if(silent){ ES.cur = e; const i = ES.list.findIndex(x=>x.id===e.id); if(i>=0) ES.list[i] = e; esShow(e); } else renderEstudos();
 }
 function esParecer(e, a){
