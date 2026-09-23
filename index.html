@@ -661,6 +661,12 @@
   .pr-box h4{ font-family:'Poppins',sans-serif; font-size:14px; margin:0 0 10px;}
   .pr-box ul{ margin:0; padding-left:16px; display:flex; flex-direction:column; gap:7px;}
   .pr-box li{ font-size:12px; line-height:1.5; color:#33384a; break-inside:avoid;}
+  .pr-sumtable{ width:100%; border-collapse:collapse; margin-bottom:8px; break-inside:avoid;}
+  .pr-sumtable th{ text-align:left; font-family:'IBM Plex Mono',monospace; font-size:9.5px; text-transform:uppercase; letter-spacing:.06em; color:#8990a3; padding:6px 10px; border-bottom:2px solid #e3e5f0;}
+  .pr-sumtable td{ font-size:12.5px; padding:8px 10px; border-bottom:1px solid #e3e5f0; color:#33384a;}
+  .pr-sumtable td:last-child{ text-align:right; font-weight:600; color:#0018FC; white-space:nowrap;}
+  .pr-sumtable .pr-sumtotal td{ font-weight:800; border-top:2px solid #0018FC; border-bottom:none; font-size:13.5px; color:#12141d; padding-top:10px;}
+  .pr-sumtable .pr-sumtotal td:last-child{ color:#0018FC;}
   .pr-footer{ margin-top:24px; padding-top:12px; border-top:1px solid #e3e5f0; font-size:10.5px; color:#8b90a3; display:flex; justify-content:space-between;}
   .grid-2col{ display:grid; grid-template-columns:1fr 1fr; gap:32px; max-width:1000px;}
   .today-card{ background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--teal); border-radius:var(--radius-sm); padding:11px 15px; margin-bottom:8px; font-size:13px; display:flex; justify-content:space-between; align-items:center; gap:10px; box-shadow:var(--shadow-xs);}
@@ -3125,7 +3131,12 @@ function exportAnaliseCompletaPDF(e, calc){
           <li>Fator de atenção: ${e.comorbidade?('Sim'+(e.comorbidade_obs?' — '+escapeHtml(e.comorbidade_obs):'')):'Não'}</li>
         </ul></div>
       </div>
-      <p class="pr-section-title">Capital sugerido por cobertura</p>
+      <p class="pr-section-title">Resumo — todas as coberturas analisadas</p>
+      <table class="pr-sumtable"><thead><tr><th>Cobertura</th><th>Capital sugerido</th></tr></thead><tbody>
+        ${calc.rows.map(r=>`<tr><td>${escapeHtml(r.label)}</td><td>${r.diaria?fmtMoney(r.valor)+'/dia':fmtMoney(r.valor)}</td></tr>`).join('')}
+        <tr class="pr-sumtotal"><td>Capital total sugerido</td><td>${fmtMoney(calc.total)}</td></tr>
+      </tbody></table>
+      <p class="pr-section-title" style="margin-top:26px">Capital sugerido por cobertura — detalhamento</p>
       ${calc.rows.map(r=>`<div class="pr-box" style="margin-bottom:10px"><h4>${escapeHtml(r.label)} — <span style="color:#0018FC">${r.diaria?fmtMoney(r.valor)+'/dia':fmtMoney(r.valor)}</span></h4><p style="font-size:11.5px;color:#565c6e;margin:4px 0">${escapeHtml(covProtect(r.key))}</p><p style="font-size:10.5px;color:#8990a3;margin:0">Cálculo: ${escapeHtml(r.texto)}</p></div>`).join('')}
       <div class="pr-box" style="border-top:4px solid #0018FC"><h4>Capital total sugerido</h4><p style="font-size:22px;font-weight:800;color:#0018FC;margin:2px 0">${fmtMoney(calc.total)}</p><p style="font-size:10.5px;color:#8990a3;margin:6px 0 0">O valor do inventário (ITCMD+Cartório+Advogado) já é repartido entre Morte e Sucessão pelo regime de bens informado, sem duplicar. Invalidez por Acidente e por Doença também já vêm divididas para não duplicar o capital.</p></div>
       <div class="pr-footer"><span>CallMed Proteção Patrimonial — análise gerada pelo CallMed CRM Aliança</span><span>Gerado em ${hoje}</span></div>
