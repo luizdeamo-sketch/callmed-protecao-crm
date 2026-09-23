@@ -1117,8 +1117,8 @@ async function pvTimeline(p){
 
 // ---- PROTEÇÃO (oportunidades, apólices, estudos, diagnóstico) ----
 async function pvProtecao(body, p){
-  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
-  pvOportunidades(p); pvApolices(p); renderPessoaEstudos(p); pvDiagnostico(p);
+  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="es-box" id="pp-docs"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
+  pvOportunidades(p); pvApolices(p); pvDocumentos(p); renderPessoaEstudos(p); pvDiagnostico(p);
 }
 function pvIdade(p){
   if(!p.data_nascimento) return null;
@@ -1190,10 +1190,19 @@ async function pvApolices(p){
   const rows = data||[]; const have = new Set(); rows.forEach(a=>(a.coberturas||[]).forEach(c=>have.add(c)));
   const cap = rows.filter(a=>a.status!=='cancelada' && /vida/i.test(a.tipo_seguro||'')).reduce((t,a)=>t+(Number(a.valor_cobertura)||0),0);
   host.innerHTML = `<div class="ql">Apólices do cliente (${rows.length})</div>
-    ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Seguradora</th><th>Vigência</th><th>Prêmio</th><th>Origem / vínculo</th><th>Status</th></tr></thead><tbody>${rows.map(a=>{ const d = daysTo(a.data_vencimento); return `<tr><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${escapeHtml(a.seguradora||'—')}</td><td>${fmtDate(a.data_emissao)||'—'} → <b>${fmtDate(a.data_vencimento)||'—'}</b>${d!==null&&d>=0&&d<=60?` <span class="tagx warn">${d}d</span>`:''}</td><td>${fmtMoney(a.valor_premio)}</td><td>${escapeHtml(CA_ORIGENS[a.origem_apolice]||a.origem_apolice||'—')} · ${escapeHtml(a.vinculo_comercial||'—')}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td></tr>`; }).join('')}</tbody></table>`:'<div class="hint">Nenhuma apólice vinculada. Use “Anexar apólice” no topo ou a Central de Apólices.</div>'}
+    ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Seguradora</th><th>Vigência</th><th>Prêmio</th><th>Origem / vínculo</th><th>Status</th><th>Documento</th></tr></thead><tbody>${rows.map(a=>{ const d = daysTo(a.data_vencimento); return `<tr><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${escapeHtml(a.seguradora||'—')}</td><td>${fmtDate(a.data_emissao)||'—'} → <b>${fmtDate(a.data_vencimento)||'—'}</b>${d!==null&&d>=0&&d<=60?` <span class="tagx warn">${d}d</span>`:''}</td><td>${fmtMoney(a.valor_premio)}</td><td>${escapeHtml(CA_ORIGENS[a.origem_apolice]||a.origem_apolice||'—')} · ${escapeHtml(a.vinculo_comercial||'—')}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td>${a.arquivo_apolice?`<a href="#" data-viewdoc="${escapeHtml(a.arquivo_apolice)}">📎 abrir</a>`:'—'}</td></tr>`; }).join('')}</tbody></table>`:'<div class="hint">Nenhuma apólice vinculada. Use “Anexar apólice” no topo ou a Central de Apólices.</div>'}
     <div class="ql" style="margin-top:12px">Proteção atual (coberturas nas apólices)</div>
     <div class="chks">${ES_CORE.concat(ES_OPT).concat(['rc_profissional']).map(k=>`<span class="tagx" style="${have.has(k)?'':'background:#f2f3f9;color:var(--ink-faint);text-decoration:line-through'}" title="${escapeHtml(covProtect(k))}">${covLabel(k)}</span>`).join(' ')}</div>
     ${cap?`<div class="hint">Capital de vida já segurado: <b>${fmtMoney(cap)}</b></div>`:''}`;
+  host.querySelectorAll('[data-viewdoc]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(a.dataset.viewdoc),'_blank'); }catch(x){ showToast('Erro ao abrir documento: '+x.message); } }));
+}
+async function pvDocumentos(p){
+  const host = document.getElementById('pp-docs'); if(!host) return;
+  const { data } = await sb.from('crm_documentos').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false});
+  const rows = data||[];
+  host.innerHTML = `<div class="ql">Documentos anexados (${rows.length})</div>
+    ${rows.length?`<table class="ca-table"><thead><tr><th>Documento</th><th>Categoria</th><th>Incluído em</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td>${escapeHtml(d.nome_arquivo||'—')}</td><td>${escapeHtml(d.categoria||'—')}</td><td>${fmtDate(d.created_at)}</td><td>${d.path?`<a href="#" data-viewdoc="${escapeHtml(d.path)}">📎 abrir</a>`:'—'}</td></tr>`).join('')}</tbody></table>`:'<div class="hint">Nenhum documento anexado ainda.</div>'}`;
+  host.querySelectorAll('[data-viewdoc]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(a.dataset.viewdoc),'_blank'); }catch(x){ showToast('Erro ao abrir documento: '+x.message); } }));
 }
 
 // ---- ditado por voz em qualquer campo de texto ----
