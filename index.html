@@ -238,6 +238,7 @@
           <select id="op-f-class"><option value="">Classificação: todas</option><option value="call_hot">Call Hot</option><option value="quente">Quente</option><option value="frio">Frio</option></select>
           <select id="op-f-tag"><option value="">Qualquer tag</option></select>
           <select id="op-f-next"><option value="">Próxima ação: todas</option><option value="atrasada">Atrasadas</option><option value="hoje">Para hoje</option><option value="semana">Nos próximos 7 dias</option><option value="sem">Leads em funil sem ação</option></select>
+          <select id="op-f-acao"><option value="">Tipo de ação: qualquer</option></select>
           <select id="op-f-situacao">
             <option value="">Todas as situações</option>
             <option value="cliente">Clientes (com apólice)</option>
@@ -1588,6 +1589,8 @@ async function renderOperacao(force){
     if(fe.options.length<=1) ETAPAS_FUNIL.forEach(e=>{ const o=document.createElement('option'); o.value=e.key; o.textContent='Etapa atual: '+e.label; fe.appendChild(o); });
     const fp = document.getElementById('op-f-produto');
     if(fp.options.length<=1) OP_PRODUTOS.forEach(p=>{ const o=document.createElement('option'); o.value=p.k; o.textContent='Tem: '+p.l; fp.appendChild(o); });
+    const fa = document.getElementById('op-f-acao');
+    if(fa.options.length<=1) ACOES.forEach(a=>{ const o=document.createElement('option'); o.value=a; o.textContent=a; fa.appendChild(o); });
     opFillTagFilter();
     opApplyFilters(wasLoaded);
   }catch(e){
@@ -1605,7 +1608,7 @@ function opApplyFilters(keep, scrollToList){
   const sort = document.getElementById('op-sort').value;
   const sf = OP.sumFilter;
   const fpl = document.getElementById('op-f-plantao').value;
-  const fperfil = document.getElementById('op-f-perfil').value, fclass = document.getElementById('op-f-class').value, fnext = document.getElementById('op-f-next').value, ftag = document.getElementById('op-f-tag').value;
+  const fperfil = document.getElementById('op-f-perfil').value, fclass = document.getElementById('op-f-class').value, fnext = document.getElementById('op-f-next').value, ftag = document.getElementById('op-f-tag').value, facao = document.getElementById('op-f-acao').value;
   const nowD = new Date(); nowD.setHours(0,0,0,0);
   let list = OP.pessoas.filter(p=>{
     if(q){ const qd = dOnly(q); const okTxt = (p.nome||'').toLowerCase().includes(q) || (p.crm||'').toLowerCase().includes(q) || (p.especialidade||'').toLowerCase().includes(q);
@@ -1618,6 +1621,7 @@ function opApplyFilters(keep, scrollToList){
       if(fnext==='sem'){ if(p.proxima_acao || !opIsLeadAberto(p)) return false; }
       else { if(!p.proxima_acao || dn===null) return false; if(fnext==='atrasada' && dn>=0) return false; if(fnext==='hoje' && dn!==0) return false; if(fnext==='semana' && (dn<0||dn>7)) return false; } }
     if(ftag && !(p.tags||[]).includes(ftag)) return false;
+    if(facao && p.proxima_acao!==facao) return false;
     const cli = opIsCliente(p.id), idx = opCurEtapaIdx(p.id);
     if(sit==='cliente' && !cli) return false;
     if(sit==='funil' && !(idx>=0 && !cli)) return false;
@@ -1651,7 +1655,7 @@ function opApplyFilters(keep, scrollToList){
 }
 
 function opRenderFilterCount(){
-  const ids = ['op-f-perfil','op-f-class','op-f-tag','op-f-next','op-f-situacao','op-f-etapa','op-f-plantao','op-f-produto'];
+  const ids = ['op-f-perfil','op-f-class','op-f-tag','op-f-next','op-f-situacao','op-f-etapa','op-f-plantao','op-f-produto','op-f-acao'];
   const n = ids.reduce((t,id)=> t + (document.getElementById(id).value ? 1 : 0), 0);
   const badge = document.getElementById('op-fcount');
   if(n){ badge.textContent = n; badge.style.display = 'inline-flex'; } else { badge.style.display = 'none'; }
@@ -1949,7 +1953,7 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 });
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
-['op-f-perfil','op-f-next','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
+['op-f-perfil','op-f-next','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-f-acao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
 document.getElementById('op-ftoggle').addEventListener('click', ()=> document.getElementById('op-filters-more').classList.toggle('open'));
 const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
 document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
