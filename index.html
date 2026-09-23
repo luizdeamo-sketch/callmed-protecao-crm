@@ -2306,7 +2306,7 @@ function openNovoCliente(prefill, onSaved){
         <label class="fl"><span>Sexo</span><select id="nc-sexo"><option value="">—</option><option value="M">Masculino</option><option value="F">Feminino</option></select></label>
         <label class="fl"><span>Estado civil</span><select id="nc-estado_civil"><option value="">—</option><option>solteiro</option><option>casado</option><option>união estável</option><option>divorciado</option><option>viúvo</option></select></label>
         <label class="fl"><span>Origem do cliente</span><select id="nc-origem"><option value="">—</option><option>CallMed Plantões</option><option>Indicação</option><option>Instagram</option><option>Evento</option><option>Outro</option></select></label>
-        ${fld('nc-quem_indicou','Quem indicou (opcional)','')}
+        ${fld('nc-quem_indicou','Quem indicou (obrigatório se Origem = Indicação)','')}
         ${fld('nc-sobrenome','Sobrenome (opcional — junto ao nome)','')}
         ${pfExtraFieldsHtml('nc-')}
       </div>
@@ -2405,6 +2405,7 @@ async function ncCheckDup(){
 async function ncSave(){
   const err = document.getElementById('nc-err'); err.textContent = '';
   if(!ncVal('nome')){ err.textContent = 'Informe o nome. Se anexou um documento e o nome não foi lido, digite-o para eu criar o lead.'; return; }
+  if(ncVal('origem')==='Indicação' && !ncVal('quem_indicou')){ err.textContent = 'Origem "Indicação" exige informar quem indicou.'; return; }
   const btn = document.getElementById('nc-save');
   try{
     if(!NC.pessoaId){
