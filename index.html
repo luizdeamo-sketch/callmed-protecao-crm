@@ -185,7 +185,6 @@
     <div class="field"><label>Email</label><input id="login-email" type="email" autocomplete="username"></div>
     <div class="field"><label>Senha</label><input id="login-pass" type="password" autocomplete="current-password"></div>
     <button class="btn btn-primary" id="btn-login">Entrar</button>
-    <button class="btn-ghost" id="btn-toggle-signup" style="display:none" type="button">Primeira vez? Criar conta</button>
     <button class="btn-ghost" id="btn-forgot" type="button">Esqueci minha senha</button>
     <div class="err" id="login-err"></div>
   </div>
@@ -695,7 +694,6 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const ICS_TOKEN = "AjWe0bFNyGC44THvqvD3-EmF5dM7jBuZ";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let isSignupMode = false;
 let currentPersonId = null;
 let searchTimer = null;
 let calMonth = new Date(); calMonth.setDate(1);
@@ -716,20 +714,14 @@ function fmtDateTime(s){ if(!s) return ''; try{ return new Date(s).toLocaleStrin
 function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
 // ---------- AUTH ----------
-document.getElementById('btn-toggle-signup').addEventListener('click', ()=>{
-  isSignupMode = !isSignupMode;
-  document.getElementById('btn-login').textContent = isSignupMode ? 'Criar conta' : 'Entrar';
-  document.getElementById('btn-toggle-signup').textContent = isSignupMode ? 'Já tenho conta' : 'Primeira vez? Criar conta';
-});
 document.getElementById('btn-login').addEventListener('click', async ()=>{
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-pass').value;
   const errEl = document.getElementById('login-err');
   errEl.style.color = 'var(--red)'; errEl.textContent = '';
   if(!email || !password){ errEl.textContent = 'Preencha email e senha.'; return; }
-  let res = isSignupMode ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
+  const res = await sb.auth.signInWithPassword({ email, password });
   if(res.error){ errEl.textContent = res.error.message; return; }
-  if(isSignupMode && res.data.user && !res.data.session){ errEl.textContent = 'Se for um email novo, verifique sua caixa (e spam). Se já tiver conta, use Entrar.'; return; }
   boot();
 });
 document.getElementById('btn-forgot').addEventListener('click', async ()=>{
@@ -1311,6 +1303,13 @@ function pdCollectAvancado(host){
     reposicao_ativa: host.querySelector('#pd-repo-ativa').checked, reposicao_horizonte_anos:n('pd-repo-horiz'), reposicao_inflacao_pct:n('pd-repo-infl'), reposicao_rentabilidade_pct:n('pd-repo-rent'), reposicao_renda_conjuge:n('pd-repo-conjuge'),
     outros_objetivos: adnCollectObjetivos(host), modulos_visiveis: mods };
 }
+const JORNADA_EVOLUTIVA = [
+  ['🚀 Carreira', ['trabalho_especialidade_detalhe','trabalho_plantoes_consultorio','trabalho_riscos','renda_dependencia_atividade_medica','renda_estabilidade']],
+  ['💰 Renda', ['renda_fontes','renda_estimada','renda_mensal_faixa','valor_mensal_educacao_filhos']],
+  ['🏛️ Patrimônio', ['patrimonio_bens','patrimonio_dividas','patrimonio_projetos','patrimonio_liquidez','faz_reserva_financeira','tem_investimentos','detalhes_investimentos']],
+  ['👨‍👩‍👧 Família', ['responsabilidades','familia_padrao_vida']],
+  ['🏆 Legado', ['tem_seguro_vida','protecao_percebida_adequada','visao_seguro_vida','objetivos_educacao','objetivos_patrimonio','objetivos_sucessao','objetivos_aposentadoria','objetivos_outros']],
+];
 async function pvDiagnostico(p){
   const host = document.getElementById('pp-diag'); if(!host) return;
   const { data } = await sb.from('crm_diagnostico').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false}).limit(1);
@@ -1318,7 +1317,8 @@ async function pvDiagnostico(p){
   const all = BLOCKS.find(b=>b.table==='crm_diagnostico').fields;
   const defOf = (name)=>{ const f = all.find(x=>x.name===name); return f ? [name, f.label, f.type, f.options] : [name, name, 'text']; };
   const essKeys = DIAG_ESSENCIAL.map(d=>d[0]);
-  const avanc = all.filter(f=>!essKeys.includes(f.name) && !DIAG_SAUDE.includes(f.name) && f.name!=='preenchido_por');
+  const jornadaKeys = new Set(JORNADA_EVOLUTIVA.flatMap(([,ks])=>ks));
+  const avanc = all.filter(f=>!essKeys.includes(f.name) && !DIAG_SAUDE.includes(f.name) && !jornadaKeys.has(f.name) && f.name!=='preenchido_por');
   const imc = (row.peso && row.altura) ? (Number(row.peso)/((Number(row.altura)/100)*(Number(row.altura)/100))).toFixed(1) : null;
   host.innerHTML = `<div class="ql">Diagnóstico de proteção</div>
     <div class="fgrid">${DIAG_ESSENCIAL.map(d=>pvDiagField(d[0], row[d[0]], d)).join('')}</div>
@@ -1326,8 +1326,10 @@ async function pvDiagnostico(p){
       <div class="fgrid" style="margin-top:8px">${DIAG_SAUDE.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div>${imc?`<div class="hint">IMC calculado: <b>${imc}</b></div>`:''}</details>
     <details style="margin-top:8px" open><summary style="cursor:pointer;font-weight:600">🧮 ADN completo <small style="color:var(--ink-faint);font-weight:400">— usado no cálculo da Análise Completa; preenchido aqui, já aparece no Novo Estudo</small></summary>
       <div style="margin-top:8px">${pdAdnAvancadoHtml(row)}</div></details>
-    <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Avançado <small style="color:var(--ink-faint);font-weight:400">— objetivos, trabalho, patrimônio detalhado</small></summary>
-      <div class="fgrid" style="margin-top:8px">${avanc.map(f=>pvDiagField(f.name, row[f.name], [f.name,f.label,f.type,f.options])).join('')}</div></details>
+    <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Processo evolutivo <small style="color:var(--ink-faint);font-weight:400">— Carreira → Renda → Patrimônio → Família → Legado</small></summary>
+      <div style="margin-top:8px">${JORNADA_EVOLUTIVA.map(([label,keys])=>`<div class="ql" style="margin-top:10px">${label}</div><div class="fgrid">${keys.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div>`).join('')}</div></details>
+    ${avanc.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Outros campos</summary>
+      <div class="fgrid" style="margin-top:8px">${avanc.map(f=>pvDiagField(f.name, row[f.name], [f.name,f.label,f.type,f.options])).join('')}</div></details>`:''}
     <div style="margin-top:10px"><button class="om-save" id="dg-save">Salvar diagnóstico</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
   pdBindAvancado(host);
   host.querySelector('#dg-save').addEventListener('click', async ()=>{
@@ -2235,7 +2237,8 @@ function docsExtract(text){
           if(/^[A-Za-zÀ-ú' ]{6,}$/.test(n) && n.split(/\s+/).length>=2) f.nome = titleCase(n); }
   if(!f.nome){ const nm2 = t.match(/(?:^|\n)[^\n]{0,14}?\bnome(?:\s*e\s*sobrenome|\s*completo)?\s*[:\n]\s*([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú' ]{5,60})/i);
     if(nm2){ const n = nm2[1].replace(/\s+/g,' ').trim(); if(n.split(' ').length>=2 && !/\b(CPF|DATA|REGISTRO|FILIA)/i.test(n)) f.nome = titleCase(n); } }
-  const crm = t.match(/CRM[\s\-\/:]*(?:[A-Z]{2}[\s\-\/:]*)?(\d{4,7})/i); if(crm) f.crm = crm[1];
+  const crm = t.match(/CRM[\s\-\/:]*(?:([A-Z]{2})[\s\-\/:]*)?(\d{4,7})(?:[\s\-\/]*([A-Z]{2}))?/i);
+  if(crm){ f.crm = crm[2]; const uf = (crm[1]||crm[3]||'').toUpperCase(); if(UFS_BR.includes(uf)) f.crm_uf = uf; }
   const em = t.match(/[\w.+-]+@[\w-]+\.[\w.-]+/); if(em) f.email = em[0].toLowerCase();
   const cepm = t.match(/\bCEP[:\s]*(\d{5}-?\d{3})\b/i) || t.match(/\b(\d{5}-\d{3})\b/); if(cepm) f.cep = cepm[1];
   const ph = t.match(/\(?\b(\d{2})\)?[\s.-]?(9?\d{4})[\s.-]?(\d{4})\b/); if(ph && !/^(19|20)\d{2}$/.test(ph[1]+ph[2].slice(0,2))) f.telefone = `(${ph[1]}) ${ph[2]}-${ph[3]}`;
@@ -2326,21 +2329,27 @@ async function docsSignedUrl(path){
   const { data, error } = await sb.storage.from('crm-docs').createSignedUrl(path, 3600);
   if(error) throw error; return data.signedUrl;
 }
+const UFS_BR = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
 const NOME_STOP = new Set(['da','de','do','das','dos','e']);
 function normNome(x){
   return String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z\s]/g,' ').split(/\s+/).filter(t=>t && !NOME_STOP.has(t));
 }
 async function ensurePessoas(){
-  if(!OP.pessoas.length){ OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026',['nome','id']); }
+  if(!OP.pessoas.length){ OP.pessoas = await opFetchAll('crm_pessoas','id,nome,crm,crm_uf,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026',['nome','id']); }
 }
-async function findPessoas({cpf, crm, nome, telefone}){
+async function findPessoas({cpf, crm, crm_uf, nome, telefone}){
   await ensurePessoas();
   const d = dOnly(cpf), tk = normNome(nome), key = tk.join(' '), ph = dOnly(telefone).slice(-9);
+  const uf = (crm_uf||'').toUpperCase();
   const out = [];
   OP.pessoas.forEach(p=>{
     let why = null;
     if(d.length===11 && dOnly(p.cpf)===d) why = 'CPF idêntico';
-    else if(crm && p.crm && String(p.crm).replace(/\D/g,'') === String(crm).replace(/\D/g,'') && !/^0+$/.test(String(crm))) why = 'CRM idêntico';
+    else if(crm && p.crm && String(p.crm).replace(/\D/g,'') === String(crm).replace(/\D/g,'') && !/^0+$/.test(String(crm))){
+      // mesmo número de CRM em UFs diferentes é uma pessoa diferente (CRM só é único dentro do estado)
+      if(uf && p.crm_uf && uf !== p.crm_uf.toUpperCase()){ /* números coincidem por acaso, UFs divergem: não é a mesma pessoa */ }
+      else why = 'CRM idêntico';
+    }
     if(!why && tk.length>=2){
       const pt = normNome(p.nome);
       if(pt.join(' ')===key) why = 'nome idêntico';
@@ -2382,7 +2391,7 @@ function fld(id, label, val, type, full){
 }
 
 // ---------- NOVO CLIENTE (com leitura de documentos) ----------
-const NC_FIELDS = [['nome','Nome completo *'],['cpf','CPF'],['crm','CRM'],['data_nascimento','Data de nascimento','date'],['telefone','Telefone'],['email','E-mail'],['especialidade','Especialidade'],['cnpj','CNPJ (PJ)'],['razao_social','Razão social']];
+const NC_FIELDS = [['nome','Nome completo *'],['cpf','CPF'],['crm','CRM'],['crm_uf','UF do CRM'],['data_nascimento','Data de nascimento','date'],['telefone','Telefone'],['email','E-mail'],['especialidade','Especialidade'],['cnpj','CNPJ (PJ)'],['razao_social','Razão social']];
 function openNovoCliente(prefill, onSaved){
   prefill = prefill || {};
   const box = dlgOpen(`<div class="om-title"><div><h3>Novo cliente</h3><div class="om-sub">Anexe qualquer documento (RG, CNH, cartão do CRM, apólice, comprovantes). O sistema lê e preenche o que encontrar — você confere antes de salvar.</div></div><button data-close>✕</button></div>
@@ -2417,8 +2426,8 @@ function openNovoCliente(prefill, onSaved){
   if(prefill.nome || prefill.cpf) ncCheckDup();
 }
 const NC = { pessoaId:null, existing:null };
-const NC_LBL = {cep:'CEP',nome:'nome',cpf:'CPF',crm:'CRM',data_nascimento:'nascimento',telefone:'telefone',email:'e-mail',especialidade:'especialidade',cnpj:'CNPJ',razao_social:'razão social',sexo:'sexo',estado_civil:'estado civil'};
-const NC_SAVE_KEYS = ['cpf','crm','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou','profissao','regime_trabalho','cep','logradouro','numero','complemento','bairro','cidade','uf','campanha','parceiro','classificacao','observacoes'];
+const NC_LBL = {cep:'CEP',nome:'nome',cpf:'CPF',crm:'CRM',crm_uf:'UF do CRM',data_nascimento:'nascimento',telefone:'telefone',email:'e-mail',especialidade:'especialidade',cnpj:'CNPJ',razao_social:'razão social',sexo:'sexo',estado_civil:'estado civil'};
+const NC_SAVE_KEYS = ['cpf','crm','crm_uf','data_nascimento','telefone','email','especialidade','sexo','estado_civil','cnpj','razao_social','origem','quem_indicou','profissao','regime_trabalho','cep','logradouro','numero','complemento','bairro','cidade','uf','campanha','parceiro','classificacao','observacoes'];
 const ncVal = (id)=>{ const el = document.getElementById('nc-'+id); return el ? el.value.trim() : ''; };
 function ncBanner(html, cls){ const b = document.getElementById('nc-banner'); if(b) b.innerHTML = html ? `<div class="${cls||'dup'}">${html}</div>` : ''; }
 
@@ -2443,7 +2452,7 @@ async function ncAfterRead(){
   if(NC.pessoaId){ await ncRegisterDocs(NC.pessoaId); await ncPushFields(NC.pessoaId); return; }
   const nome = ncVal('nome');
   if(!nome){ ncBanner('Não consegui ler o <b>nome</b> neste documento. Digite o nome abaixo para eu verificar se a pessoa já existe e criar o lead.'); return; }
-  const found = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), nome, telefone:ncVal('telefone')});
+  const found = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), crm_uf:ncVal('crm_uf'), nome, telefone:ncVal('telefone')});
   const forte = found.filter(isStrong);
   if(forte.length){
     NC.existing = forte[0];
@@ -2487,7 +2496,7 @@ async function ncCleanup(){
 function ncClose(){ window._ncFiles = (window._ncFiles||[]).filter(x=>!x.registered); window._dlgOnClose = null; dlgClose(); }
 async function ncCheckDup(){
   const box = document.getElementById('nc-dup'); if(!box || NC.pessoaId) return;
-  const found = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), nome:ncVal('nome'), telefone:ncVal('telefone')});
+  const found = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), crm_uf:ncVal('crm_uf'), nome:ncVal('nome'), telefone:ncVal('telefone')});
   const strong = found.filter(isStrong);
   box.innerHTML = found.length ? `<div class="dup"><b>${strong.length?'⚠️ Já existe cadastro com esses dados (CPF igual: use/una ao cadastro existente):':'Atenção — cadastros semelhantes (telefone igual só avisa):'}</b>${found.map(p=>`<div>• ${escapeHtml(p.nome)} <small>(${escapeHtml(p.why)})</small> <a href="#" data-openp="${p.id}">abrir cadastro</a></div>`).join('')}</div>` : '';
   box.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); ncClose(); goToPersonView(a.dataset.openp); }));
@@ -2499,7 +2508,7 @@ async function ncSave(){
   const btn = document.getElementById('nc-save');
   try{
     if(!NC.pessoaId){
-      const dups = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), nome:ncVal('nome'), telefone:ncVal('telefone')});
+      const dups = await findPessoas({cpf:ncVal('cpf'), crm:ncVal('crm'), crm_uf:ncVal('crm_uf'), nome:ncVal('nome'), telefone:ncVal('telefone')});
       const forte = dups.filter(isStrong);
       if(forte.length){ err.innerHTML = `⚠️ Já existe cadastro (${escapeHtml(forte[0].why)}): <b>${escapeHtml(forte[0].nome)}</b> — <a href="#" id="nc-abrir">abrir cadastro existente</a>. Não criei duplicado.`;
         document.getElementById('nc-abrir').addEventListener('click', ev=>{ ev.preventDefault(); ncClose(); goToPersonView(forte[0].id); }); return; }
@@ -3877,7 +3886,7 @@ async function cepFill(prefix){
 function openEditPessoa(p){
   const box = dlgOpen(`<div class="om-title"><div><h3>Editar cadastro</h3><div class="om-sub">${escapeHtml(p.nome)}</div></div><button data-close>✕</button></div>
     <div class="dlg-body"><div class="fgrid">
-      ${fld('pe-nome','Nome completo *',p.nome,'text',true)}${fld('pe-cpf','CPF',p.cpf)}${fld('pe-crm','CRM',p.crm)}
+      ${fld('pe-nome','Nome completo *',p.nome,'text',true)}${fld('pe-cpf','CPF',p.cpf)}${fld('pe-crm','CRM',p.crm)}${fld('pe-crm_uf','UF do CRM',p.crm_uf)}
       ${fld('pe-data_nascimento','Data de nascimento',p.data_nascimento,'date')}${fld('pe-telefone','Telefone',p.telefone)}${fld('pe-email','E-mail',p.email)}${fld('pe-especialidade','Especialidade',p.especialidade)}
       ${fld('pe-cnpj','CNPJ (PJ)',p.cnpj)}${fld('pe-razao_social','Razão social',p.razao_social)}
       <label class="fl"><span>Perfil do cliente</span><select id="pe-tipo">${tipoOptions(p.tipo||'medico')}</select></label>
@@ -3891,7 +3900,7 @@ function openEditPessoa(p){
   box.querySelector('#pe-save').addEventListener('click', async ()=>{
     const g = id=>document.getElementById('pe-'+id).value.trim(); if(!g('nome')){ document.getElementById('pe-err').textContent = 'O nome é obrigatório.'; return; }
     const upd = { nome:g('nome'), tipo:g('tipo')||'medico', tags:pfTags('pe-') };
-    ['cpf','crm','data_nascimento','telefone','email','especialidade','cnpj','razao_social','sexo','estado_civil','origem','quem_indicou','classificacao','observacoes'].concat(PF_EXTRA.map(x=>x[0])).forEach(k=>{ upd[k] = g(k)||null; });
+    ['cpf','crm','crm_uf','data_nascimento','telefone','email','especialidade','cnpj','razao_social','sexo','estado_civil','origem','quem_indicou','classificacao','observacoes'].concat(PF_EXTRA.map(x=>x[0])).forEach(k=>{ upd[k] = g(k)||null; });
     const { error } = await sb.from('crm_pessoas').update(upd).eq('id', p.id);
     if(error){ document.getElementById('pe-err').textContent = 'Erro: '+error.message; return; }
     const op = OP.pessoas.find(x=>x.id===p.id); if(op) Object.assign(op, upd);
