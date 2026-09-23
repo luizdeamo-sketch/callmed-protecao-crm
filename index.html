@@ -2020,6 +2020,8 @@ const DOCS_COVS = [
     d:'Disponibiliza assistência para os serviços e despesas relacionados ao funeral do segurado titular, cônjuge e filhos elegíveis, podendo ocorrer por prestação de serviços ou reembolso, conforme as condições contratadas, incluindo traslado quando previsto.'},
   {k:'funeral_individual', l:'Assistência Funeral Individual', re:/funeral(?!.{0,60}(familiar|c[ôo]njuge|filhos))/i,
     d:'Disponibiliza assistência para as despesas e serviços relacionados ao funeral do segurado titular, podendo ocorrer por meio de prestação de serviços ou reembolso, conforme a modalidade contratada, incluindo traslado quando previsto.'},
+  {k:'rc_profissional', l:'RC Profissional', re:/responsabilidade\s*civil\s*profissional|\bRC\s*Profissional\b|erro\s*m[ée]dico/i,
+    d:'Garante a defesa e a indenização do segurado por danos causados a terceiros no exercício da atividade profissional (erro médico), incluindo honorários advocatícios e custas judiciais, conforme os limites e condições contratados.'},
 ];
 function covProtect(k){ return (DOCS_COVS.find(c=>c.k===k)||{}).d || ''; }
 // valor por cobertura: procura, linha a linha, uma cobertura identificada + um R$ na mesma linha
