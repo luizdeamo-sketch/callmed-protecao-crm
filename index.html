@@ -3414,7 +3414,7 @@ function esShow(e){
       <div class="hint">O catálogo ainda não tem tabela de preços — lance aqui as cotações que você tirar em cada seguradora para ver a economia real frente ao prêmio atual.</div></div>
     ${esAnaliseBoxHtml()}
     <div class="es-box"><div class="ql">Parecer / observações</div><textarea id="es-obs" rows="5">${escapeHtml(e.observacoes||'')}</textarea>
-      <div class="es-actions"><button class="om-cancel" id="es-parecer">Gerar parecer automático</button><span style="flex:1"></span><button class="om-save" id="es-save">Salvar estudo</button></div></div>`;
+      <div class="es-actions"><button class="om-cancel" id="es-parecer">Gerar parecer automático</button><button class="om-cancel" id="es-del" style="color:var(--red)">Excluir estudo</button><span style="flex:1"></span><button class="om-save" id="es-save">Salvar estudo</button></div></div>`;
   const $ = id=>document.getElementById(id);
   if($('es-file-open')) $('es-file-open').addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(e.documento_path),'_blank'); }catch(x){ showToast('Erro: '+x.message); } });
   if($('es-open-p')) $('es-open-p').addEventListener('click', ev=>{ ev.preventDefault(); goToPersonView(e.pessoa_id); });
@@ -3434,6 +3434,14 @@ function esShow(e){
   $('es-parecer').addEventListener('click', ()=>{ $('es-obs').value = esParecer(esCollect(), esAnalise(esCollect())); });
   $('es-save').addEventListener('click', ()=>esSave(false));
   $('es-status').addEventListener('change', ()=>esSave(true));
+  $('es-del').addEventListener('click', async ()=>{
+    if(!confirm(`Excluir o estudo de "${e.cliente_nome||'este cliente'}"? Essa ação não pode ser desfeita.`)) return;
+    const { error } = await sb.from('crm_estudos').delete().eq('id', e.id);
+    if(error){ showToast('Erro ao excluir: '+error.message); return; }
+    showToast('Estudo excluído'); ES.open = null; ES.cur = null;
+    document.getElementById('es-detail').innerHTML = '<div class="op-more" style="padding-top:80px">Selecione um estudo à esquerda ou crie um novo.<br><br><b>Como funciona:</b> suba a apólice atual do cliente (de outro corretor) → o sistema lê os dados → cruza com as coberturas das nossas 8 seguradoras → mostra as lacunas, a combinação sugerida e compara as cotações que você lançar com o prêmio atual.</div>';
+    renderEstudos();
+  });
   if(e.pessoa_id && (!ES.plant || ES.plant.pessoa_id!==e.pessoa_id)){
     sb.from('crm_plantoes_resumo').select('*').eq('pessoa_id', e.pessoa_id).maybeSingle().then(({data})=>{ ES.plant = data || {pessoa_id:e.pessoa_id}; if(ES.cur && ES.cur.id===e.id && data) esShow(ES.cur); });
   }
