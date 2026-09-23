@@ -857,7 +857,7 @@ const BLOCKS = [
       {name:'protecao_percebida_adequada',label:'Proteção atual é adequada? (percepção do médico)',type:'text'},
       // --- Saúde (dado sensível - LGPD categoria especial) ---
       {name:'peso',label:'Peso (kg)',type:'number'},
-      {name:'altura',label:'Altura (m)',type:'number'},
+      {name:'altura',label:'Altura (cm)',type:'number'},
       {name:'pratica_esportes',label:'Pratica esportes?',type:'boolean'},
       {name:'quais_esportes',label:'Quais esportes',type:'text'},
       {name:'fuma',label:'Fuma?',type:'boolean'},
@@ -1250,7 +1250,7 @@ async function pvDiagnostico(p){
   const defOf = (name)=>{ const f = all.find(x=>x.name===name); return f ? [name, f.label, f.type, f.options] : [name, name, 'text']; };
   const essKeys = DIAG_ESSENCIAL.map(d=>d[0]);
   const avanc = all.filter(f=>!essKeys.includes(f.name) && !DIAG_SAUDE.includes(f.name) && f.name!=='preenchido_por');
-  const imc = (row.peso && row.altura) ? (Number(row.peso)/(Number(row.altura)*Number(row.altura))).toFixed(1) : null;
+  const imc = (row.peso && row.altura) ? (Number(row.peso)/((Number(row.altura)/100)*(Number(row.altura)/100))).toFixed(1) : null;
   host.innerHTML = `<div class="ql">Diagnóstico de proteção</div>
     <div class="fgrid">${DIAG_ESSENCIAL.map(d=>pvDiagField(d[0], row[d[0]], d)).join('')}</div>
     <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">🔒 Saúde e subscrição <small style="color:var(--ink-faint);font-weight:400">— dado sensível: preencher só quando necessário para cotação (LGPD)</small></summary>
@@ -1260,7 +1260,9 @@ async function pvDiagnostico(p){
     <div style="margin-top:10px"><button class="om-save" id="dg-save">Salvar diagnóstico</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
   host.querySelector('#dg-save').addEventListener('click', async ()=>{
     const payload = { preenchido_por:curUserName() };
-    host.querySelectorAll('[data-dg]').forEach(el=>{ const k = el.dataset.dg; let v = el.value; if(v===''){ payload[k] = null; return; } if(el.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true'; else if(el.type==='number') v = parseFloat(v); payload[k] = v; });
+    host.querySelectorAll('[data-dg]').forEach(el=>{ const k = el.dataset.dg; let v = el.value; if(v===''){ payload[k] = null; return; }
+      if(k==='quais_esportes'){ payload[k] = v.split(',').map(s=>s.trim()).filter(Boolean); return; }
+      if(el.tagName==='SELECT' && (v==='true'||v==='false')) v = v==='true'; else if(el.type==='number') v = parseFloat(v); payload[k] = v; });
     const res = row.id ? await sb.from('crm_diagnostico').update(payload).eq('id', row.id) : await sb.from('crm_diagnostico').insert({...payload, pessoa_id:p.id});
     if(res.error){ showToast('Erro: '+res.error.message); return; }
     const sync = await diagPushToADN(p.id, payload);
@@ -2955,7 +2957,7 @@ async function adnPrefillFromDiagECadastro(pessoaId, base){
     if(need('gastos_mensais') && diag.despesas_mensais!=null) p.gastos_mensais = diag.despesas_mensais;
     if(need('patrimonio_bruto') && diag.valor_bens_totais!=null) p.patrimonio_bruto = diag.valor_bens_totais;
     if(need('patrimonio_financeiro') && diag.patrimonio_financeiro!=null) p.patrimonio_financeiro = diag.patrimonio_financeiro;
-    if(need('altura_cm') && diag.altura!=null) p.altura_cm = Math.round(Number(diag.altura)*100);
+    if(need('altura_cm') && diag.altura!=null) p.altura_cm = Math.round(Number(diag.altura));
     if(need('peso_kg') && diag.peso!=null) p.peso_kg = diag.peso;
     if(need('dependentes_qtd') && diag.dependentes!=null) p.dependentes_qtd = diag.dependentes;
     if(p.fumante==null && diag.fuma!=null) p.fumante = diag.fuma;
@@ -2978,7 +2980,7 @@ async function adnPushToDiagECadastro(e){
   if(e.gastos_mensais!=null) diagUpd.despesas_mensais = e.gastos_mensais;
   if(e.patrimonio_bruto!=null) diagUpd.valor_bens_totais = e.patrimonio_bruto;
   if(e.patrimonio_financeiro!=null) diagUpd.patrimonio_financeiro = e.patrimonio_financeiro;
-  if(e.altura_cm!=null) diagUpd.altura = Number(e.altura_cm)/100;
+  if(e.altura_cm!=null) diagUpd.altura = Number(e.altura_cm);
   if(e.peso_kg!=null) diagUpd.peso = e.peso_kg;
   if(e.dependentes_qtd!=null) diagUpd.dependentes = e.dependentes_qtd;
   if(e.fumante!=null) diagUpd.fuma = e.fumante;
@@ -2995,7 +2997,7 @@ async function diagPushToADN(pessoaId, diag){
   if(diag.despesas_mensais!=null) estUpd.gastos_mensais = diag.despesas_mensais;
   if(diag.valor_bens_totais!=null) estUpd.patrimonio_bruto = diag.valor_bens_totais;
   if(diag.patrimonio_financeiro!=null) estUpd.patrimonio_financeiro = diag.patrimonio_financeiro;
-  if(diag.altura!=null) estUpd.altura_cm = Math.round(Number(diag.altura)*100);
+  if(diag.altura!=null) estUpd.altura_cm = Math.round(Number(diag.altura));
   if(diag.peso!=null) estUpd.peso_kg = diag.peso;
   if(diag.dependentes!=null) estUpd.dependentes_qtd = diag.dependentes;
   if(diag.fuma!=null) estUpd.fumante = diag.fuma;
