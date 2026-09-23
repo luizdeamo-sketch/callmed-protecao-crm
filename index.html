@@ -1114,14 +1114,44 @@ async function pvProtecao(body, p){
   body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
   pvOportunidades(p); pvApolices(p); renderPessoaEstudos(p); pvDiagnostico(p);
 }
+function pvIdade(p){
+  if(!p.data_nascimento) return null;
+  const d = new Date(p.data_nascimento), t = new Date();
+  let idade = t.getFullYear()-d.getFullYear();
+  if(t.getMonth()<d.getMonth() || (t.getMonth()===d.getMonth() && t.getDate()<d.getDate())) idade--;
+  return idade;
+}
+function pvSuggestOpps(p, have, existingProdutos){
+  const out = [];
+  const temVida = ['morte','morte_acidental','ipa','invalidez_doenca'].some(k=>have.has(k));
+  const idade = pvIdade(p);
+  if(!temVida && !existingProdutos.has('Vida')) out.push({produto:'Vida', motivo:'Nenhuma cobertura de Morte/Invalidez identificada nas apólices — proteção básica em aberto.'});
+  if(isMedico(p) && !have.has('rc_profissional') && !existingProdutos.has('RC Profissional')) out.push({produto:'RC Profissional', motivo:'Médico sem RC Profissional identificada — risco de exercício da profissão descoberto.'});
+  if(temVida && !have.has('doencas_graves') && !existingProdutos.has('Vida')) out.push({produto:'Vida', motivo:'Já tem seguro de vida, mas sem Doenças Graves — bom gancho de up-sell na renovação.'});
+  if(idade!=null && idade>=45 && !existingProdutos.has('Previdência')) out.push({produto:'Previdência', motivo:`${idade} anos — momento natural para falar de aposentadoria complementar.`});
+  if(temVida && !have.has('sucessao') && !existingProdutos.has('Vida') && p.profissao) out.push({produto:'Vida', motivo:'Sem cobertura de Sucessão — vale explorar planejamento sucessório/patrimonial.'});
+  return out.slice(0,4);
+}
 async function pvOportunidades(p){
   const host = document.getElementById('pp-opps'); if(!host) return;
-  const { data, error } = await sb.from('crm_oportunidades').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false});
+  const [{ data, error }, { data: apoData }] = await Promise.all([
+    sb.from('crm_oportunidades').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false}),
+    sb.from('crm_apolices').select('coberturas,status').eq('pessoa_id',p.id),
+  ]);
   const rows = data||[];
+  const have = new Set(); (apoData||[]).filter(a=>a.status!=='cancelada').forEach(a=>(a.coberturas||[]).forEach(c=>have.add(c)));
+  const existingProdutos = new Set(rows.filter(o=>o.status!=='perdida').map(o=>o.produto));
+  const sug = pvSuggestOpps(p, have, existingProdutos);
   host.innerHTML = `<div class="ql">Oportunidades por produto <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— a etapa de cada produto vive aqui; o funil da pessoa (Aliança) acompanha automaticamente a mais avançada</small></div>
     ${error?'<div class="om-err">'+escapeHtml(error.message)+'</div>':''}
+    ${sug.length?`<div class="es-warn" style="margin-bottom:10px"><b>💡 Sugestões de cross-sell / up-sell</b><div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">${sug.map((s,i)=>`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="om-save" data-sugopp="${i}" style="padding:5px 10px;font-size:12px">+ ${escapeHtml(s.produto)}</button><small style="color:var(--ink-soft)">${escapeHtml(s.motivo)}</small></div>`).join('')}</div></div>`:''}
     ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Etapa</th><th>Status</th><th>Prêmio previsto</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr data-opp="${o.id}"><td><b>${escapeHtml(o.produto)}</b></td><td>${escapeHtml((ETAPAS_FUNIL.find(e=>e.key===o.etapa)||{label:o.etapa}).label)}</td><td><span class="tagx ${o.status==='perdida'?'bad':(o.status==='ganha'?'':(o.status==='pausada'?'warn':''))}">${escapeHtml((OPP_STATUS.find(s=>s[0]===o.status)||[0,o.status])[1])}</span>${o.motivo_perda?'<br><small>'+escapeHtml(o.motivo_perda)+'</small>':''}</td><td>${fmtMoney(o.premio_previsto)}</td><td>${escapeHtml(o.responsavel||'—')}</td><td><a href="#" data-edit-opp="${o.id}">editar</a></td></tr>`).join('')}</tbody></table>`:'<div class="hint">Nenhuma oportunidade ainda.</div>'}
     <div class="sg-row" style="margin-top:10px"><select id="op-new-prod" class="ca-inp" style="width:190px">${OPP_PRODUTOS.map(o=>`<option>${o}</option>`).join('')}</select><select id="op-new-etapa" class="ca-inp" style="width:150px">${ETAPAS_FUNIL.map(e=>`<option value="${e.key}">${e.label}</option>`).join('')}</select><input id="op-new-prem" type="number" class="ca-inp" placeholder="Prêmio previsto (R$)" style="width:170px"><button class="om-save" id="op-new-add">+ Nova oportunidade</button></div>`;
+  const addOpp = async (produto)=>{
+    const { error } = await sb.from('crm_oportunidades').insert({ pessoa_id:p.id, produto, etapa:'contato', premio_previsto:null, responsavel:curUserName() });
+    if(error){ showToast('Erro: '+error.message); return; } await syncFunilComOpp(p.id, 'contato'); showToast('Oportunidade criada'); pvOportunidades(p);
+  };
+  host.querySelectorAll('[data-sugopp]').forEach(b=>b.addEventListener('click', ()=> addOpp(sug[Number(b.dataset.sugopp)].produto)));
   host.querySelector('#op-new-add').addEventListener('click', async ()=>{
     const { error } = await sb.from('crm_oportunidades').insert({ pessoa_id:p.id, produto:document.getElementById('op-new-prod').value, etapa:document.getElementById('op-new-etapa').value, premio_previsto:document.getElementById('op-new-prem').value?Number(document.getElementById('op-new-prem').value):null, responsavel:curUserName() });
     if(error){ showToast('Erro: '+error.message); return; } await syncFunilComOpp(p.id, document.getElementById('op-new-etapa').value); showToast('Oportunidade criada'); pvOportunidades(p); });
