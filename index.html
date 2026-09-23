@@ -984,7 +984,7 @@ function pvNextDialog(){
   const p = PV.person;
   const box = dlgOpen(`<div class="om-title"><div><h3>Próxima ação</h3><div class="om-sub">${escapeHtml(p.nome)}</div></div><button data-close>✕</button></div>
     <div class="dlg-body"><div class="fgrid">
-      <label class="fl full"><span>Ação</span><select id="pn-acao"><option value="">—</option>${ACOES.map(a=>`<option ${p.proxima_acao===a?'selected':''}>${a}</option>`).join('')}</select></label>
+      <label class="fl full"><span>Ação</span><select id="pn-acao"><option value="">—</option>${ACOES.map((a,i)=>`<option value="${escapeHtml(a)}" ${p.proxima_acao===a?'selected':''}>${i+1}. ${escapeHtml(a)}</option>`).join('')}</select></label>
       ${fld('pn-data','Data',p.proxima_data||'','date')}${fld('pn-resp','Responsável',p.proximo_responsavel||curUserName())}
     </div><div class="om-err" id="pn-err"></div></div>
     <div class="om-foot"><button class="om-cancel" id="pn-clear" style="color:var(--red)">Limpar</button><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="pn-save">Salvar</button></div>`);
@@ -1051,7 +1051,7 @@ async function pvHistorico(body, p){
       <label class="fl"><span>Oportunidade (opcional)</span><select id="at-opp"><option value="">—</option>${opps.map(o=>`<option value="${o.id}">${escapeHtml(o.produto)}</option>`).join('')}</select></label>
       <label class="fl"><span>Resultado</span><select id="at-res"><option value="">—</option>${RESULTADOS.map(r=>`<option>${r}</option>`).join('')}</select></label>
       <label class="fl full"><span>Resumo do que aconteceu <button type="button" class="om-cancel" data-dictate="at-resumo" style="padding:2px 8px;font-size:12px;text-transform:none">🎤 ditar</button></span><textarea id="at-resumo" rows="3" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
-      <label class="fl full"><span>E agora? Próxima ação (obrigatória)</span><select id="at-acao"><option value="">Selecione...</option>${ACOES.map(a=>`<option>${a}</option>`).join('')}<option value="__encerrar__">✖ Encerrar (oportunidade / lead)</option></select></label>
+      <label class="fl full"><span>E agora? Próxima ação (obrigatória)</span><select id="at-acao"><option value="">Selecione...</option>${ACOES.map((a,i)=>`<option value="${escapeHtml(a)}">${i+1}. ${escapeHtml(a)}</option>`).join('')}<option value="__encerrar__">✖ Encerrar (oportunidade / lead)</option></select></label>
       <div id="at-next" class="fgrid full" style="grid-column:1/-1">${fld('at-pdata','Data da próxima ação','','date')}${fld('at-presp','Responsável',curUserName())}</div>
       <div id="at-close" class="fgrid full" style="grid-column:1/-1;display:none"><label class="fl"><span>Motivo</span><select id="at-motivo"><option value="">Selecione...</option>${MOTIVOS.map(m=>`<option>${m}</option>`).join('')}</select></label>${fld('at-reat','Data de reativação (para pausas)','','date')}</div>
     </div><div class="om-err" id="at-err"></div><div style="margin-top:8px"><button class="om-save" id="at-save">Salvar atividade</button></div></div>
