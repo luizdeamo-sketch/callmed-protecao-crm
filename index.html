@@ -3666,7 +3666,7 @@ async function renderIndicadores(){
     const [metasR, fun, apo, opp, ativ] = await Promise.all([
       sb.from('crm_metas').select('*'),
       opFetchAll('crm_funil','pessoa_id,etapa,data_inicio,data_combinada,created_at',['id']),
-      opFetchAll('crm_apolices','id,pessoa_id,tipo_seguro,valor_premio,status,origem_apolice,vinculo_comercial,corretor_origem,data_emissao,data_vencimento,created_at',['id']),
+      opFetchAll('crm_apolices','id,pessoa_id,tipo_seguro,valor_premio,comissao_pct,status,origem_apolice,vinculo_comercial,corretor_origem,data_emissao,data_vencimento,created_at',['id']),
       opFetchAll('crm_oportunidades','id,pessoa_id,produto,etapa,status,motivo_perda,premio_previsto,responsavel,created_at,fechada_em',['id']),
       sb.from('crm_atividades').select('data_hora,responsavel,tipo').gte('data_hora', since)]);
     const M = {}; (metasR.data||[]).forEach(m=>M[m.chave]=Number(m.valor)); IND.metas = M;
@@ -3693,7 +3693,8 @@ async function renderIndicadores(){
       const l = vendas.filter(r=>{ const d = vd(r); return d>=s0 && d<e0; }); meses.push({s0, n:l.length, prem:l.reduce((t,r)=>t+(Number(r.valor_premio)||0),0)}); }
     const mesAtual = meses[meses.length-1]; const maxN = Math.max(1, ...meses.map(m=>m.n));
     const periodoVendas = vendas.filter(r=>{ const d = vd(r); return d>=a && d<b; });
-    const porProd = {}, porResp = {}; periodoVendas.forEach(r=>{ porProd[r.tipo_seguro||'—'] = (porProd[r.tipo_seguro||'—']||0)+1; const k = r.corretor_origem||'—'; porResp[k] = (porResp[k]||0)+1; });
+    const porProd = {}, porResp = {}; periodoVendas.forEach(r=>{ porProd[r.tipo_seguro||'—'] = (porProd[r.tipo_seguro||'—']||0)+1; const k = r.corretor_origem||'—';
+      if(!porResp[k]) porResp[k] = {n:0, premio:0, comissao:0}; porResp[k].n++; const prem = Number(r.valor_premio)||0; porResp[k].premio += prem; porResp[k].comissao += prem*(Number(r.comissao_pct)||0)/100; });
     // 4) oportunidades
     const ganhas = opp.filter(o=>o.status==='ganha').length, perdidas = opp.filter(o=>o.status==='perdida').length, abertas = opp.filter(o=>o.status==='aberta');
     const mot = {}; opp.filter(o=>o.status==='perdida'||o.status==='pausada').forEach(o=>{ mot[o.motivo_perda||'—'] = (mot[o.motivo_perda||'—']||0)+1; });
@@ -3727,7 +3728,8 @@ async function renderIndicadores(){
           <div class="hint">Só conta apólice “Nova CallMed” com vínculo CallMed. Apólice existente/importada não é venda.</div>
           <div class="ql" style="margin-top:10px">No período selecionado</div>
           <div>${Object.entries(porProd).map(([k,v])=>`<span class="tagx" style="margin:2px">${escapeHtml(k)}: ${v}</span>`).join('')||'<span class="hint">Sem vendas no período.</span>'}</div>
-          <div style="margin-top:6px">${Object.entries(porResp).map(([k,v])=>`<span class="tagx" style="margin:2px;background:var(--green-soft);color:var(--green)">${escapeHtml(k)}: ${v}</span>`).join('')}</div></div>
+          <div class="ql" style="margin-top:10px">Produção por responsável <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">(prêmio vendido e comissão gerada)</small></div>
+          ${Object.entries(porResp).length?`<table class="ca-table"><thead><tr><th>Responsável</th><th>Apólices</th><th>Prêmio</th><th>Comissão</th></tr></thead><tbody>${Object.entries(porResp).sort((x,y)=>y[1].premio-x[1].premio).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${v.n}</td><td>${fmtMoney(v.premio)}</td><td>${fmtMoney(v.comissao)}</td></tr>`).join('')}</tbody></table>`:'<div class="hint">Sem vendas no período.</div>'}</div>
         <div class="es-box"><div class="ql">Oportunidades</div>
           <div class="ind-kpis" style="grid-template-columns:repeat(3,1fr);margin:0 0 10px"><div class="ind-k"><span>Ganhas</span><b>${ganhas}</b></div><div class="ind-k"><span>Perdidas</span><b>${perdidas}</b></div><div class="ind-k"><span>Conversão</span><b>${ganhas+perdidas?Math.round(ganhas/(ganhas+perdidas)*100)+'%':'—'}</b></div></div>
           <table class="ca-table"><thead><tr><th>Produto</th><th>Abertas</th><th>Ganhas</th><th>Perdidas</th></tr></thead><tbody>${Object.entries(oppProd).map(([k,v])=>`<tr><td>${escapeHtml(k)}</td><td>${v.a}</td><td>${v.g}</td><td>${v.p}</td></tr>`).join('')||'<tr><td colspan="4">Sem oportunidades ainda.</td></tr>'}</tbody></table>
