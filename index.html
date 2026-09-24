@@ -783,6 +783,7 @@ async function renderComercial(){
   if(metaR.error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(metaR.error.message)+'</div>'; return; }
   const metas = metaR.data||[]; const M = {}; (metasR.data||[]).forEach(m=>M[m.chave]=Number(m.valor));
   const tkVida = M.ticket_medio||250, tkSaude = M.ticket_saude||500;
+  const pV = (M.com_vida_pct??30)/100, cV = M.carr_vida??1, pS = (M.com_saude_pct??5)/100, cS = M.carr_saude??2;
   // realizado: vendas novas da CallMed (apólice nova + vínculo CallMed), por mês de emissão
   const real = {};
   apo.filter(a=>a.origem_apolice==='nova' && a.vinculo_comercial==='CallMed' && a.status!=='cancelada').forEach(a=>{
@@ -823,11 +824,47 @@ async function renderComercial(){
       ${card(fmtMoney(tkVida)+' · '+fmtMoney(tkSaude),'Ticket médio (Vida por mês · Saúde por vida)','editável em Indicadores > Metas')}
     </div>
     <div class="es-box"><div class="ql">Quanto falta (mês atual)</div>${proj}</div>
-    <div class="es-box"><div class="ql">Meta × realizado por mês e por linha</div>
-      <div class="hint" style="margin-bottom:8px">Realizado = apólices novas da CallMed (Central de Apólices), por mês de emissão; prêmio mensalizado (prêmio anual ÷ 12). Indicação e RX Vantage não têm origem automática — preencha o realizado na tabela.</div>
-      <div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Mês</th><th ${th}>Vida: prêmio meta</th><th ${th}>Vida: vendido</th><th ${th}>Saúde: vidas meta</th><th ${th}>Saúde: vendidas</th><th ${th}>Indicação: meta</th><th ${th}>Indicação: real</th><th ${th}>RX: meta</th><th ${th}>RX: real</th><th ${th}>Receita meta</th></tr></thead><tbody>
-      ${rows.map(x=>`<tr${x.ym===cur?' style="background:var(--brand-soft)"':''}><td><b>${comMesLabel(x.ym)}</b></td><td ${th}>${fmtMoney(x.m.vida_premio_novo)}</td><td ${th}>${x.r.vidaN?fmtMoney(x.r.vidaPrem)+' <small>('+x.r.vidaN+')</small>':'—'}</td><td ${th}>${Number(x.m.saude_vidas)?Math.round(x.m.saude_vidas):'—'}</td><td ${th}>${x.r.saudeN||'—'}</td><td ${th}>${fmtMoney(x.m.indicacao_receita)}</td><td ${th}><input class="com-real" data-mes="${x.m.mes}" data-col="indicacao_realizado" type="number" value="${x.m.indicacao_realizado??''}" style="width:90px"></td><td ${th}>${fmtMoney(x.m.rx_receita)}</td><td ${th}><input class="com-real" data-mes="${x.m.mes}" data-col="rx_realizado" type="number" value="${x.m.rx_realizado??''}" style="width:90px"></td><td ${th}><b>${fmtMoney(recTot(x.m))}</b></td></tr>`).join('')}
-      </tbody></table></div></div>`;
+    <div class="es-box"><div class="ql">Projeção mês a mês — Set/26 a Dez/27</div>
+      <div class="hint" style="margin-bottom:8px">Realizado = apólices novas da CallMed (Central de Apólices), por mês de emissão, com prêmio mensalizado (prêmio anual ÷ 12). Indicação e RX Vantage não têm origem automática — preencha o realizado nas linhas em destaque.</div>
+      <style>.com-t{border-collapse:collapse;font-size:12.5px;min-width:100%}.com-t th,.com-t td{padding:6px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}.com-t th:first-child,.com-t td:first-child{text-align:left;position:sticky;left:0;background:var(--card,#fff);min-width:230px;z-index:1}.com-t thead th{background:var(--brand);color:#fff;font-weight:600}.com-t thead th:first-child{background:var(--brand)}.com-t .sec td{background:#eef0fb;font-weight:700;color:var(--brand)}.com-t .tot td{font-weight:700;background:#f6f7fc}.com-t .real td{font-style:italic;color:#0b7a4f}.com-t td.cur,.com-t th.cur{box-shadow:inset 0 -2px 0 var(--amber,#e0a94f)}.com-t .grand td{font-weight:800;background:#e3e7fb}</style>
+      <div style="overflow-x:auto"><table class="com-t"><thead><tr><th>Cenário de meta</th>${rows.map(x=>`<th class="${x.ym===cur?'cur':''}">${comMesLabel(x.ym)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${(()=>{
+        const sum = f=>rows.reduce((t,x)=>t+f(x),0);
+        const line = (label, f, opt={}) => { const money = opt.n?false:true; const fm = v=> opt.dash&&!v?'—':(opt.pct?Math.round(v*100)+'%':(opt.fac?'×'+v:(opt.n?String(Math.round(v)):fmtMoney(v)))); return `<tr class="${opt.cls||''}"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}">${fm(f(x))}</td>`).join('')}<td>${opt.notot?'':fm(sum(f))}</td></tr>`; };
+        const inputLine = (label,col) => `<tr class="real"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}"><input class="com-real" data-mes="${x.m.mes}" data-col="${col}" type="number" value="${x.m[col]??''}" style="width:84px;text-align:right"></td>`).join('')}<td>${fmtMoney(sum(x=>Number(x.m[col])||0))}</td></tr>`;
+        let acc = 0, aV = 0, aS = 0; const accV = {}, comAccV = {}, comAccS = {}; rows.forEach(x=>{ acc += Number(x.m.saude_vidas); accV[x.ym] = acc; aV += Number(x.m.vida_premio_novo)*pV; comAccV[x.ym] = aV; aS += Number(x.m.saude_vidas)*tkSaude*pS; comAccS[x.ym] = aS; });
+        return [
+          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Seguros Vida</td></tr>',
+          line('R$ Prêmio Novo', x=>Number(x.m.vida_premio_novo)),
+          line('Percentual médio de comissão', x=>Number(x.m.vida_premio_novo)?pV:0, {pct:true, notot:true, dash:true}),
+          line('Comissão do mês', x=>Number(x.m.vida_premio_novo)*pV),
+          line('R$ Comissão (carregamento) acumulada', x=>comAccV[x.ym], {notot:true}),
+          line('Carregamento (fator sobre o prêmio)', x=>Number(x.m.vida_premio_novo)?cV:0, {fac:true, notot:true, dash:true}),
+          line('R$ Carregamento', x=>Number(x.m.vida_premio_novo)*cV),
+          line('Total Receita (comissão do mês + acumulada + carregamento)', x=>Number(x.m.vida_premio_novo)*pV+comAccV[x.ym]+Number(x.m.vida_premio_novo)*cV, {cls:'tot'}),
+          line('Realizado: prêmio vendido (mensalizado)', x=>x.r.vidaPrem, {cls:'real', dash:true}),
+          line('Realizado: nº de apólices de Vida', x=>x.r.vidaN, {cls:'real', n:true, dash:true}),
+          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Seguros Saúde (Plano Saúde)</td></tr>',
+          line('Vidas novas no mês (meta)', x=>Number(x.m.saude_vidas), {n:true, dash:true}),
+          line('R$ Médio por vida', x=>Number(x.m.saude_vidas)?tkSaude:0, {notot:true, dash:true}),
+          line('R$ Prêmio', x=>Number(x.m.saude_vidas)*tkSaude, {dash:true}),
+          line('Percentual médio de comissão', x=>Number(x.m.saude_vidas)?pS:0, {pct:true, notot:true, dash:true}),
+          line('R$ Comissão da venda do mês', x=>Number(x.m.saude_vidas)*tkSaude*pS, {dash:true}),
+          line('Vidas acumuladas', x=>accV[x.ym], {n:true, notot:true, dash:true}),
+          line('R$ Comissão das vidas acumuladas', x=>comAccS[x.ym], {notot:true, dash:true}),
+          line('Carregamento (fator sobre o prêmio)', x=>Number(x.m.saude_vidas)?cS:0, {fac:true, notot:true, dash:true}),
+          line('R$ Carregamento', x=>Number(x.m.saude_vidas)*tkSaude*cS, {dash:true}),
+          line('Total faturamento (comissão acumulada + carregamento)', x=>comAccS[x.ym]+Number(x.m.saude_vidas)*tkSaude*cS, {cls:'tot'}),
+          line('Realizado: vidas de Saúde vendidas', x=>x.r.saudeN, {cls:'real', n:true, dash:true}),
+          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Comissões Indicação</td></tr>',
+          line('Negócios indicados (meta)', x=>Number(x.m.indicacao_receita), {cls:'tot', dash:true}),
+          inputLine('Realizado (preencher)','indicacao_realizado'),
+          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Comissões RX Vantage</td></tr>',
+          line('Negócios indicados (meta)', x=>Number(x.m.rx_receita), {cls:'tot', dash:true}),
+          inputLine('Realizado (preencher)','rx_realizado'),
+          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Faturamento projetado</td></tr>',
+          line('Total geral (meta)', x=>recTot(x.m), {cls:'grand'})
+        ].join('');
+      })()}</tbody></table></div></div>`;
   host.querySelectorAll('.com-real').forEach(i=>i.addEventListener('change', async ()=>{
     const v = i.value===''?null:Number(i.value);
     const { error } = await sb.from('crm_meta_comercial').update({[i.dataset.col]:v, atualizado_em:new Date().toISOString()}).eq('mes', i.dataset.mes);
