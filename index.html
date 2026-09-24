@@ -903,7 +903,7 @@ const BLOCKS = [
              {name:'pendencias',label:'Pendências',type:'text'},
              {name:'satisfacao',label:'Satisfação',type:'text'} ],
     render:r=>`${escapeHtml(r.implantacao_status||'—')}${r.satisfacao?(' · satisfação: '+escapeHtml(r.satisfacao)):''}${r.pendencias?('<br><span class="k">PENDÊNCIAS</span>'+escapeHtml(r.pendencias)):''}` },
-  { table:'crm_indicacoes', label:'Indicações', icon:'📣',
+  { table:'crm_indicacoes', label:'Indicações', icon:'📣', pk:'pessoa_id_indicador',
     fields:[ {name:'nome_indicado',label:'Nome do indicado',type:'text'},
              {name:'origem',label:'Origem',type:'text'},
              {name:'status',label:'Status',type:'select',options:['novo','contatado','qualificado','convertido','descartado']} ],
@@ -1051,7 +1051,8 @@ async function pvLead(p){
     ${(ativ.data||[]).length?`<div class="ql" style="margin-top:12px">Últimas conversas</div>${ativ.data.map(a=>`<div class="rec"><span class="k">${fmtDate(a.data_hora)}</span>${escapeHtml(a.resumo)}</div>`).join('')}`:''}
     ${(ev.data||[]).length?`<div class="ql" style="margin-top:12px">Eventos de vida</div>${ev.data.map(a=>`<div class="rec"><span class="k">${fmtDate(a.data_evento)}</span>${escapeHtml(a.tipo_evento||'')}</div>`).join('')}`:''}
     <div class="ql" style="margin-top:12px">Datas relevantes (geram lembrete)</div>
-    ${datas.length?datas.map((d,i)=>`<div class="rec"><span class="k">${fmtDate(d.data)}</span>${escapeHtml(d.descricao)} <small style="color:var(--ink-faint)">· avisar ${d.antecedencia||7} dia(s) antes</small> <a href="#" data-deldata="${i}" style="color:var(--red);float:right">remover</a></div>`).join(''):'<div class="hint">Nenhuma.</div>'}
+    <div class="hint" style="margin-bottom:6px">O aviso aparece em <b>Hoje</b> (na Aliança), a partir de X dias antes da data, e o selo 🔔 abaixo mostra quando está valendo.</div>
+    ${datas.length?datas.map((d,i)=>`<div class="rec"><span class="k">${fmtDate(d.data)}</span>${escapeHtml(d.descricao)} <small style="color:var(--ink-faint)">· avisar ${d.antecedencia||7} dia(s) antes</small> ${(()=>{ const n = daysTo(String(d.data).slice(0,10)), ant = d.antecedencia||7; if(n===null) return ''; if(n<0) return '<span class="tagx">já passou</span>'; if(n===0) return '<span class="tagx warn">🔔 é hoje</span>'; if(n<=ant) return `<span class="tagx warn">🔔 avisando agora — faltam ${n} dia(s)</span>`; return `<span class="tagx">avisa em ${fmtDate(new Date(new Date(String(d.data).slice(0,10)+'T00:00:00').getTime()-ant*86400000))}</span>`; })()} <a href="#" data-deldata="${i}" style="color:var(--red);float:right">remover</a></div>`).join(''):'<div class="hint">Nenhuma.</div>'}
     <div class="sg-row" style="margin-top:8px"><input id="ld-data" type="date" class="ca-inp" style="width:150px"><input id="ld-desc" class="ca-inp" placeholder="Ex.: viagem para a Disney" style="flex:1;min-width:160px"><input id="ld-ant" type="number" class="ca-inp" value="7" style="width:70px" title="Dias de antecedência"><button class="om-cancel" id="ld-add">+ Data</button></div>
     <div class="ql" style="margin-top:12px">Nova anotação sobre o lead <button type="button" class="om-cancel" data-dictate="ld-txt" style="padding:2px 8px;font-size:12px;text-transform:none">🎤 ditar</button></div>
     <textarea id="ld-txt" rows="3" placeholder="Cada anotação salva fica registrada com data e autor (também aparece no Histórico)." style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-family:inherit;font-size:13px"></textarea>
@@ -1126,6 +1127,8 @@ async function pvTimeline(p){
   const ev = [];
   if(p.created_at) ev.push({d:p.created_at, i:'🆕', t:'Cadastro criado no CRM'});
   (notasL.data||[]).forEach(n=>ev.push({d:n.created_at, i:'🗒️', t:`<b>Anotação sobre o lead</b><br>${escapeHtml(n.texto).replace(/\n/g,'<br>')}`, who:n.autor}));
+  const relQ = await Promise.all(['crm_indicacoes','crm_eventos_vida','crm_pos_venda','crm_relacionamento'].map(async tb=>{ const blk = BLOCKS.find(b=>b.table===tb); const { data } = await sb.from(tb).select('*').eq(blk.pk||'pessoa_id', p.id); return {blk, rows:data||[]}; }));
+  relQ.forEach(({blk,rows})=>rows.forEach(r=>ev.push({d:r.created_at, i:blk.icon, t:`<b>${escapeHtml(blk.label)}</b> — ${blk.render(r)}`})));
   (ativ.data||[]).forEach(a=>ev.push({d:a.data_hora, aid:a.id, i:(TIPOS_ATIV.find(t=>t[0]===a.tipo)||[0,'📝'])[1].split(' ')[0], t:`<b>${escapeHtml((TIPOS_ATIV.find(t=>t[0]===a.tipo)||[0,a.tipo])[1].replace(/^\S+\s/,''))}</b>${a.resultado?' — '+escapeHtml(a.resultado):''}${a.resumo?'<br>'+escapeHtml(a.resumo):''}${a.motivo_perda?'<br><span class="tagx bad">Encerrado: '+escapeHtml(a.motivo_perda)+'</span>':''}${a.proxima_acao?'<br><span class="k">PRÓXIMA</span>'+escapeHtml(a.proxima_acao)+' · '+fmtDate(a.proxima_data)+' · '+escapeHtml(a.proximo_responsavel||''):''}`, who:a.responsavel}));
   (fun.data||[]).forEach(r=>{ const lb = (ETAPAS_FUNIL.find(e=>e.key===r.etapa)||{label:r.etapa}).label; ev.push({d:r.data_inicio||r.data_combinada||r.created_at, i:'📶', t:`Funil: <b>${lb}</b>${r.observacao?' — '+escapeHtml(r.observacao):''}`}); });
   (est.data||[]).forEach(r=>ev.push({d:r.created_at, i:'🔍', t:`Estudo aberto — ${escapeHtml(r.tipo_seguro||'apólice')} ${escapeHtml(r.seguradora_atual||'')}`}));
@@ -1435,7 +1438,8 @@ async function pvPlantoes(body, p){
 }
 
 async function loadBlockData(block, personId){
-  const { data, error } = await sb.from(block.table).select('*').eq('pessoa_id', personId).order('created_at', {ascending:false});
+  const pk = block.pk || 'pessoa_id';
+  const { data, error } = await sb.from(block.table).select('*').eq(pk, personId).order('created_at', {ascending:false});
   const countEl = document.getElementById('count-'+block.table);
   const bodyEl = document.getElementById('body-'+block.table);
   if(error){ countEl.textContent = 'erro'; bodyEl.innerHTML = escapeHtml(error.message); return; }
@@ -1450,7 +1454,7 @@ async function loadBlockData(block, personId){
   bodyEl.querySelector('form').addEventListener('submit', async (e)=>{
     e.preventDefault();
     const fd = new FormData(e.target);
-    const payload = { pessoa_id: personId };
+    const payload = { [pk]: personId };
     let hasValue = false;
     for(const f of block.fields){
       let v = fd.get(f.name);
