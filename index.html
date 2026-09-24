@@ -2411,7 +2411,7 @@ function validCPF(c){
 function fmtCPF(c){ c=dOnly(c); return c.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'); }
 function brToIso(s){ const m = String(s||'').match(/(\d{2})\/(\d{2})\/(\d{4})/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ''; }
 function moneyBR(s){ if(!s) return null; const n = parseFloat(String(s).replace(/\./g,'').replace(',','.')); return isNaN(n) ? null : n; }
-function fmtMoney(n){ return (n===null||n===undefined||n==='') ? '—' : 'R$ '+Number(n).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+function fmtMoney(n){ return (n===null||n===undefined||n==='') ? '—' : 'R$ '+Math.round(Number(n)||0).toLocaleString('pt-BR'); } // formato contábil em todo o sistema: separador de milhar, sem centavos
 function titleCase(s){ return String(s||'').toLowerCase().replace(/(^|\s)([a-zà-ú])/g,(m,a,b)=>a+b.toUpperCase()).replace(/\b(Da|De|Do|Das|Dos|E)\b/g,x=>x.toLowerCase()); }
 
 function docsLoadScript(src){
