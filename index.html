@@ -774,6 +774,52 @@ function boot(){
 const COM_MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const comMesLabel = ym => { const [y,m] = ym.split('-'); return COM_MESES[parseInt(m,10)-1]+'/'+y.slice(2); };
 const COM_PADROES = [['churn_anual','Cancelamento anual da carteira (%)',15],['ticket_medio','Ticket médio Vida (R$/mês) — usado no "quanto falta"',250]];
+// ---- Estratégias: liga cada alavanca comercial ao volume que a meta travada exige ----
+const COM_EST_STATUS = [['ativa','Ativa'],['planejada','Planejada'],['ideia','Ideia'],['pausada','Pausada']];
+async function comRenderEstrategias(host, ctx){
+  const { rows, cm, bn, tkVida, M, fmtNum } = ctx;
+  const { data: est, error } = await sb.from('crm_estrategias').select('*').order('ordem');
+  if(error){ host.insertAdjacentHTML('beforeend','<div class="op-more">Estratégias: '+escapeHtml(error.message)+'</div>'); return; }
+  const need = x => x ? { v: bn(x,'vida_premio_novo')/(tkVida||250), s: bn(x,'saude_vidas') } : {v:0,s:0};
+  const last = rows[rows.length-1];
+  const ref = cm || rows[0];
+  const nowN = need(ref), endN = need(last);
+  const ctt = Number(M.contatos_semana)||100, fech = Number(M.conv_fechamento)||1;
+  const basePol = ctt*(fech/100)*4; // apólices/mês vindas só do funil atual (Call Hot)
+  const cont = e => Number(e.contribuicao_mes)||0;
+  const conta = e => e.status==='ativa'||e.status==='planejada';
+  const somaEst = est.filter(conta).reduce((t,e)=>t+cont(e),0);
+  const cover = (n)=> basePol + somaEst - n; // sobra (+) ou falta (−) de apólices/mês
+  const semanaNec = n => Math.ceil(n/((fech/100)*4));
+  const f1 = v => (Math.round(v*10)/10).toLocaleString('pt-BR');
+  const sgn = v => '<span style="font-weight:700;color:'+(v>=0?'#0b7a4f':'#c23636')+'">'+(v>=0?'+':'−')+f1(Math.abs(v))+'</span>';
+  const grupos = []; est.forEach(e=>{ let g = grupos.find(x=>x.n===e.grupo); if(!g){ g = {n:e.grupo,l:[]}; grupos.push(g); } g.l.push(e); });
+  const opt = (cur)=>COM_EST_STATUS.map(([k,l])=>`<option value="${k}" ${cur===k?'selected':''}>${l}</option>`).join('');
+  const html = `<div class="es-box" id="com-est"><div class="ql">Estratégias para chegar na meta</div>
+    <div class="hint" style="margin:4px 0 10px">A meta de receita é <b>travada</b>; aqui mostramos o <b>volume de vendas</b> que ela exige e quais estratégias vão gerar esse volume. Preencha, em cada estratégia, quantas <b>apólices novas por mês</b> ela deve render em regime (estimativa que vamos recalibrar com os dados reais do 1º ciclo).</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:12px">
+      <div class="es-box"><div class="ql">Necessário hoje (${ref?comMesLabel(ref.ym):'—'})</div><div style="font-size:20px;font-weight:800">${f1(nowN.v)} apólices Vida</div><small>+ ${f1(nowN.s)} vidas Saúde/mês · ticket Vida ${fmtNum(tkVida)}/mês</small></div>
+      <div class="es-box"><div class="ql">Necessário no fim (${last?comMesLabel(last.ym):'—'})</div><div style="font-size:20px;font-weight:800">${f1(endN.v)} apólices Vida</div><small>+ ${f1(endN.s)} vidas Saúde/mês</small></div>
+      <div class="es-box"><div class="ql">Só com o funil atual</div><div style="font-size:20px;font-weight:800">${f1(basePol)} apólices/mês</div><small>${fmtNum(ctt)} contatos/semana → ${fmtNum(fech)} plano/semana · para o fim da meta seriam ~${fmtNum(semanaNec(endN.v))} contatos/semana</small></div>
+      <div class="es-box"><div class="ql">Coberto pelas estratégias</div><div style="font-size:20px;font-weight:800">${f1(basePol+somaEst)} apólices/mês</div><small>funil atual + estratégias ativas/planejadas · hoje ${sgn(cover(nowN.v))} · fim ${sgn(cover(endN.v))} vs necessário</small></div>
+    </div>
+    <div class="com-scroll" style="overflow-x:auto"><table class="com-t" style="min-width:820px"><thead><tr><th>Estratégia</th><th style="text-align:left">Etapa do funil</th><th style="text-align:left">Produto</th><th>Status</th><th>Apólices/mês (estimativa)</th><th style="text-align:left">Responsável</th></tr></thead><tbody>
+    ${grupos.map(g=>`<tr class="sec"><td colspan="6">${escapeHtml(g.n)}</td></tr>`+g.l.map(e=>`<tr>
+      <td title="${escapeHtml((e.descricao||'')+' — Fonte: '+(e.fonte||''))}" style="white-space:normal;max-width:330px"><b>${escapeHtml(e.nome)}</b><br><small style="color:var(--ink-faint)">${escapeHtml(e.descricao||'')}</small></td>
+      <td style="text-align:left">${escapeHtml(e.etapa||'')}</td><td style="text-align:left">${escapeHtml(e.produto||'')}</td>
+      <td><select class="est-f" data-id="${e.id}" data-col="status">${opt(e.status)}</select></td>
+      <td><input class="est-f" data-id="${e.id}" data-col="contribuicao_mes" type="number" step="any" min="0" style="width:80px" value="${e.contribuicao_mes==null?'':e.contribuicao_mes}"></td>
+      <td style="text-align:left"><input class="est-f" data-id="${e.id}" data-col="responsavel" type="text" style="width:130px" value="${escapeHtml(e.responsavel||'')}"></td></tr>`).join('')).join('')}
+    </tbody></table></div>
+    <div class="hint" style="margin-top:8px">Só estratégias <b>ativas</b> ou <b>planejadas</b> entram na soma. Estratégias em "ideia" ainda não contam — são as candidatas para fechar a diferença entre o funil atual e o volume que a meta exige.</div></div>`;
+  host.insertAdjacentHTML('beforeend', html);
+  host.querySelectorAll('.est-f').forEach(i=>i.addEventListener('change', async ()=>{
+    let v = i.value; if(i.dataset.col==='contribuicao_mes') v = v===''?null:Number(v);
+    if(v!==null && typeof v==='number' && isNaN(v)){ showToast('Valor inválido.'); return; }
+    const { error } = await sb.from('crm_estrategias').update({[i.dataset.col]:v, atualizado_em:new Date().toISOString()}).eq('id', i.dataset.id);
+    if(error){ showToast('Erro: '+error.message); return; }
+    showToast('Salvo'); renderComercial(); }));
+}
 async function renderComercial(){
   const fmtMoney = v => 'R$ '+Math.round(Number(v)||0).toLocaleString('pt-BR'); // formato contábil: sem centavos
   const fmtNum = v => Math.round(Number(v)||0).toLocaleString('pt-BR');
@@ -904,6 +950,7 @@ async function renderComercial(){
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:6px">${COM_PADROES.map(([k,l])=>`<label class="fl"><span>${l}</span><input class="com-par" data-k="${k}" type="number" step="any" value="${PAD[k]}"></label>`).join('')}</div>
       <div style="margin-top:10px"><button class="om-save" id="com-par-save">Salvar padrões e recalcular</button> <small style="color:var(--ink-faint)">Recorrência = comissão sobre a carteira que segue ativa (prêmio acumulado menos cancelamentos); agenciamento entra só no mês da venda.</small></div></div>`;
   const sc = host.querySelector('.com-scroll'); if(sc) sc.scrollLeft = scrollX;
+  await comRenderEstrategias(host, { rows, cm, cur, bn, tkVida, M, fmtNum, fmtMoney });
   host.querySelectorAll('.com-edit').forEach(i=>i.addEventListener('change', async ()=>{
     const v = i.value===''?null:(i.dataset.money?Number(i.value.replace(/\./g,'').replace(',','.')):Number(i.value));
     if(v!==null && isNaN(v)){ showToast('Valor inválido.'); renderComercial(); return; }
