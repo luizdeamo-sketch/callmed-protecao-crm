@@ -209,6 +209,7 @@
   <nav id="rail">
     <button class="nav-btn active" data-view="operacao">🧭<span>Aliança</span></button>
     <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
+    <button class="nav-btn" data-view="comercial" title="Metas comerciais e projeção de vendas">💼<span>Comercial</span></button>
     <button class="nav-btn" data-view="indicadores" title="Indicadores do funil e da produção">📊<span>Indicadores</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
@@ -302,6 +303,13 @@
           <button type="submit">+ Agendar</button>
         </form>
         <div class="day-events" id="day-events"></div>
+      </div>
+    </div>
+
+    <div id="view-comercial" class="view">
+      <div class="pg">
+        <div class="pg-head"><h2>💼 Módulo Comercial</h2><span class="sub">Meta de vendas por mês, produto e ticket médio — contra o que já foi vendido.</span></div>
+        <div id="com-body"><div class="op-more">Carregando...</div></div>
       </div>
     </div>
 
@@ -762,6 +770,70 @@ function boot(){
   renderOperacao();
 }
 
+// ---------- MÓDULO COMERCIAL: meta × realizado × projeção ----------
+const COM_MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const comMesLabel = ym => { const [y,m] = ym.split('-'); return COM_MESES[parseInt(m,10)-1]+'/'+y.slice(2); };
+async function renderComercial(){
+  const host = document.getElementById('com-body');
+  host.innerHTML = '<div class="op-more">Carregando...</div>';
+  const [metaR, apo, metasR] = await Promise.all([
+    sb.from('crm_meta_comercial').select('*').order('mes'),
+    opFetchAll('crm_apolices','id,tipo_seguro,valor_premio,data_emissao,created_at,origem_apolice,vinculo_comercial,status',['id']),
+    sb.from('crm_metas').select('chave,valor')]);
+  if(metaR.error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(metaR.error.message)+'</div>'; return; }
+  const metas = metaR.data||[]; const M = {}; (metasR.data||[]).forEach(m=>M[m.chave]=Number(m.valor));
+  const tkVida = M.ticket_medio||250, tkSaude = M.ticket_saude||500;
+  // realizado: vendas novas da CallMed (apólice nova + vínculo CallMed), por mês de emissão
+  const real = {};
+  apo.filter(a=>a.origem_apolice==='nova' && a.vinculo_comercial==='CallMed' && a.status!=='cancelada').forEach(a=>{
+    const ym = String(a.data_emissao||a.created_at||'').slice(0,7); if(!ym) return;
+    const r = real[ym] = real[ym] || {vidaPrem:0, vidaN:0, saudePrem:0, saudeN:0, outrosN:0};
+    const prem = (Number(a.valor_premio)||0)/12;
+    if(/sa[úu]de/i.test(a.tipo_seguro||'')){ r.saudeN++; r.saudePrem += prem; }
+    else if(/vida/i.test(a.tipo_seguro||'')){ r.vidaN++; r.vidaPrem += prem; }
+    else r.outrosN++;
+  });
+  const now = new Date(); const cur = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  const rows = metas.map(m=>({ym:String(m.mes).slice(0,7), m, r: real[String(m.mes).slice(0,7)]||{vidaPrem:0,vidaN:0,saudePrem:0,saudeN:0,outrosN:0}}));
+  const recTot = m=> Number(m.vida_receita)+Number(m.saude_receita)+Number(m.indicacao_receita)+Number(m.rx_receita);
+  const totalPeriodo = rows.reduce((t,x)=>t+recTot(x.m),0);
+  const cm = rows.find(x=>x.ym===cur);
+  const ate = rows.filter(x=>x.ym<=cur);
+  const metaPremAcum = ate.reduce((t,x)=>t+Number(x.m.vida_premio_novo)+Number(x.m.saude_premio),0);
+  const realPremAcum = ate.reduce((t,x)=>t+x.r.vidaPrem+x.r.saudePrem,0);
+  const diasMes = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate(), semRest = Math.max(1, Math.ceil((diasMes-now.getDate()+1)/7));
+  const card = (v,l,sub)=>`<div class="ex-kpi" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px"><b style="display:block;font-size:22px;font-family:'Poppins',sans-serif;color:var(--brand)">${v}</b><span style="font-size:12px;color:var(--ink-soft)">${l}</span>${sub?`<div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px">${sub}</div>`:''}</div>`;
+  let proj = '<div class="hint">O mês atual está fora do período do plano (Set/26 a Dez/27).</div>';
+  if(cm){
+    const fV = Math.max(0, Number(cm.m.vida_premio_novo)-cm.r.vidaPrem), fS = Math.max(0, Number(cm.m.saude_vidas)-cm.r.saudeN);
+    const apV = Math.ceil(fV/tkVida), pSem = Math.ceil(apV/semRest);
+    proj = `<div class="ex-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+      ${card(fmtMoney(fV),'Prêmio de Vida que ainda falta vender neste mês','meta '+fmtMoney(cm.m.vida_premio_novo)+' · vendido '+fmtMoney(cm.r.vidaPrem))}
+      ${card(String(apV),'Apólices de Vida necessárias (ticket '+fmtMoney(tkVida)+'/mês)', pSem+' por semana nas '+semRest+' semanas restantes')}
+      ${card(String(Math.ceil(fS)),'Vidas de Saúde que ainda faltam','meta ≈ '+Math.round(cm.m.saude_vidas)+' vidas · ticket '+fmtMoney(tkSaude)+'/vida')}
+      ${card(fmtMoney(Math.max(0,metaPremAcum-realPremAcum)),'Prêmio acumulado que falta até hoje','meta acumulada '+fmtMoney(metaPremAcum)+' · vendido '+fmtMoney(realPremAcum))}</div>`;
+  }
+  const mixMeta = cm ? (()=>{ const v = Number(cm.m.vida_premio_novo), s = Number(cm.m.saude_premio), t = v+s||1; return `Vida ${Math.round(v/t*100)}% · Saúde ${Math.round(s/t*100)}%`; })() : '';
+  const th = 'style="text-align:right"';
+  host.innerHTML = `
+    <div class="ex-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px">
+      ${card(fmtMoney(totalPeriodo),'Meta de receita — Set/26 a Dez/27','todas as linhas')}
+      ${card(cm?fmtMoney(recTot(cm.m)):'—','Meta de receita do mês atual', cm?comMesLabel(cm.ym):'')}
+      ${card(cm?fmtMoney(Number(cm.m.vida_premio_novo)+Number(cm.m.saude_premio)):'—','Prêmio novo a vender no mês', mixMeta)}
+      ${card(fmtMoney(tkVida)+' · '+fmtMoney(tkSaude),'Ticket médio (Vida por mês · Saúde por vida)','editável em Indicadores > Metas')}
+    </div>
+    <div class="es-box"><div class="ql">Quanto falta (mês atual)</div>${proj}</div>
+    <div class="es-box"><div class="ql">Meta × realizado por mês e por linha</div>
+      <div class="hint" style="margin-bottom:8px">Realizado = apólices novas da CallMed (Central de Apólices), por mês de emissão; prêmio mensalizado (prêmio anual ÷ 12). Indicação e RX Vantage não têm origem automática — preencha o realizado na tabela.</div>
+      <div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Mês</th><th ${th}>Vida: prêmio meta</th><th ${th}>Vida: vendido</th><th ${th}>Saúde: vidas meta</th><th ${th}>Saúde: vendidas</th><th ${th}>Indicação: meta</th><th ${th}>Indicação: real</th><th ${th}>RX: meta</th><th ${th}>RX: real</th><th ${th}>Receita meta</th></tr></thead><tbody>
+      ${rows.map(x=>`<tr${x.ym===cur?' style="background:var(--brand-soft)"':''}><td><b>${comMesLabel(x.ym)}</b></td><td ${th}>${fmtMoney(x.m.vida_premio_novo)}</td><td ${th}>${x.r.vidaN?fmtMoney(x.r.vidaPrem)+' <small>('+x.r.vidaN+')</small>':'—'}</td><td ${th}>${Number(x.m.saude_vidas)?Math.round(x.m.saude_vidas):'—'}</td><td ${th}>${x.r.saudeN||'—'}</td><td ${th}>${fmtMoney(x.m.indicacao_receita)}</td><td ${th}><input class="com-real" data-mes="${x.m.mes}" data-col="indicacao_realizado" type="number" value="${x.m.indicacao_realizado??''}" style="width:90px"></td><td ${th}>${fmtMoney(x.m.rx_receita)}</td><td ${th}><input class="com-real" data-mes="${x.m.mes}" data-col="rx_realizado" type="number" value="${x.m.rx_realizado??''}" style="width:90px"></td><td ${th}><b>${fmtMoney(recTot(x.m))}</b></td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  host.querySelectorAll('.com-real').forEach(i=>i.addEventListener('change', async ()=>{
+    const v = i.value===''?null:Number(i.value);
+    const { error } = await sb.from('crm_meta_comercial').update({[i.dataset.col]:v, atualizado_em:new Date().toISOString()}).eq('mes', i.dataset.mes);
+    showToast(error?'Erro: '+error.message:'Realizado salvo'); }));
+}
+
 // ---------- NAV RAIL ----------
 function opSetHeaderTitle(btn){
   const label = btn.querySelector('span') ? btn.querySelector('span').textContent : btn.textContent;
@@ -778,6 +850,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'operacao') renderOperacao();
     if(btn.dataset.view === 'central') renderCentral();
     if(btn.dataset.view === 'indicadores') renderIndicadores();
+    if(btn.dataset.view === 'comercial') renderComercial();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'agenda') renderCalendar();
     if(btn.dataset.view === 'conhecimento') renderConhecimento();
