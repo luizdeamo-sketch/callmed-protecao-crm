@@ -1028,7 +1028,11 @@ async function pvResumo(body, p){
       if(error) throw error;
       if(data?.error) throw new Error(data.error);
       iaOut.innerHTML = `<div class="lead-txt">${escapeHtml(data.resposta).replace(/\n/g,'<br>')}</div>`;
-    }catch(e){ iaOut.innerHTML = `<div class="om-err">Erro: ${escapeHtml(e.message||String(e))}</div>`; }
+    }catch(e){
+      let msg = e.message||String(e);
+      try{ if(e.context && typeof e.context.json==='function'){ const b = await e.context.json(); if(b && b.error) msg = b.error; } }catch(_){}
+      iaOut.innerHTML = `<div class="om-err">Erro: ${escapeHtml(msg)}</div>`;
+    }
     iaBtn.disabled = false; iaBtn.textContent = 'Perguntar';
   };
   iaBtn.addEventListener('click', iaAsk);
@@ -1036,21 +1040,25 @@ async function pvResumo(body, p){
 }
 async function pvLead(p){
   const host = document.getElementById('pv-lead'); if(!host) return;
-  const [ativ, ev] = await Promise.all([
+  const [ativ, ev, notasR] = await Promise.all([
     sb.from('crm_atividades').select('data_hora,tipo,resumo').eq('pessoa_id',p.id).not('resumo','is',null).order('data_hora',{ascending:false}).limit(5),
-    sb.from('crm_eventos_vida').select('tipo_evento,data_evento,acao_tomada').eq('pessoa_id',p.id).order('data_evento',{ascending:false}).limit(5)]);
+    sb.from('crm_eventos_vida').select('tipo_evento,data_evento,acao_tomada').eq('pessoa_id',p.id).order('data_evento',{ascending:false}).limit(5),
+    sb.from('crm_lead_notas').select('id,texto,autor,created_at').eq('pessoa_id',p.id).order('created_at',{ascending:false})]);
+  const notas = notasR.data||[];
   const datas = (p.datas_relevantes||[]).slice().sort((a,b)=>String(a.data).localeCompare(String(b.data)));
   host.innerHTML = `<div class="ql">Quem é o Lead?</div>
-    ${p.quem_e_lead?`<div class="lead-txt">${escapeHtml(p.quem_e_lead).replace(/\n/g,'<br>')}</div>`:'<div class="hint">Nada descrito ainda. Escreva abaixo — ex.: gosta de jogar bola, filho Ricardo (12), esposa Joana.</div>'}
+    ${(notas.length||p.quem_e_lead)?`<div class="lead-notas">${notas.map(n=>`<div class="rec"><span class="k">${fmtDateTime(n.created_at)}</span>${escapeHtml(n.texto).replace(/\n/g,'<br>')} <small style="color:var(--ink-faint)">· ${escapeHtml(n.autor||'')}</small> <a href="#" data-delnota="${n.id}" style="color:var(--red);float:right">apagar</a></div>`).join('')}${p.quem_e_lead?`<div class="rec"><span class="k">anotação anterior</span>${escapeHtml(p.quem_e_lead).replace(/\n/g,'<br>')}</div>`:''}</div>`:'<div class="hint">Nada descrito ainda. Escreva abaixo — ex.: gosta de jogar bola, filho Ricardo (12), esposa Joana.</div>'}
     ${(ativ.data||[]).length?`<div class="ql" style="margin-top:12px">Últimas conversas</div>${ativ.data.map(a=>`<div class="rec"><span class="k">${fmtDate(a.data_hora)}</span>${escapeHtml(a.resumo)}</div>`).join('')}`:''}
     ${(ev.data||[]).length?`<div class="ql" style="margin-top:12px">Eventos de vida</div>${ev.data.map(a=>`<div class="rec"><span class="k">${fmtDate(a.data_evento)}</span>${escapeHtml(a.tipo_evento||'')}</div>`).join('')}`:''}
     <div class="ql" style="margin-top:12px">Datas relevantes (geram lembrete)</div>
     ${datas.length?datas.map((d,i)=>`<div class="rec"><span class="k">${fmtDate(d.data)}</span>${escapeHtml(d.descricao)} <small style="color:var(--ink-faint)">· avisar ${d.antecedencia||7} dia(s) antes</small> <a href="#" data-deldata="${i}" style="color:var(--red);float:right">remover</a></div>`).join(''):'<div class="hint">Nenhuma.</div>'}
     <div class="sg-row" style="margin-top:8px"><input id="ld-data" type="date" class="ca-inp" style="width:150px"><input id="ld-desc" class="ca-inp" placeholder="Ex.: viagem para a Disney" style="flex:1;min-width:160px"><input id="ld-ant" type="number" class="ca-inp" value="7" style="width:70px" title="Dias de antecedência"><button class="om-cancel" id="ld-add">+ Data</button></div>
-    <div class="ql" style="margin-top:12px">Anotações sobre o lead <button type="button" class="om-cancel" data-dictate="ld-txt" style="padding:2px 8px;font-size:12px;text-transform:none">🎤 ditar</button></div>
-    <textarea id="ld-txt" rows="3" style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-family:inherit;font-size:13px">${escapeHtml(p.quem_e_lead||'')}</textarea>
-    <div style="margin-top:6px"><button class="om-save" id="ld-save">Salvar anotações</button></div>`;
-  host.querySelector('#ld-save').addEventListener('click', async ()=>{ const v = document.getElementById('ld-txt').value.trim()||null; const { error } = await sb.from('crm_pessoas').update({quem_e_lead:v}).eq('id',p.id); if(error){ showToast('Erro: '+error.message); return; } p.quem_e_lead = v; showToast('Anotações salvas'); pvLead(p); });
+    <div class="ql" style="margin-top:12px">Nova anotação sobre o lead <button type="button" class="om-cancel" data-dictate="ld-txt" style="padding:2px 8px;font-size:12px;text-transform:none">🎤 ditar</button></div>
+    <textarea id="ld-txt" rows="3" placeholder="Cada anotação salva fica registrada com data e autor (também aparece no Histórico)." style="width:100%;border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px;font-family:inherit;font-size:13px"></textarea>
+    <div style="margin-top:6px"><button class="om-save" id="ld-save">Salvar anotação</button></div>`;
+  host.querySelector('#ld-save').addEventListener('click', async ()=>{ const v = document.getElementById('ld-txt').value.trim(); if(!v){ showToast('Escreva a anotação antes de salvar.'); return; }
+    const { error } = await sb.from('crm_lead_notas').insert({pessoa_id:p.id, texto:v, autor:curUserName()}); if(error){ showToast('Erro: '+error.message); return; } showToast('Anotação registrada'); pvLead(p); });
+  host.querySelectorAll('[data-delnota]').forEach(a=>a.addEventListener('click', async e=>{ e.preventDefault(); if(!confirm('Apagar esta anotação?')) return; const { error } = await sb.from('crm_lead_notas').delete().eq('id',a.dataset.delnota); if(error){ showToast('Erro: '+error.message); return; } pvLead(p); }));
   host.querySelector('#ld-add').addEventListener('click', async ()=>{ const d = document.getElementById('ld-data').value, t = document.getElementById('ld-desc').value.trim(); if(!d||!t){ showToast('Informe data e descrição.'); return; }
     const arr = (p.datas_relevantes||[]).concat([{data:d, descricao:t, antecedencia:parseInt(document.getElementById('ld-ant').value,10)||7}]);
     const { error } = await sb.from('crm_pessoas').update({datas_relevantes:arr}).eq('id',p.id); if(error){ showToast('Erro: '+error.message); return; } p.datas_relevantes = arr; pvLead(p); });
@@ -1093,6 +1101,7 @@ async function pvSaveAtividade(p){
   if(encerrar){ motivo = g('at-motivo'); if(!motivo){ err.textContent = 'Informe o motivo do encerramento.'; return; }
     if(MOTIVOS_PAUSA.includes(motivo)){ reat = g('at-reat'); if(!reat){ err.textContent = 'Esse motivo é uma pausa: informe a data de reativação.'; return; } pAcao = 'Reativar contato'; pData = reat; pResp = curUserName(); } }
   else { pAcao = acao; pData = g('at-pdata'); pResp = g('at-presp'); if(!pData || !pResp){ err.textContent = 'Informe a data e o responsável da próxima ação.'; return; } }
+  if(!encerrar && pData && pData < ymdToday() && !confirm('A data da próxima ação ('+fmtDate(pData)+') está no passado e vai aparecer como atrasada. Continuar mesmo assim?')) return;
   const oppId = g('at-opp') || null;
   const dt = g('at-data') ? new Date(g('at-data')).toISOString() : new Date().toISOString();
   const { error } = await sb.from('crm_atividades').insert({ pessoa_id:p.id, oportunidade_id:oppId, tipo:g('at-tipo'), data_hora:dt, resumo:resumo||null, resultado:resultado||null, responsavel:curUserName(),
@@ -1113,10 +1122,11 @@ async function pvSaveAtividade(p){
 async function pvTimeline(p){
   const host = document.getElementById('pv-timeline'); if(!host) return;
   const q = (t,c)=>sb.from(t).select(c).eq('pessoa_id',p.id);
-  const [ativ, fun, est, apo, doc, inter, trans] = await Promise.all([q('crm_atividades','*'), q('crm_funil','etapa,data_inicio,data_combinada,observacao,created_at'), q('crm_estudos','seguradora_atual,tipo_seguro,created_at'), q('crm_apolices','seguradora,tipo_seguro,data_emissao,origem_apolice,vinculo_comercial,created_at'), q('crm_documentos','nome_arquivo,categoria,created_at'), q('crm_interacoes','*'), q('crm_transcricoes','*')]);
+  const [ativ, fun, est, apo, doc, inter, trans, notasL] = await Promise.all([q('crm_atividades','*'), q('crm_funil','etapa,data_inicio,data_combinada,observacao,created_at'), q('crm_estudos','seguradora_atual,tipo_seguro,created_at'), q('crm_apolices','seguradora,tipo_seguro,data_emissao,origem_apolice,vinculo_comercial,created_at'), q('crm_documentos','nome_arquivo,categoria,created_at'), q('crm_interacoes','*'), q('crm_transcricoes','*'), q('crm_lead_notas','texto,autor,created_at')]);
   const ev = [];
   if(p.created_at) ev.push({d:p.created_at, i:'🆕', t:'Cadastro criado no CRM'});
-  (ativ.data||[]).forEach(a=>ev.push({d:a.data_hora, i:(TIPOS_ATIV.find(t=>t[0]===a.tipo)||[0,'📝'])[1].split(' ')[0], t:`<b>${escapeHtml((TIPOS_ATIV.find(t=>t[0]===a.tipo)||[0,a.tipo])[1].replace(/^\S+\s/,''))}</b>${a.resultado?' — '+escapeHtml(a.resultado):''}${a.resumo?'<br>'+escapeHtml(a.resumo):''}${a.motivo_perda?'<br><span class="tagx bad">Encerrado: '+escapeHtml(a.motivo_perda)+'</span>':''}${a.proxima_acao?'<br><span class="k">PRÓXIMA</span>'+escapeHtml(a.proxima_acao)+' · '+fmtDate(a.proxima_data)+' · '+escapeHtml(a.proximo_responsavel||''):''}`, who:a.responsavel}));
+  (notasL.data||[]).forEach(n=>ev.push({d:n.created_at, i:'🗒️', t:`<b>Anotação sobre o lead</b><br>${escapeHtml(n.texto).replace(/\n/g,'<br>')}`, who:n.autor}));
+  (ativ.data||[]).forEach(a=>ev.push({d:a.data_hora, aid:a.id, i:(TIPOS_ATIV.find(t=>t[0]===a.tipo)||[0,'📝'])[1].split(' ')[0], t:`<b>${escapeHtml((TIPOS_ATIV.find(t=>t[0]===a.tipo)||[0,a.tipo])[1].replace(/^\S+\s/,''))}</b>${a.resultado?' — '+escapeHtml(a.resultado):''}${a.resumo?'<br>'+escapeHtml(a.resumo):''}${a.motivo_perda?'<br><span class="tagx bad">Encerrado: '+escapeHtml(a.motivo_perda)+'</span>':''}${a.proxima_acao?'<br><span class="k">PRÓXIMA</span>'+escapeHtml(a.proxima_acao)+' · '+fmtDate(a.proxima_data)+' · '+escapeHtml(a.proximo_responsavel||''):''}`, who:a.responsavel}));
   (fun.data||[]).forEach(r=>{ const lb = (ETAPAS_FUNIL.find(e=>e.key===r.etapa)||{label:r.etapa}).label; ev.push({d:r.data_inicio||r.data_combinada||r.created_at, i:'📶', t:`Funil: <b>${lb}</b>${r.observacao?' — '+escapeHtml(r.observacao):''}`}); });
   (est.data||[]).forEach(r=>ev.push({d:r.created_at, i:'🔍', t:`Estudo aberto — ${escapeHtml(r.tipo_seguro||'apólice')} ${escapeHtml(r.seguradora_atual||'')}`}));
   (apo.data||[]).forEach(r=>ev.push({d:r.data_emissao||r.created_at, i:'📄', t:`Apólice ${escapeHtml(r.tipo_seguro||'')} — ${escapeHtml(r.seguradora||'')} <span class="tagx">${r.origem_apolice==='nova'?'Nova CallMed':'Existente'}</span>`}));
@@ -1124,7 +1134,32 @@ async function pvTimeline(p){
   (inter.data||[]).forEach(r=>ev.push({d:r.data||r.created_at, i:'🎙️', t:`${escapeHtml(r.tipo||'Interação')}${r.resumo?' — '+escapeHtml(r.resumo):''}`}));
   (trans.data||[]).forEach(r=>ev.push({d:r.data_hora||r.created_at, i:'📝', t:`Transcrição${r.resumo_ia?' — '+escapeHtml(r.resumo_ia):''}`}));
   ev.sort((a,b)=> new Date(b.d)-new Date(a.d));
-  host.innerHTML = ev.length ? ev.map(x=>`<div class="rec"><span class="k">${fmtDateTime(x.d)}</span>${x.i} ${x.t}${x.who?` <small style="color:var(--ink-faint)">· ${escapeHtml(x.who)}</small>`:''}</div>`).join('') : '<div class="no-rec">Sem registros ainda.</div>';
+  host.innerHTML = ev.length ? ev.map(x=>`<div class="rec"><span class="k">${fmtDateTime(x.d)}</span>${x.i} ${x.t}${x.who?` <small style="color:var(--ink-faint)">· ${escapeHtml(x.who)}</small>`:''}${x.aid?` <span style="float:right"><a href="#" data-editativ="${x.aid}">editar</a> · <a href="#" data-delativ="${x.aid}" style="color:var(--red)">apagar</a></span>`:''}</div>`).join('') : '<div class="no-rec">Sem registros ainda.</div>';
+  const ativMap = new Map((ativ.data||[]).map(a=>[a.id,a]));
+  host.querySelectorAll('[data-editativ]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); pvEditAtividade(p, ativMap.get(a.dataset.editativ)); }));
+  host.querySelectorAll('[data-delativ]').forEach(a=>a.addEventListener('click', async e=>{ e.preventDefault(); if(!confirm('Apagar esta atividade do histórico?')) return;
+    const { error } = await sb.from('crm_atividades').delete().eq('id', a.dataset.delativ); if(error){ showToast('Erro: '+error.message); return; } showToast('Atividade apagada'); pvTimeline(p); }));
+}
+function pvEditAtividade(p, a){
+  if(!a) return;
+  const dtLocal = a.data_hora ? new Date(new Date(a.data_hora).getTime()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16) : '';
+  const box = dlgOpen(`<div class="om-title"><div><h3>Editar atividade</h3><div class="om-sub">${escapeHtml(p.nome)}</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="fgrid">
+      <label class="fl"><span>Tipo</span><select id="ea-tipo">${TIPOS_ATIV.map(t=>`<option value="${t[0]}" ${a.tipo===t[0]?'selected':''}>${t[1]}</option>`).join('')}</select></label>
+      ${fld('ea-data','Data e hora',dtLocal,'datetime-local')}
+      <label class="fl"><span>Resultado</span><select id="ea-res"><option value="">—</option>${RESULTADOS.map(r=>`<option ${a.resultado===r?'selected':''}>${r}</option>`).join('')}</select></label>
+      ${fld('ea-pdata','Data da próxima ação',a.proxima_data||'','date')}
+      <label class="fl full"><span>Resumo</span><textarea id="ea-resumo" rows="4" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px">${escapeHtml(a.resumo||'')}</textarea></label>
+    </div><div class="om-err" id="ea-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ea-save">Salvar</button></div>`);
+  box.querySelector('#ea-save').addEventListener('click', async ()=>{
+    const g = id=>document.getElementById(id).value.trim();
+    const upd = { tipo:g('ea-tipo'), data_hora:g('ea-data')?new Date(g('ea-data')).toISOString():a.data_hora, resultado:g('ea-res')||null, resumo:g('ea-resumo')||null, proxima_data:g('ea-pdata')||null };
+    const { error } = await sb.from('crm_atividades').update(upd).eq('id', a.id); if(error){ document.getElementById('ea-err').textContent = 'Erro: '+error.message; return; }
+    // se esta é a atividade que definiu a "próxima ação" atual do cadastro, mantém a data em sincronia
+    if(a.proxima_data && p.proxima_data===a.proxima_data && upd.proxima_data){ const r = await sb.from('crm_pessoas').update({proxima_data:upd.proxima_data}).eq('id',p.id); if(!r.error){ p.proxima_data = upd.proxima_data; pvRefreshNext(); } }
+    dlgClose(); showToast('Atividade atualizada'); pvTimeline(p);
+  });
 }
 
 // ---- PROTEÇÃO (oportunidades, apólices, estudos, diagnóstico) ----
@@ -1340,10 +1375,12 @@ async function pvDiagnostico(p){
   const jornadaKeys = new Set(JORNADA_EVOLUTIVA.flatMap(([,ks])=>ks));
   const avanc = all.filter(f=>!essKeys.includes(f.name) && !DIAG_SAUDE.includes(f.name) && !jornadaKeys.has(f.name) && f.name!=='preenchido_por');
   const imc = (row.peso && row.altura) ? (Number(row.peso)/((Number(row.altura)/100)*(Number(row.altura)/100))).toFixed(1) : null;
+  const idadeP = pvIdade(p);
   host.innerHTML = `<div class="ql">Diagnóstico de proteção</div>
+    <div class="hint" style="margin-bottom:10px">Do cadastro: <b>Estado civil</b> ${escapeHtml(p.estado_civil||'não informado')} · <b>Gênero</b> ${p.sexo==='M'?'Masculino':(p.sexo==='F'?'Feminino':'não informado')} · <b>Idade</b> ${idadeP!=null?idadeP+' anos':'não informada'} · <b>Profissão</b> ${escapeHtml(p.profissao||'não informada')} — <a href="#" id="dg-edit-cad">editar cadastro</a></div>
     <div class="fgrid">${DIAG_ESSENCIAL.map(d=>pvDiagField(d[0], row[d[0]], d)).join('')}</div>
     <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">🔒 Saúde e subscrição <small style="color:var(--ink-faint);font-weight:400">— dado sensível: preencher só quando necessário para cotação (LGPD)</small></summary>
-      <div class="fgrid" style="margin-top:8px">${DIAG_SAUDE.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div>${imc?`<div class="hint">IMC calculado: <b>${imc}</b></div>`:''}</details>
+      <div class="fgrid" style="margin-top:8px">${DIAG_SAUDE.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div><div class="hint" id="dg-imc">${imc?`IMC calculado: <b>${imc}</b>`:''}</div></details>
     <details style="margin-top:8px" open><summary style="cursor:pointer;font-weight:600">🧮 ADN completo <small style="color:var(--ink-faint);font-weight:400">— usado no cálculo da Análise Completa; preenchido aqui, já aparece no Novo Estudo</small></summary>
       <div style="margin-top:8px">${pdAdnAvancadoHtml(row)}</div></details>
     <details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Processo evolutivo <small style="color:var(--ink-faint);font-weight:400">— Carreira → Renda → Patrimônio → Família → Legado</small></summary>
@@ -1352,6 +1389,10 @@ async function pvDiagnostico(p){
       <div class="fgrid" style="margin-top:8px">${avanc.map(f=>pvDiagField(f.name, row[f.name], [f.name,f.label,f.type,f.options])).join('')}</div></details>`:''}
     <div style="margin-top:10px"><button class="om-save" id="dg-save">Salvar diagnóstico</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
   pdBindAvancado(host);
+  const dgImcUpd = ()=>{ const pe = Number(host.querySelector('[data-dg="peso"]')?.value)||0, al = Number(host.querySelector('[data-dg="altura"]')?.value)||0; const info = imcInfo(al, pe);
+    host.querySelector('#dg-imc').innerHTML = info ? `IMC: <b>${info.imc}</b> <span class="tagx" style="background:transparent;border:1px solid ${info.color};color:${info.color}">${info.label}</span>` : ''; };
+  ['peso','altura'].forEach(k=>{ const el = host.querySelector(`[data-dg="${k}"]`); if(el) el.addEventListener('input', dgImcUpd); }); dgImcUpd();
+  const editCad = host.querySelector('#dg-edit-cad'); if(editCad) editCad.addEventListener('click', async e=>{ e.preventDefault(); const { data:pp } = await sb.from('crm_pessoas').select('*').eq('id',p.id).single(); if(pp) openEditPessoa(pp); });
   host.querySelector('#dg-save').addEventListener('click', async ()=>{
     const payload = { preenchido_por:curUserName(), ...pdCollectAvancado(host) };
     host.querySelectorAll('[data-dg]').forEach(el=>{ const k = el.dataset.dg; let v = el.value; if(v===''){ payload[k] = null; return; }
@@ -3036,6 +3077,18 @@ function estudoDialog(person){
   inp.addEventListener('change', ()=> esCreate(inp.files[0], person));
   box.querySelector('#es-manual').addEventListener('click', e=>{ e.preventDefault(); esCreate(null, person); });
 }
+const parseIdades = txt => (String(txt||'').match(/\d{1,2}/g)||[]).map(Number);
+async function estudoFromApolices(pessoaId){
+  const { data } = await sb.from('crm_apolices').select('seguradora,tipo_seguro,numero_apolice,data_emissao,data_vencimento,valor_premio,valor_cobertura,coberturas,coberturas_valores,status').eq('pessoa_id', pessoaId);
+  const ativas = (data||[]).filter(a=>caEfetivo(a)==='ativa'); if(!ativas.length) return null;
+  const covs = new Set(), vals = {};
+  ativas.forEach(a=>{ (a.coberturas||[]).forEach(c=>covs.add(c)); Object.entries(a.coberturas_valores||{}).forEach(([k,v])=>{ vals[k] = (vals[k]||0)+Number(v); }); });
+  if(!Object.keys(vals).length && covs.has('morte')){ const t = ativas.reduce((s,a)=>s+(Number(a.valor_cobertura)||0),0); if(t) vals.morte = t; }
+  const venc = ativas.map(a=>a.data_vencimento).filter(Boolean).sort();
+  return { seguradora_atual:[...new Set(ativas.map(a=>a.seguradora).filter(Boolean))].join(' + ')||null, tipo_seguro:[...new Set(ativas.map(a=>a.tipo_seguro).filter(Boolean))].join(' + ')||null,
+    numero_apolice: ativas.length===1 ? (ativas[0].numero_apolice||null) : null, vigencia_inicio: ativas[0].data_emissao||null, vigencia_fim: venc[0]||null,
+    premio_anual: ativas.reduce((s,a)=>s+(Number(a.valor_premio)||0),0)||null, coberturas_atuais:[...covs], coberturas_valores:vals, capital_segurado:Object.values(vals).reduce((a,b)=>a+b,0)||null };
+}
 // ---- unifica campos em comum entre Diagnóstico de Proteção (cadastro) e ADN (Novo Estudo) ----
 const EC_ADN2PESSOA = {'Solteiro(a)':'solteiro','Casado(a)':'casado','União estável':'união estável','Divorciado(a)':'divorciado','Viúvo(a)':'viúvo'};
 const EC_PESSOA2ADN = {solteiro:'Solteiro(a)', casado:'Casado(a)', 'união estável':'União estável', divorciado:'Divorciado(a)', viúvo:'Viúvo(a)'};
@@ -3062,7 +3115,8 @@ async function adnPrefillFromDiagECadastro(pessoaId, base){
     if(need('peso_kg') && diag.peso!=null) p.peso_kg = diag.peso;
     if(need('dependentes_qtd') && diag.dependentes!=null) p.dependentes_qtd = diag.dependentes;
     if(p.fumante==null && diag.fuma!=null) p.fumante = diag.fuma;
-    if((!p.dependentes || !p.dependentes.length) && diag.dependentes_detalhe!=null) p.dependentes = diag.dependentes_detalhe;
+    if((!p.dependentes || !p.dependentes.length) && diag.dependentes_detalhe && diag.dependentes_detalhe.length) p.dependentes = diag.dependentes_detalhe;
+    if((!p.dependentes || !p.dependentes.length) && diag.dependentes_idades){ const ids = parseIdades(diag.dependentes_idades); if(ids.length) p.dependentes = ids.map(i=>({nome:'', idade:i, custo_educacao:null, idade_limite_educacao:null})); }
     if(need('regime_bens') && diag.regime_bens!=null) p.regime_bens = diag.regime_bens;
     if(need('provedor_pct') && diag.provedor_pct!=null) p.provedor_pct = diag.provedor_pct;
     if(need('renda_desejada_familia') && diag.renda_desejada_familia!=null) p.renda_desejada_familia = diag.renda_desejada_familia;
@@ -3151,13 +3205,15 @@ async function diagPushToADN(pessoaId, diag){
   if(diag.outros_objetivos && diag.outros_objetivos.length) estUpd.outros_objetivos = diag.outros_objetivos;
   if(diag.modulos_visiveis) estUpd.modulos_visiveis = diag.modulos_visiveis;
   if(!Object.keys(estUpd).length) return {ok:true};
-  const { data: estRow } = await sb.from('crm_estudos').select('id').eq('pessoa_id', pessoaId).order('created_at',{ascending:false}).limit(1).maybeSingle();
+  const { data: estRow } = await sb.from('crm_estudos').select('id,dependentes').eq('pessoa_id', pessoaId).order('created_at',{ascending:false}).limit(1).maybeSingle();
+  if(!estUpd.dependentes && diag.dependentes_idades && !(estRow && estRow.dependentes && estRow.dependentes.length)){ const ids = parseIdades(diag.dependentes_idades); if(ids.length) estUpd.dependentes = ids.map(i=>({nome:'', idade:i, custo_educacao:null, idade_limite_educacao:null})); }
   if(estRow){
     const { error } = await sb.from('crm_estudos').update(estUpd).eq('id', estRow.id);
     if(error){ console.warn('diagPushToADN', error); return {ok:false, error}; }
   } else {
     const { data: pessoa } = await sb.from('crm_pessoas').select('nome,cpf').eq('id', pessoaId).maybeSingle();
-    const { error } = await sb.from('crm_estudos').insert({ pessoa_id:pessoaId, cliente_nome:pessoa?.nome||null, cliente_cpf:pessoa?.cpf||null, status:'aberto', ...estUpd });
+    const apRow = await estudoFromApolices(pessoaId);
+    const { error } = await sb.from('crm_estudos').insert({ pessoa_id:pessoaId, cliente_nome:pessoa?.nome||null, cliente_cpf:pessoa?.cpf||null, status:'aberto', ...(apRow||{}), ...estUpd });
     if(error){ console.warn('diagPushToADN/insert', error); return {ok:false, error}; }
   }
   return {ok:true};
@@ -3172,9 +3228,10 @@ async function esCreate(file, person){
     const prem = f.premio ? (f.premio_periodo==='mensal' ? f.premio*12 : f.premio) : null;
     let adnPre = {};
     if(strong) adnPre = await adnPrefillFromDiagECadastro(strong.id, {});
+    const ap = (strong && !file) ? await estudoFromApolices(strong.id) : null;
     const { data, error } = await sb.from('crm_estudos').insert({ pessoa_id: strong ? strong.id : null, cliente_nome: strong ? strong.nome : (f.nome||null), cliente_cpf:f.cpf||null,
-      seguradora_atual:f.seguradora||null, tipo_seguro:f.tipo_seguro||null, numero_apolice:f.numero_apolice||null, vigencia_inicio:f.vig_ini||null, vigencia_fim:f.vig_fim||null,
-      premio_anual:prem, capital_segurado:f.capital||null, coberturas_atuais:f.coberturas||[], coberturas_valores:f.coberturas_valores||{}, dados_extraidos:{origem:'estudo', extraido:f}, documento_path:path,
+      seguradora_atual:f.seguradora||ap?.seguradora_atual||null, tipo_seguro:f.tipo_seguro||ap?.tipo_seguro||null, numero_apolice:f.numero_apolice||ap?.numero_apolice||null, vigencia_inicio:f.vig_ini||ap?.vigencia_inicio||null, vigencia_fim:f.vig_fim||ap?.vigencia_fim||null,
+      premio_anual:prem??ap?.premio_anual??null, capital_segurado:f.capital||ap?.capital_segurado||null, coberturas_atuais:f.coberturas||ap?.coberturas_atuais||[], coberturas_valores:f.coberturas_valores||ap?.coberturas_valores||{}, dados_extraidos:{origem:'estudo', extraido:f}, documento_path:path,
       sexo:adnPre.sexo||null, estado_civil:adnPre.estado_civil||null, data_nascimento:adnPre.data_nascimento||null, profissao:adnPre.profissao||null,
       renda_mensal:adnPre.renda_mensal??null, gastos_mensais:adnPre.gastos_mensais??null, patrimonio_bruto:adnPre.patrimonio_bruto??null, patrimonio_financeiro:adnPre.patrimonio_financeiro??null,
       altura_cm:adnPre.altura_cm??null, peso_kg:adnPre.peso_kg??null, dependentes_qtd:adnPre.dependentes_qtd??null, fumante:adnPre.fumante??null }).select('id').single();
@@ -3573,7 +3630,8 @@ function esShow(e){
         <div class="es-linkrow"><input id="es-busca" class="ca-inp" placeholder="Buscar cliente cadastrado (nome, CPF, CRM)..."><button class="om-cancel" id="es-newp">＋ Criar cadastro a partir do estudo</button></div><div id="es-busca-res"></div>`}
       ${renda?`<div class="hint">Renda com a CallMed nos últimos 12 meses: <b>${fmtMoney(renda)}</b> (${pl.meses_12m||0} meses ativos)${mult!==null?` · capital atual = <b>${mult.toFixed(1)}× a renda anual</b> <small>(referência prática de mercado: 5 a 10×)</small>`:''}</div>`:''}</div>
     ${adnHtml(e)}
-    <div class="es-box"><div class="ql">Apólice atual (outro corretor) <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— opcional, se o cliente já tiver uma</small></div><div class="fgrid">
+    <div class="es-box"><div class="ql">Apólice atual (outro corretor) <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— opcional, se o cliente já tiver uma</small></div>
+      ${e.pessoa_id?'<div style="margin-bottom:8px"><button type="button" class="om-cancel" id="es-imp-apo">↧ Importar apólices ativas do cadastro (Proteção atual)</button></div>':''}<div class="fgrid">
       ${fld('es-seg','Seguradora atual',e.seguradora_atual)}${fld('es-cor','Corretor atual',e.corretor_atual)}${fld('es-tipo','Produto',e.tipo_seguro)}${fld('es-num','Nº da apólice',e.numero_apolice)}
       ${fld('es-ini','Início',e.vigencia_inicio,'date')}${fld('es-fim','Fim',e.vigencia_fim,'date')}${fld('es-prem','Prêmio anual (R$)',e.premio_anual===null?'':String(e.premio_anual),'number')}</div>
       <div class="ql" style="margin-top:10px">Coberturas e o valor de cada uma (R$)</div><div class="cv-grid">${covValueRows('es', [...a.have], e.coberturas_valores||{})}</div></div>
@@ -3605,6 +3663,13 @@ function esShow(e){
   covValueBind(document.getElementById('es-detail'), 'es');
   document.querySelectorAll('#es-detail .es-cov').forEach(i=>i.addEventListener('change', async ()=>{ await esSave(true); }));
   $('es-parecer').addEventListener('click', ()=>{ $('es-obs').value = esParecer(esCollect(), esAnalise(esCollect())); });
+  if($('es-imp-apo')) $('es-imp-apo').addEventListener('click', async ()=>{
+    const ap = await estudoFromApolices(e.pessoa_id); if(!ap){ showToast('Este cliente não tem apólice ativa cadastrada.'); return; }
+    const setV = (id,v)=>{ const el = $(id); if(el && v!=null) el.value = v; };
+    setV('es-seg',ap.seguradora_atual); setV('es-tipo',ap.tipo_seguro); setV('es-num',ap.numero_apolice); setV('es-ini',ap.vigencia_inicio); setV('es-fim',ap.vigencia_fim); setV('es-prem',ap.premio_anual);
+    document.querySelectorAll('#es-detail .es-cov').forEach(cb=>{ const on = ap.coberturas_atuais.includes(cb.value); cb.checked = on; const vi = document.querySelector(`#es-detail .es-cov-val[data-k="${cb.value}"]`); if(vi){ vi.disabled = !on; vi.value = on && ap.coberturas_valores[cb.value]!=null ? ap.coberturas_valores[cb.value] : ''; } });
+    await esSave(true); showToast('Apólices ativas do cadastro importadas.');
+  });
   $('es-save').addEventListener('click', ()=>esSave(false));
   $('es-status').addEventListener('change', ()=>esSave(true));
   $('es-del').addEventListener('click', async ()=>{
