@@ -770,9 +770,13 @@ function boot(){
   renderOperacao();
 }
 
-// ---------- MÓDULO COMERCIAL: meta × realizado × projeção ----------
+// ---------- MÓDULO COMERCIAL: meta × realizado × projeção (receita calculada a partir das premissas) ----------
 const COM_MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 const comMesLabel = ym => { const [y,m] = ym.split('-'); return COM_MESES[parseInt(m,10)-1]+'/'+y.slice(2); };
+const COM_PARAMS = [
+  ['com_vida_pct','Vida — comissão recorrente (% do prêmio)',30],['carr_vida','Vida — agenciamento (× 1ª parcela; 1 = 100%)',1],
+  ['com_saude_pct','Saúde — comissão recorrente (% do prêmio)',5],['carr_saude','Saúde — agenciamento (× 1ª parcela; 2 = 200%)',2],
+  ['churn_anual','Cancelamento anual da carteira (%)',15],['ticket_medio','Ticket médio Vida (R$/mês)',250],['ticket_saude','Ticket médio Saúde (R$/vida)',500]];
 async function renderComercial(){
   const host = document.getElementById('com-body');
   host.innerHTML = '<div class="op-more">Carregando...</div>';
@@ -782,8 +786,10 @@ async function renderComercial(){
     sb.from('crm_metas').select('chave,valor')]);
   if(metaR.error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(metaR.error.message)+'</div>'; return; }
   const metas = metaR.data||[]; const M = {}; (metasR.data||[]).forEach(m=>M[m.chave]=Number(m.valor));
-  const tkVida = M.ticket_medio||250, tkSaude = M.ticket_saude||500;
-  const pV = (M.com_vida_pct??30)/100, cV = M.carr_vida??1, pS = (M.com_saude_pct??5)/100, cS = M.carr_saude??2;
+  const PAR = {}; COM_PARAMS.forEach(([k,,d])=>{ PAR[k] = M[k]!=null && !isNaN(M[k]) ? M[k] : d; });
+  const tkVida = PAR.ticket_medio, tkSaude = PAR.ticket_saude;
+  const pV = PAR.com_vida_pct/100, cV = PAR.carr_vida, pS = PAR.com_saude_pct/100, cS = PAR.carr_saude;
+  const churnM = 1-Math.pow(1-PAR.churn_anual/100, 1/12);
   // realizado: vendas novas da CallMed (apólice nova + vínculo CallMed), por mês de emissão
   const real = {};
   apo.filter(a=>a.origem_apolice==='nova' && a.vinculo_comercial==='CallMed' && a.status!=='cancelada').forEach(a=>{
@@ -795,80 +801,96 @@ async function renderComercial(){
     else r.outrosN++;
   });
   const now = new Date(); const cur = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
-  const rows = metas.map(m=>({ym:String(m.mes).slice(0,7), m, r: real[String(m.mes).slice(0,7)]||{vidaPrem:0,vidaN:0,saudePrem:0,saudeN:0,outrosN:0}}));
-  const recTot = m=> Number(m.vida_receita)+Number(m.saude_receita)+Number(m.indicacao_receita)+Number(m.rx_receita);
-  const totalPeriodo = rows.reduce((t,x)=>t+recTot(x.m),0);
+  // receita calculada mês a mês: recorrência sobre a carteira (após cancelamentos) + agenciamento sobre a venda nova
+  let baseV = 0, baseS = 0;
+  const rows = metas.map(m=>{
+    const ym = String(m.mes).slice(0,7); const nV = Number(m.vida_premio_novo), nS = Number(m.saude_vidas);
+    baseV = baseV*(1-churnM)+nV; baseS = baseS*(1-churnM)+nS;
+    const c = { baseV, recV:baseV*pV, agV:nV*cV, baseS, premS:nS*tkSaude, recS:baseS*tkSaude*pS, agS:nS*tkSaude*cS };
+    c.totV = c.recV+c.agV; c.totS = c.recS+c.agS;
+    c.tot = c.totV+c.totS+Number(m.indicacao_receita)+Number(m.rx_receita);
+    return {ym, m, c, r: real[ym]||{vidaPrem:0,vidaN:0,saudePrem:0,saudeN:0,outrosN:0}};
+  });
+  const totalPeriodo = rows.reduce((t,x)=>t+x.c.tot,0);
   const cm = rows.find(x=>x.ym===cur);
   const ate = rows.filter(x=>x.ym<=cur);
-  const metaPremAcum = ate.reduce((t,x)=>t+Number(x.m.vida_premio_novo)+Number(x.m.saude_premio),0);
+  const metaPremAcum = ate.reduce((t,x)=>t+Number(x.m.vida_premio_novo)+x.c.premS,0);
   const realPremAcum = ate.reduce((t,x)=>t+x.r.vidaPrem+x.r.saudePrem,0);
   const diasMes = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate(), semRest = Math.max(1, Math.ceil((diasMes-now.getDate()+1)/7));
   const card = (v,l,sub)=>`<div class="ex-kpi" style="background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px"><b style="display:block;font-size:22px;font-family:'Poppins',sans-serif;color:var(--brand)">${v}</b><span style="font-size:12px;color:var(--ink-soft)">${l}</span>${sub?`<div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px">${sub}</div>`:''}</div>`;
+  const grid = c=>`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px">${c}</div>`;
   let proj = '<div class="hint">O mês atual está fora do período do plano (Set/26 a Dez/27).</div>';
   if(cm){
     const fV = Math.max(0, Number(cm.m.vida_premio_novo)-cm.r.vidaPrem), fS = Math.max(0, Number(cm.m.saude_vidas)-cm.r.saudeN);
     const apV = Math.ceil(fV/tkVida), pSem = Math.ceil(apV/semRest);
-    proj = `<div class="ex-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
-      ${card(fmtMoney(fV),'Prêmio de Vida que ainda falta vender neste mês','meta '+fmtMoney(cm.m.vida_premio_novo)+' · vendido '+fmtMoney(cm.r.vidaPrem))}
-      ${card(String(apV),'Apólices de Vida necessárias (ticket '+fmtMoney(tkVida)+'/mês)', pSem+' por semana nas '+semRest+' semanas restantes')}
-      ${card(String(Math.ceil(fS)),'Vidas de Saúde que ainda faltam','meta ≈ '+Math.round(cm.m.saude_vidas)+' vidas · ticket '+fmtMoney(tkSaude)+'/vida')}
-      ${card(fmtMoney(Math.max(0,metaPremAcum-realPremAcum)),'Prêmio acumulado que falta até hoje','meta acumulada '+fmtMoney(metaPremAcum)+' · vendido '+fmtMoney(realPremAcum))}</div>`;
+    const conv = (M.conv_fechamento||1)/100, contSem = conv>0 ? Math.ceil(pSem/conv) : null;
+    proj = grid(
+      card(fmtMoney(fV),'Prêmio de Vida que ainda falta vender neste mês','meta '+fmtMoney(cm.m.vida_premio_novo)+' · vendido '+fmtMoney(cm.r.vidaPrem))
+      +card(String(apV),'Apólices de Vida necessárias (ticket '+fmtMoney(tkVida)+'/mês)', pSem+' por semana nas '+semRest+' semanas restantes')
+      +card(contSem!=null?String(contSem):'—','Contatos por semana necessários (funil)','conversão contato→fechamento '+Math.round(conv*1000)/10+'% · meta atual '+(M.contatos_semana||100)+'/semana')
+      +card(String(Math.ceil(fS)),'Vidas de Saúde que ainda faltam','meta ≈ '+Math.round(cm.m.saude_vidas)+' vidas · ticket '+fmtMoney(tkSaude)+'/vida')
+      +card(fmtMoney(Math.max(0,metaPremAcum-realPremAcum)),'Prêmio acumulado que falta até hoje','meta acumulada '+fmtMoney(metaPremAcum)+' · vendido '+fmtMoney(realPremAcum)));
   }
-  const mixMeta = cm ? (()=>{ const v = Number(cm.m.vida_premio_novo), s = Number(cm.m.saude_premio), t = v+s||1; return `Vida ${Math.round(v/t*100)}% · Saúde ${Math.round(s/t*100)}%`; })() : '';
-  const th = 'style="text-align:right"';
+  const mixMeta = cm ? (()=>{ const v = Number(cm.m.vida_premio_novo), s = cm.c.premS, t = v+s||1; return `Vida ${Math.round(v/t*100)}% · Saúde ${Math.round(s/t*100)}%`; })() : '';
+  const totVida = rows.reduce((t,x)=>t+x.c.totV,0), totSaude = rows.reduce((t,x)=>t+x.c.totS,0);
+  const sum = f=>rows.reduce((t,x)=>t+f(x),0);
+  const line = (label, f, opt={}) => { const fm = v=> opt.dash&&!v?'—':(opt.pct?Math.round(v*100)+'%':(opt.fac?'×'+v:(opt.n?String(Math.round(v)):fmtMoney(v)))); return `<tr class="${opt.cls||''}"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}">${fm(f(x))}</td>`).join('')}<td>${opt.notot?'':fm(sum(f))}</td></tr>`; };
+  const inputLine = (label,col) => `<tr class="real"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}"><input class="com-real" data-mes="${x.m.mes}" data-col="${col}" type="number" value="${x.m[col]??''}" style="width:84px;text-align:right"></td>`).join('')}<td>${fmtMoney(sum(x=>Number(x.m[col])||0))}</td></tr>`;
+  const secRow = t=>'<tr class="sec"><td colspan="'+(rows.length+2)+'">'+t+'</td></tr>';
+  const body = [
+    secRow('Seguros Vida'),
+    line('R$ Prêmio novo (mensal)', x=>Number(x.m.vida_premio_novo)),
+    line('R$ Prêmio em carteira (após cancelamentos)', x=>x.c.baseV, {notot:true}),
+    line('Comissão recorrente (%)', x=>x.c.baseV?pV:0, {pct:true, notot:true, dash:true}),
+    line('R$ Comissão recorrente', x=>x.c.recV),
+    line('Agenciamento (× 1ª parcela)', x=>Number(x.m.vida_premio_novo)?cV:0, {fac:true, notot:true, dash:true}),
+    line('R$ Agenciamento', x=>x.c.agV),
+    line('Total Receita Vida (recorrente + agenciamento)', x=>x.c.totV, {cls:'tot'}),
+    line('Realizado: prêmio vendido (mensalizado)', x=>x.r.vidaPrem, {cls:'real', dash:true}),
+    line('Realizado: nº de apólices de Vida', x=>x.r.vidaN, {cls:'real', n:true, dash:true}),
+    secRow('Seguros Saúde (Plano Saúde)'),
+    line('Vidas novas no mês (meta)', x=>Number(x.m.saude_vidas), {n:true, dash:true}),
+    line('Vidas em carteira (após cancelamentos)', x=>x.c.baseS, {n:true, notot:true, dash:true}),
+    line('R$ Médio por vida', x=>Number(x.m.saude_vidas)?tkSaude:0, {notot:true, dash:true}),
+    line('R$ Prêmio da venda do mês', x=>x.c.premS, {dash:true}),
+    line('Comissão recorrente (%)', x=>x.c.baseS?pS:0, {pct:true, notot:true, dash:true}),
+    line('R$ Comissão recorrente', x=>x.c.recS, {dash:true}),
+    line('Agenciamento (× 1ª parcela)', x=>Number(x.m.saude_vidas)?cS:0, {fac:true, notot:true, dash:true}),
+    line('R$ Agenciamento', x=>x.c.agS, {dash:true}),
+    line('Total faturamento Saúde (recorrente + agenciamento)', x=>x.c.totS, {cls:'tot'}),
+    line('Realizado: vidas de Saúde vendidas', x=>x.r.saudeN, {cls:'real', n:true, dash:true}),
+    secRow('Comissões Indicação'),
+    line('Negócios indicados (meta)', x=>Number(x.m.indicacao_receita), {cls:'tot', dash:true}),
+    inputLine('Realizado (preencher)','indicacao_realizado'),
+    secRow('Comissões RX Vantage'),
+    line('Negócios indicados (meta)', x=>Number(x.m.rx_receita), {cls:'tot', dash:true}),
+    inputLine('Realizado (preencher)','rx_realizado'),
+    secRow('Faturamento projetado'),
+    line('Total geral (meta)', x=>x.c.tot, {cls:'grand'})
+  ].join('');
   host.innerHTML = `
-    <div class="ex-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:14px">
-      ${card(fmtMoney(totalPeriodo),'Meta de receita — Set/26 a Dez/27','todas as linhas')}
-      ${card(cm?fmtMoney(recTot(cm.m)):'—','Meta de receita do mês atual', cm?comMesLabel(cm.ym):'')}
-      ${card(cm?fmtMoney(Number(cm.m.vida_premio_novo)+Number(cm.m.saude_premio)):'—','Prêmio novo a vender no mês', mixMeta)}
-      ${card(fmtMoney(tkVida)+' · '+fmtMoney(tkSaude),'Ticket médio (Vida por mês · Saúde por vida)','editável em Indicadores > Metas')}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:14px">
+      ${card(fmtMoney(totalPeriodo),'Meta de receita — Set/26 a Dez/27','Vida '+fmtMoney(totVida)+' · Saúde '+fmtMoney(totSaude))}
+      ${card(cm?fmtMoney(cm.c.tot):'—','Meta de receita do mês atual', cm?comMesLabel(cm.ym):'')}
+      ${card(cm?fmtMoney(Number(cm.m.vida_premio_novo)+cm.c.premS):'—','Prêmio novo a vender no mês', mixMeta)}
+      ${card(fmtMoney(tkVida)+' · '+fmtMoney(tkSaude),'Ticket médio (Vida por mês · Saúde por vida)','ajuste nas premissas abaixo')}
     </div>
     <div class="es-box"><div class="ql">Quanto falta (mês atual)</div>${proj}</div>
+    <div class="es-box"><div class="ql">Premissas do modelo <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— ajuste conforme a tabela de comissão de cada seguradora; a receita abaixo recalcula ao salvar</small></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:6px">${COM_PARAMS.map(([k,l])=>`<label class="fl"><span>${l}</span><input class="com-par" data-k="${k}" type="number" step="any" value="${PAR[k]}"></label>`).join('')}</div>
+      <div style="margin-top:10px"><button class="om-save" id="com-par-save">Salvar premissas e recalcular</button> <small style="color:var(--ink-faint)">Recorrência é calculada sobre a carteira que segue ativa (prêmio acumulado menos cancelamentos); agenciamento entra só no mês da venda.</small></div></div>
     <div class="es-box"><div class="ql">Projeção mês a mês — Set/26 a Dez/27</div>
       <div class="hint" style="margin-bottom:8px">Realizado = apólices novas da CallMed (Central de Apólices), por mês de emissão, com prêmio mensalizado (prêmio anual ÷ 12). Indicação e RX Vantage não têm origem automática — preencha o realizado nas linhas em destaque.</div>
-      <style>.com-t{border-collapse:collapse;font-size:12.5px;min-width:100%}.com-t th,.com-t td{padding:6px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}.com-t th:first-child,.com-t td:first-child{text-align:left;position:sticky;left:0;background:var(--card,#fff);min-width:230px;z-index:1}.com-t thead th{background:var(--brand);color:#fff;font-weight:600}.com-t thead th:first-child{background:var(--brand)}.com-t .sec td{background:#eef0fb;font-weight:700;color:var(--brand)}.com-t .tot td{font-weight:700;background:#f6f7fc}.com-t .real td{font-style:italic;color:#0b7a4f}.com-t td.cur,.com-t th.cur{box-shadow:inset 0 -2px 0 var(--amber,#e0a94f)}.com-t .grand td{font-weight:800;background:#e3e7fb}</style>
-      <div style="overflow-x:auto"><table class="com-t"><thead><tr><th>Cenário de meta</th>${rows.map(x=>`<th class="${x.ym===cur?'cur':''}">${comMesLabel(x.ym)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${(()=>{
-        const sum = f=>rows.reduce((t,x)=>t+f(x),0);
-        const line = (label, f, opt={}) => { const money = opt.n?false:true; const fm = v=> opt.dash&&!v?'—':(opt.pct?Math.round(v*100)+'%':(opt.fac?'×'+v:(opt.n?String(Math.round(v)):fmtMoney(v)))); return `<tr class="${opt.cls||''}"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}">${fm(f(x))}</td>`).join('')}<td>${opt.notot?'':fm(sum(f))}</td></tr>`; };
-        const inputLine = (label,col) => `<tr class="real"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}"><input class="com-real" data-mes="${x.m.mes}" data-col="${col}" type="number" value="${x.m[col]??''}" style="width:84px;text-align:right"></td>`).join('')}<td>${fmtMoney(sum(x=>Number(x.m[col])||0))}</td></tr>`;
-        let acc = 0, aV = 0, aS = 0; const accV = {}, comAccV = {}, comAccS = {}; rows.forEach(x=>{ acc += Number(x.m.saude_vidas); accV[x.ym] = acc; aV += Number(x.m.vida_premio_novo)*pV; comAccV[x.ym] = aV; aS += Number(x.m.saude_vidas)*tkSaude*pS; comAccS[x.ym] = aS; });
-        return [
-          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Seguros Vida</td></tr>',
-          line('R$ Prêmio Novo', x=>Number(x.m.vida_premio_novo)),
-          line('Percentual médio de comissão', x=>Number(x.m.vida_premio_novo)?pV:0, {pct:true, notot:true, dash:true}),
-          line('Comissão do mês', x=>Number(x.m.vida_premio_novo)*pV),
-          line('R$ Comissão (carregamento) acumulada', x=>comAccV[x.ym], {notot:true}),
-          line('Carregamento (fator sobre o prêmio)', x=>Number(x.m.vida_premio_novo)?cV:0, {fac:true, notot:true, dash:true}),
-          line('R$ Carregamento', x=>Number(x.m.vida_premio_novo)*cV),
-          line('Total Receita (comissão do mês + acumulada + carregamento)', x=>Number(x.m.vida_premio_novo)*pV+comAccV[x.ym]+Number(x.m.vida_premio_novo)*cV, {cls:'tot'}),
-          line('Realizado: prêmio vendido (mensalizado)', x=>x.r.vidaPrem, {cls:'real', dash:true}),
-          line('Realizado: nº de apólices de Vida', x=>x.r.vidaN, {cls:'real', n:true, dash:true}),
-          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Seguros Saúde (Plano Saúde)</td></tr>',
-          line('Vidas novas no mês (meta)', x=>Number(x.m.saude_vidas), {n:true, dash:true}),
-          line('R$ Médio por vida', x=>Number(x.m.saude_vidas)?tkSaude:0, {notot:true, dash:true}),
-          line('R$ Prêmio', x=>Number(x.m.saude_vidas)*tkSaude, {dash:true}),
-          line('Percentual médio de comissão', x=>Number(x.m.saude_vidas)?pS:0, {pct:true, notot:true, dash:true}),
-          line('R$ Comissão da venda do mês', x=>Number(x.m.saude_vidas)*tkSaude*pS, {dash:true}),
-          line('Vidas acumuladas', x=>accV[x.ym], {n:true, notot:true, dash:true}),
-          line('R$ Comissão das vidas acumuladas', x=>comAccS[x.ym], {notot:true, dash:true}),
-          line('Carregamento (fator sobre o prêmio)', x=>Number(x.m.saude_vidas)?cS:0, {fac:true, notot:true, dash:true}),
-          line('R$ Carregamento', x=>Number(x.m.saude_vidas)*tkSaude*cS, {dash:true}),
-          line('Total faturamento (comissão acumulada + carregamento)', x=>comAccS[x.ym]+Number(x.m.saude_vidas)*tkSaude*cS, {cls:'tot'}),
-          line('Realizado: vidas de Saúde vendidas', x=>x.r.saudeN, {cls:'real', n:true, dash:true}),
-          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Comissões Indicação</td></tr>',
-          line('Negócios indicados (meta)', x=>Number(x.m.indicacao_receita), {cls:'tot', dash:true}),
-          inputLine('Realizado (preencher)','indicacao_realizado'),
-          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Comissões RX Vantage</td></tr>',
-          line('Negócios indicados (meta)', x=>Number(x.m.rx_receita), {cls:'tot', dash:true}),
-          inputLine('Realizado (preencher)','rx_realizado'),
-          '<tr class="sec"><td colspan="'+(rows.length+2)+'">Faturamento projetado</td></tr>',
-          line('Total geral (meta)', x=>recTot(x.m), {cls:'grand'})
-        ].join('');
-      })()}</tbody></table></div></div>`;
+      <style>.com-t{border-collapse:collapse;font-size:12.5px;min-width:100%}.com-t th,.com-t td{padding:6px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}.com-t th:first-child,.com-t td:first-child{text-align:left;position:sticky;left:0;background:var(--card,#fff);min-width:260px;z-index:1}.com-t thead th{background:var(--brand);color:#fff;font-weight:600}.com-t thead th:first-child{background:var(--brand)}.com-t .sec td{background:#eef0fb;font-weight:700;color:var(--brand)}.com-t .tot td{font-weight:700;background:#f6f7fc}.com-t .real td{font-style:italic;color:#0b7a4f}.com-t td.cur,.com-t th.cur{box-shadow:inset 0 -2px 0 var(--amber,#e0a94f)}.com-t .grand td{font-weight:800;background:#e3e7fb}</style>
+      <div style="overflow-x:auto"><table class="com-t"><thead><tr><th>Cenário de meta</th>${rows.map(x=>`<th class="${x.ym===cur?'cur':''}">${comMesLabel(x.ym)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${body}</tbody></table></div></div>`;
   host.querySelectorAll('.com-real').forEach(i=>i.addEventListener('change', async ()=>{
     const v = i.value===''?null:Number(i.value);
     const { error } = await sb.from('crm_meta_comercial').update({[i.dataset.col]:v, atualizado_em:new Date().toISOString()}).eq('mes', i.dataset.mes);
     showToast(error?'Erro: '+error.message:'Realizado salvo'); }));
+  host.querySelector('#com-par-save').addEventListener('click', async ()=>{
+    const upserts = [...host.querySelectorAll('.com-par')].map(i=>({chave:i.dataset.k, valor:String(i.value===''?0:Number(i.value)), atualizado_em:new Date().toISOString()}));
+    const { error } = await sb.from('crm_metas').upsert(upserts, {onConflict:'chave'});
+    if(error){ showToast('Erro: '+error.message); return; } showToast('Premissas salvas'); renderComercial(); });
 }
 
 // ---------- NAV RAIL ----------
