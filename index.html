@@ -775,6 +775,8 @@ const COM_MESES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','
 const comMesLabel = ym => { const [y,m] = ym.split('-'); return COM_MESES[parseInt(m,10)-1]+'/'+y.slice(2); };
 const COM_PADROES = [['churn_anual','Cancelamento anual da carteira (%)',15],['ticket_medio','Ticket médio Vida (R$/mês) — usado no "quanto falta"',250]];
 async function renderComercial(){
+  const fmtMoney = v => 'R$ '+Math.round(Number(v)||0).toLocaleString('pt-BR'); // formato contábil: sem centavos
+  const fmtNum = v => Math.round(Number(v)||0).toLocaleString('pt-BR');
   const host = document.getElementById('com-body');
   const scrollX = (host.querySelector('.com-scroll')||{}).scrollLeft||0;
   if(!host.dataset.loaded) host.innerHTML = '<div class="op-more">Carregando...</div>';
@@ -832,16 +834,16 @@ async function renderComercial(){
   const mixMeta = cm ? (()=>{ const v = cm.c.nV, s = cm.c.premS, t = v+s||1; return `Vida ${Math.round(v/t*100)}% · Saúde ${Math.round(s/t*100)}%`; })() : '';
   const totVida = rows.reduce((t,x)=>t+x.c.totV,0), totSaude = rows.reduce((t,x)=>t+x.c.totS,0);
   const sum = f=>rows.reduce((t,x)=>t+f(x),0);
-  const line = (label, f, opt={}) => { const fm = v=> opt.dash&&!v?'—':(opt.n?String(Math.round(v)):fmtMoney(v)); return `<tr class="${opt.cls||''}"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}">${fm(f(x))}</td>`).join('')}<td>${opt.notot?'':fm(sum(f))}</td></tr>`; };
+  const line = (label, f, opt={}) => { const fm = v=> !v?'—':(opt.n?fmtNum(v):fmtMoney(v)); return `<tr class="${opt.cls||''}"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}">${fm(f(x))}</td>`).join('')}<td>${opt.notot?'':fm(sum(f))}</td></tr>`; };
   // linha de premissa editável (como nas linhas da planilha do BP); total só quando faz sentido somar
-  const edit = (label, col, val, opt={}) => `<tr class="prem"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}"><input class="com-edit" data-mes="${x.m.mes}" data-col="${col}" type="number" step="any" value="${val(x)}" style="width:${opt.w||74}px;text-align:right"></td>`).join('')}<td>${opt.total?(opt.money===false?String(Math.round(sum(x=>Number(val(x))||0))):fmtMoney(sum(x=>Number(val(x))||0))):''}</td></tr>`;
-  const inputLine = (label,col) => `<tr class="real"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}"><input class="com-edit" data-mes="${x.m.mes}" data-col="${col}" data-real="1" type="number" value="${x.m[col]??''}" style="width:84px;text-align:right"></td>`).join('')}<td>${fmtMoney(sum(x=>Number(x.m[col])||0))}</td></tr>`;
+  const edit = (label, col, val, opt={}) => { const mny = opt.money!==false && opt.pct!==true && !opt.plain; return `<tr class="prem"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}"><input class="com-edit" data-mes="${x.m.mes}" data-col="${col}" ${mny?'data-money="1" type="text" inputmode="decimal"':'type="number" step="any"'} value="${mny?fmtNum(val(x)):val(x)}" style="width:${opt.w||84}px;text-align:right"></td>`).join('')}<td>${opt.total?(opt.plain?fmtNum(sum(x=>Number(val(x))||0)):fmtMoney(sum(x=>Number(val(x))||0))):''}</td></tr>`; };
+  const inputLine = (label,col) => `<tr class="real"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}"><input class="com-edit" data-mes="${x.m.mes}" data-col="${col}" data-real="1" data-money="1" type="text" inputmode="decimal" value="${x.m[col]==null?'':fmtNum(x.m[col])}" style="width:90px;text-align:right"></td>`).join('')}<td>${fmtMoney(sum(x=>Number(x.m[col])||0))}</td></tr>`;
   const secRow = t=>'<tr class="sec"><td colspan="'+(rows.length+2)+'">'+t+'</td></tr>';
   const body = [
     secRow('Seguros Vida'),
     edit('R$ Prêmio novo (mensal)', 'vida_premio_novo', x=>x.c.nV, {total:true}),
-    edit('Percentual médio de comissão (%)', 'vida_com_pct', x=>Math.round(x.c.pV*10000)/100, {w:56}),
-    edit('Agenciamento (× 1ª parcela)', 'vida_agen', x=>x.c.cV, {w:56}),
+    edit('Percentual médio de comissão (%)', 'vida_com_pct', x=>Math.round(x.c.pV*10000)/100, {w:56, pct:true}),
+    edit('Agenciamento (× 1ª parcela)', 'vida_agen', x=>x.c.cV, {w:56, pct:true}),
     line('R$ Prêmio em carteira (após cancelamentos)', x=>x.c.baseV, {notot:true}),
     line('R$ Comissão recorrente', x=>x.c.recV),
     line('R$ Agenciamento', x=>x.c.agV),
@@ -849,10 +851,10 @@ async function renderComercial(){
     line('Realizado: prêmio vendido (mensalizado)', x=>x.r.vidaPrem, {cls:'real', dash:true}),
     line('Realizado: nº de apólices de Vida', x=>x.r.vidaN, {cls:'real', n:true, dash:true}),
     secRow('Seguros Saúde (Plano Saúde)'),
-    edit('Vidas novas no mês', 'saude_vidas', x=>Math.round(x.c.nS*10)/10, {w:56, total:true, money:false}),
+    edit('Vidas novas no mês', 'saude_vidas', x=>Math.round(x.c.nS*10)/10, {w:56, total:true, plain:true}),
     edit('R$ Médio por vida', 'saude_ticket', x=>x.c.tS, {w:66}),
-    edit('Percentual médio de comissão (%)', 'saude_com_pct', x=>Math.round(x.c.pS*10000)/100, {w:56}),
-    edit('Agenciamento (× 1ª parcela)', 'saude_agen', x=>x.c.cS, {w:56}),
+    edit('Percentual médio de comissão (%)', 'saude_com_pct', x=>Math.round(x.c.pS*10000)/100, {w:56, pct:true}),
+    edit('Agenciamento (× 1ª parcela)', 'saude_agen', x=>x.c.cS, {w:56, pct:true}),
     line('Vidas em carteira (após cancelamentos)', x=>x.c.baseSv, {n:true, notot:true, dash:true}),
     line('R$ Prêmio da venda do mês', x=>x.c.premS, {dash:true}),
     line('R$ Comissão recorrente', x=>x.c.recS, {dash:true}),
@@ -886,7 +888,8 @@ async function renderComercial(){
       <div style="margin-top:10px"><button class="om-save" id="com-par-save">Salvar padrões e recalcular</button> <small style="color:var(--ink-faint)">Recorrência = comissão sobre a carteira que segue ativa (prêmio acumulado menos cancelamentos); agenciamento entra só no mês da venda.</small></div></div>`;
   const sc = host.querySelector('.com-scroll'); if(sc) sc.scrollLeft = scrollX;
   host.querySelectorAll('.com-edit').forEach(i=>i.addEventListener('change', async ()=>{
-    const v = i.value===''?null:Number(i.value);
+    const v = i.value===''?null:(i.dataset.money?Number(i.value.replace(/\./g,'').replace(',','.')):Number(i.value));
+    if(v!==null && isNaN(v)){ showToast('Valor inválido.'); renderComercial(); return; }
     const fwd = !i.dataset.real && document.getElementById('com-fwd').checked;
     let q = sb.from('crm_meta_comercial').update({[i.dataset.col]:v, atualizado_em:new Date().toISOString()});
     q = fwd ? q.gte('mes', i.dataset.mes) : q.eq('mes', i.dataset.mes);
