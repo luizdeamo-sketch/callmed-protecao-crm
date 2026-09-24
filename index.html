@@ -780,11 +780,13 @@ async function renderComercial(){
   const host = document.getElementById('com-body');
   const scrollX = (host.querySelector('.com-scroll')||{}).scrollLeft||0;
   if(!host.dataset.loaded) host.innerHTML = '<div class="op-more">Carregando...</div>';
-  const [metaR, apo, metasR] = await Promise.all([
+  const [metaR, apo, metasR, basalR] = await Promise.all([
     sb.from('crm_meta_comercial').select('*').order('mes'),
     opFetchAll('crm_apolices','id,tipo_seguro,valor_premio,data_emissao,created_at,origem_apolice,vinculo_comercial,status',['id']),
-    sb.from('crm_metas').select('chave,valor')]);
+    sb.from('crm_metas').select('chave,valor'),
+    sb.from('crm_meta_basal').select('*').order('mes')]);
   if(metaR.error){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml(metaR.error.message)+'</div>'; return; }
+  const B = {}; (basalR.data||[]).forEach(b=>{ B[String(b.mes).slice(0,7)] = b; });
   const metas = metaR.data||[]; const M = {}; (metasR.data||[]).forEach(m=>M[m.chave]=Number(m.valor));
   const PAD = {}; COM_PADROES.forEach(([k,,d])=>{ PAD[k] = M[k]!=null && !isNaN(M[k]) ? M[k] : d; });
   const tkVida = PAD.ticket_medio;
@@ -809,29 +811,33 @@ async function renderComercial(){
     const c = { nV, pV, cV, nS, tS, pS, cS, baseV, recV:baseV*pV, agV:nV*cV, baseSv, premS:nS*tS, recS:baseSp*pS, agS:nS*tS*cS };
     c.totV = c.recV+c.agV; c.totS = c.recS+c.agS;
     c.tot = c.totV+c.totS+Number(m.indicacao_receita)+Number(m.rx_receita);
-    return {ym, m, c, r: real[ym]||{vidaPrem:0,vidaN:0,saudePrem:0,saudeN:0,outrosN:0}};
+    return {ym, m, c, b:B[ym]||null, r: real[ym]||{vidaPrem:0,vidaN:0,saudePrem:0,saudeN:0,outrosN:0}};
   });
   const totalPeriodo = rows.reduce((t,x)=>t+x.c.tot,0);
+  const bn = (x,k)=> x.b ? Number(x.b[k])||0 : 0;
+  const metaTot = x=> bn(x,'vida_receita')+bn(x,'saude_receita')+bn(x,'indicacao_receita')+bn(x,'rx_receita');
+  const totalMeta = rows.reduce((t,x)=>t+metaTot(x),0);
+  const dif = totalPeriodo-totalMeta;
   const cm = rows.find(x=>x.ym===cur);
   const ate = rows.filter(x=>x.ym<=cur);
-  const metaPremAcum = ate.reduce((t,x)=>t+x.c.nV+x.c.premS,0);
+  const metaPremAcum = ate.reduce((t,x)=>t+bn(x,'vida_premio_novo')+bn(x,'saude_premio'),0);
   const realPremAcum = ate.reduce((t,x)=>t+x.r.vidaPrem+x.r.saudePrem,0);
   const diasMes = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate(), semRest = Math.max(1, Math.ceil((diasMes-now.getDate()+1)/7));
   const card = (v,l,sub)=>`<div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px"><b style="display:block;font-size:22px;font-family:'Poppins',sans-serif;color:var(--brand)">${v}</b><span style="font-size:12px;color:var(--ink-soft)">${l}</span>${sub?`<div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px">${sub}</div>`:''}</div>`;
   const grid = c=>`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px">${c}</div>`;
   let proj = '<div class="hint">O mês atual está fora do período do plano (Set/26 a Dez/27).</div>';
   if(cm){
-    const fV = Math.max(0, cm.c.nV-cm.r.vidaPrem), fS = Math.max(0, cm.c.nS-cm.r.saudeN);
+    const fV = Math.max(0, bn(cm,'vida_premio_novo')-cm.r.vidaPrem), fS = Math.max(0, bn(cm,'saude_vidas')-cm.r.saudeN);
     const apV = Math.ceil(fV/tkVida), pSem = Math.ceil(apV/semRest);
     const conv = (M.conv_fechamento||1)/100, contSem = conv>0 ? Math.ceil(pSem/conv) : null;
     proj = grid(
-      card(fmtMoney(fV),'Prêmio de Vida que ainda falta vender neste mês','meta '+fmtMoney(cm.c.nV)+' · vendido '+fmtMoney(cm.r.vidaPrem))
+      card(fmtMoney(fV),'Prêmio de Vida que ainda falta vender neste mês','meta '+fmtMoney(bn(cm,'vida_premio_novo'))+' · vendido '+fmtMoney(cm.r.vidaPrem))
       +card(String(apV),'Apólices de Vida necessárias (ticket '+fmtMoney(tkVida)+'/mês)', pSem+' por semana nas '+semRest+' semanas restantes')
       +card(contSem!=null?String(contSem):'—','Contatos por semana necessários (funil)','conversão contato→fechamento '+Math.round(conv*1000)/10+'% · meta atual '+(M.contatos_semana||100)+'/semana')
-      +card(String(Math.ceil(fS)),'Vidas de Saúde que ainda faltam','meta ≈ '+Math.round(cm.c.nS)+' vidas · ticket '+fmtMoney(cm.c.tS)+'/vida')
+      +card(String(Math.ceil(fS)),'Vidas de Saúde que ainda faltam','meta ≈ '+Math.round(bn(cm,'saude_vidas'))+' vidas · ticket '+fmtMoney(cm.c.tS)+'/vida')
       +card(fmtMoney(Math.max(0,metaPremAcum-realPremAcum)),'Prêmio acumulado que falta até hoje','meta acumulada '+fmtMoney(metaPremAcum)+' · vendido '+fmtMoney(realPremAcum)));
   }
-  const mixMeta = cm ? (()=>{ const v = cm.c.nV, s = cm.c.premS, t = v+s||1; return `Vida ${Math.round(v/t*100)}% · Saúde ${Math.round(s/t*100)}%`; })() : '';
+  const mixMeta = cm ? (()=>{ const v = bn(cm,'vida_premio_novo'), s = bn(cm,'saude_premio'), t = v+s||1; return `Vida ${Math.round(v/t*100)}% · Saúde ${Math.round(s/t*100)}%`; })() : '';
   const totVida = rows.reduce((t,x)=>t+x.c.totV,0), totSaude = rows.reduce((t,x)=>t+x.c.totS,0);
   const sum = f=>rows.reduce((t,x)=>t+f(x),0);
   const line = (label, f, opt={}) => { const fm = v=> !v?'—':(opt.n?fmtNum(v):fmtMoney(v)); return `<tr class="${opt.cls||''}"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}">${fm(f(x))}</td>`).join('')}<td>${opt.notot?'':fm(sum(f))}</td></tr>`; };
@@ -840,6 +846,14 @@ async function renderComercial(){
   const inputLine = (label,col) => `<tr class="real"><td>${label}</td>${rows.map(x=>`<td class="${x.ym===cur?'cur':''}"><input class="com-edit" data-mes="${x.m.mes}" data-col="${col}" data-real="1" data-money="1" type="text" inputmode="decimal" value="${x.m[col]==null?'':fmtNum(x.m[col])}" style="width:90px;text-align:right"></td>`).join('')}<td>${fmtMoney(sum(x=>Number(x.m[col])||0))}</td></tr>`;
   const secRow = t=>'<tr class="sec"><td colspan="'+(rows.length+2)+'">'+t+'</td></tr>';
   const body = [
+    secRow('🔒 Meta travada (somente leitura)'),
+    line('Meta: prêmio novo Vida (mensal)', x=>bn(x,'vida_premio_novo'), {cls:'lock'}),
+    line('Meta: vidas novas Saúde', x=>bn(x,'saude_vidas'), {cls:'lock', n:true}),
+    line('Meta: receita Vida', x=>bn(x,'vida_receita'), {cls:'lock'}),
+    line('Meta: receita Saúde', x=>bn(x,'saude_receita'), {cls:'lock'}),
+    line('Meta: indicação + RX Vantage', x=>bn(x,'indicacao_receita')+bn(x,'rx_receita'), {cls:'lock'}),
+    line('Meta total do mês', x=>metaTot(x), {cls:'tot lock'}),
+    secRow('Projeção — premissas editáveis (mês a mês)'),
     secRow('Seguros Vida'),
     edit('R$ Prêmio novo (mensal)', 'vida_premio_novo', x=>x.c.nV, {total:true}),
     edit('Percentual médio de comissão (%)', 'vida_com_pct', x=>Math.round(x.c.pV*10000)/100, {w:56, pct:true}),
@@ -868,20 +882,23 @@ async function renderComercial(){
     line('Negócios indicados (meta)', x=>Number(x.m.rx_receita), {cls:'tot', dash:true}),
     inputLine('Realizado (preencher)','rx_realizado'),
     secRow('Faturamento projetado'),
-    line('Total geral (meta)', x=>x.c.tot, {cls:'grand'})
+    line('Total geral da projeção', x=>x.c.tot, {cls:'grand'}),
+    secRow('Projeção × meta travada'),
+    line('Diferença no mês (projeção − meta)', x=>x.c.tot-metaTot(x), {cls:'tot'}),
+    line('Diferença acumulada', x=>{ let a = 0; for(const y of rows){ a += y.c.tot-metaTot(y); if(y===x) break; } return a; }, {cls:'tot', notot:true})
   ].join('');
   host.dataset.loaded = '1';
   host.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:14px">
-      ${card(fmtMoney(totalPeriodo),'Meta de receita — Set/26 a Dez/27','Vida '+fmtMoney(totVida)+' · Saúde '+fmtMoney(totSaude))}
-      ${card(cm?fmtMoney(cm.c.tot):'—','Meta de receita do mês atual', cm?comMesLabel(cm.ym):'')}
-      ${card(cm?fmtMoney(cm.c.nV+cm.c.premS):'—','Prêmio novo a vender no mês', mixMeta)}
-      ${card(fmtMoney(tkVida)+' · '+(cm?fmtMoney(cm.c.tS):'—'),'Ticket médio (Vida por mês · Saúde por vida)','editável na tabela / padrões abaixo')}
+      ${card('🔒 '+fmtMoney(totalMeta),'Meta de receita — travada (Set/26 a Dez/27)','universal: não é alterada; tudo é comparado com ela')}
+      ${card(fmtMoney(totalPeriodo),'Projeção com as premissas abaixo','Vida '+fmtMoney(totVida)+' · Saúde '+fmtMoney(totSaude))}
+      ${card('<span style="color:'+(dif>=0?'#0b7a4f':'#c23636')+'">'+(dif>=0?'+':'−')+fmtMoney(Math.abs(dif))+'</span>','Projeção × meta', dif>=0?'projeção acima da meta':'falta para alcançar a meta')}
+      ${card(cm?fmtMoney(metaTot(cm)):'—','Meta de receita do mês atual', cm?comMesLabel(cm.ym)+' · prêmio novo a vender '+fmtMoney(bn(cm,'vida_premio_novo')+bn(cm,'saude_premio'))+' ('+mixMeta+')':'')}
     </div>
     <div class="es-box"><div class="ql">Quanto falta (mês atual)</div>${proj}</div>
     <div class="es-box"><div class="ql">Projeção mês a mês — Set/26 a Dez/27</div>
-      <div class="hint" style="margin-bottom:8px">Como na planilha do BP: as linhas com campo <b>(fundo amarelo)</b> são as premissas de cada mês — edite direto na célula e a receita recalcula. <label class="chk" style="display:inline-flex;margin-left:8px"><input type="checkbox" id="com-fwd" checked> aplicar também aos meses seguintes</label> Realizado = apólices novas da CallMed (Central de Apólices), prêmio mensalizado (anual ÷ 12); Indicação e RX não têm origem automática — preencha nas linhas verdes.</div>
-      <style>.com-t{border-collapse:collapse;font-size:12.5px;min-width:100%}.com-t th,.com-t td{padding:6px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}.com-t th:first-child,.com-t td:first-child{text-align:left;position:sticky;left:0;background:var(--card,#fff);min-width:270px;z-index:1}.com-t thead th{background:var(--brand);color:#fff;font-weight:600}.com-t thead th:first-child{background:var(--brand)}.com-t .sec td{background:#eef0fb;font-weight:700;color:var(--brand)}.com-t .tot td{font-weight:700;background:#f6f7fc}.com-t .real td{font-style:italic;color:#0b7a4f}.com-t .prem td{background:#fffbea}.com-t .prem td:first-child{font-weight:600}.com-t td.cur,.com-t th.cur{box-shadow:inset 0 -2px 0 var(--amber,#e0a94f)}.com-t .grand td{font-weight:800;background:#e3e7fb}.com-t input{border:1px solid var(--border);border-radius:6px;padding:3px 5px;font:inherit}</style>
+      <div class="hint" style="margin-bottom:8px">A <b>meta travada</b> (topo, cinza) nunca muda e é a referência de tudo. As linhas com campo <b>(fundo amarelo)</b> são as premissas da <b>projeção</b> de cada mês — edite direto na célula e a receita projetada recalcula. <label class="chk" style="display:inline-flex;margin-left:8px"><input type="checkbox" id="com-fwd" checked> aplicar também aos meses seguintes</label> Realizado = apólices novas da CallMed (Central de Apólices), prêmio mensalizado (anual ÷ 12); Indicação e RX não têm origem automática — preencha nas linhas verdes.</div>
+      <style>.com-t{border-collapse:collapse;font-size:12.5px;min-width:100%}.com-t th,.com-t td{padding:6px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--border)}.com-t th:first-child,.com-t td:first-child{text-align:left;position:sticky;left:0;background:var(--card,#fff);min-width:270px;z-index:1}.com-t thead th{background:var(--brand);color:#fff;font-weight:600}.com-t thead th:first-child{background:var(--brand)}.com-t .sec td{background:#eef0fb;font-weight:700;color:var(--brand)}.com-t .tot td{font-weight:700;background:#f6f7fc}.com-t .real td{font-style:italic;color:#0b7a4f}.com-t .prem td{background:#fffbea}.com-t .prem td:first-child{font-weight:600}.com-t td.cur,.com-t th.cur{box-shadow:inset 0 -2px 0 var(--amber,#e0a94f)}.com-t .lock td{background:#f1f2f6;color:#3b4046}.com-t .grand td{font-weight:800;background:#e3e7fb}.com-t input{border:1px solid var(--border);border-radius:6px;padding:3px 5px;font:inherit}</style>
       <div class="com-scroll" style="overflow-x:auto"><table class="com-t"><thead><tr><th>Cenário de meta</th>${rows.map(x=>`<th class="${x.ym===cur?'cur':''}">${comMesLabel(x.ym)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${body}</tbody></table></div></div>
     <div class="es-box"><div class="ql">Padrões gerais</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:6px">${COM_PADROES.map(([k,l])=>`<label class="fl"><span>${l}</span><input class="com-par" data-k="${k}" type="number" step="any" value="${PAD[k]}"></label>`).join('')}</div>
