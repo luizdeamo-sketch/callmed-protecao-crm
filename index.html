@@ -805,7 +805,7 @@ async function comRenderEstrategias(host, ctx){
     </div>
     <div class="com-scroll" style="overflow-x:auto"><table class="com-t" style="min-width:820px"><thead><tr><th>Estratégia</th><th style="text-align:left">Etapa do funil</th><th style="text-align:left">Produto</th><th>Status</th><th>Apólices/mês (estimativa)</th><th style="text-align:left">Responsável</th></tr></thead><tbody>
     ${grupos.map(g=>`<tr class="sec"><td colspan="6">${escapeHtml(g.n)}</td></tr>`+g.l.map(e=>`<tr>
-      <td title="${escapeHtml((e.descricao||'')+' — Fonte: '+(e.fonte||''))}" style="white-space:normal;max-width:330px"><b>${escapeHtml(e.nome)}</b><br><small style="color:var(--ink-faint)">${escapeHtml(e.descricao||'')}</small></td>
+      <td title="${escapeHtml((e.descricao||'')+' — Fonte: '+(e.fonte||''))}" style="white-space:normal;max-width:330px"><b>${escapeHtml(e.nome)}</b><br><small style="color:var(--ink-faint)">${escapeHtml(e.descricao||'')}</small>${e.observacao?'<br><small style="color:#8a6d00">💡 '+escapeHtml(e.observacao)+'</small>':''}</td>
       <td style="text-align:left">${escapeHtml(e.etapa||'')}</td><td style="text-align:left">${escapeHtml(e.produto||'')}</td>
       <td><select class="est-f" data-id="${e.id}" data-col="status">${opt(e.status)}</select></td>
       <td><input class="est-f" data-id="${e.id}" data-col="contribuicao_mes" type="number" step="any" min="0" style="width:80px" value="${e.contribuicao_mes==null?'':e.contribuicao_mes}"></td>
