@@ -1163,11 +1163,12 @@ function pvRender(){
   view.innerHTML = `<div class="person-header"><div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn-ghost" id="btn-op-back">← Aliança</button><h2 style="margin:0">${escapeHtml(p.nome)}</h2></div>
       <div class="tags" style="margin-top:8px"><span class="tag">${TIPOS_PESSOA[p.tipo||'medico']||p.tipo}</span>${p.crm?`<span class="tag">CRM ${escapeHtml(p.crm)}</span>`:''}${p.especialidade?`<span class="tag">${escapeHtml(p.especialidade)}</span>`:''}${pvClassChip(p)}${(p.tags||[]).map(t=>`<span class="tag">🏷 ${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button><button class="om-cancel" id="pa-wa">💬 WhatsApp com script</button></div>
+      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button><button class="om-cancel" id="pa-wa">💬 WhatsApp com script</button><button class="om-cancel" id="pa-audit" title="Quem alterou o quê, e quando">🕓 Histórico de alterações</button></div>
       <div id="pv-next">${pvNextHtml(p)}</div>
     </div></div>
     <div class="pv-tabs">${PV_TABS.map(([k,l])=>`<button class="pv-tab${PV.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
     <div id="pv-body"></div>`;
+    document.getElementById('pa-audit').addEventListener('click', ()=> auditDialog(p.id, p.nome));
     pvShowTab(PV.tab);
 }
 function pvGoto(tab){ PV.tab = tab; document.querySelectorAll('.pv-tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab)); pvShowTab(tab); }
@@ -2334,9 +2335,12 @@ function opOpenModal(pid, clickedDate, focusKey){
   const box = document.getElementById('op-modal');
   box.innerHTML = `<div class="op-modal-card"><div class="om-title"><div><h3>${escapeHtml(p.nome)}</h3><div class="om-sub">Etapas do funil · uma após a outra, sem sobreposição. Deixe o fim em branco na etapa em andamento.</div></div><button id="om-close" title="Fechar">✕</button></div>
     <div class="om-list">${rows}</div><div class="om-err" id="om-err"></div>
+    <div style="padding:6px 22px 0;font-size:12px;color:var(--ink-faint)"><span id="om-audit-last">🕓 carregando última alteração…</span> <a href="#" id="om-audit-open">ver histórico</a></div>
     <div class="om-foot"><button class="btn-ghost" id="om-open-person">Abrir cadastro completo</button><span style="flex:1"></span><button class="om-cancel" id="om-cancel">Cancelar</button><button class="om-save" id="om-save">Salvar</button></div></div>`;
   box.style.display = 'flex';
   opModalCtx = {pid};
+  auditLastLine(pid).then(t=>{ const e = document.getElementById('om-audit-last'); if(e) e.textContent = t; });
+  document.getElementById('om-audit-open').addEventListener('click', ev=>{ ev.preventDefault(); auditDialog(pid, p.nome); });
 }
 function opCloseModal(){ const b = document.getElementById('op-modal'); b.style.display='none'; b.innerHTML=''; opModalCtx = null; }
 
@@ -2736,6 +2740,26 @@ function pessoaOptionHtml(p, name, checked){
 }
 
 // ---------- janela genérica ----------
+// ---------- AUDITORIA: quem alterou, o quê e quando (registrado pelo banco a cada insert/update/delete) ----------
+const AUD_TAB = {crm_pessoas:'Cadastro', crm_apolices:'Apólice', crm_funil:'Funil', crm_oportunidades:'Oportunidade', crm_atividades:'Atividade', crm_diagnostico:'Diagnóstico', crm_estudos:'Estudo', crm_documentos:'Documento', crm_eventos_vida:'Evento de vida', crm_interacoes:'Interação', crm_jornada:'Jornada', crm_lead_notas:'Nota', crm_lembretes:'Lembrete', crm_pos_venda:'Pós-venda', crm_protecao_atual:'Proteção atual', crm_relacionamento:'Relacionamento', crm_tarefas_diarias:'Tarefa', crm_agenda:'Agenda', crm_comercial:'Comercial', crm_indicacoes:'Indicação', crm_metas:'Metas', crm_meta_comercial:'Premissas comerciais', crm_estrategias:'Estratégia', crm_base_conhecimento:'Base de conhecimento', crm_catalogo_produtos:'Catálogo', crm_ata_entregaveis:'Ata'};
+const AUD_ACAO = {INSERT:'criou', UPDATE:'alterou', DELETE:'apagou'};
+const audWhen = s => { const d = new Date(s); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
+const audWho = e => (e||'desconhecido').split('@')[0];
+async function auditLastLine(pid){
+  const { data } = await sb.from('crm_auditoria').select('em,usuario_email,acao,tabela').eq('pessoa_id', pid).order('em',{ascending:false}).limit(1);
+  const r = (data||[])[0];
+  return r ? '🕓 Última alteração: '+audWho(r.usuario_email)+' · '+audWhen(r.em)+' ('+(AUD_TAB[r.tabela]||r.tabela)+')' : '🕓 Sem alterações registradas ainda.';
+}
+async function auditDialog(pid, nome){
+  const { data, error } = await sb.from('crm_auditoria').select('*').eq('pessoa_id', pid).order('em',{ascending:false}).limit(200);
+  const fmtV = v => v==null ? '—' : (typeof v==='object' ? JSON.stringify(v) : String(v));
+  const det = r => r.acao==='UPDATE'
+    ? Object.keys(r.depois||{}).slice(0,6).map(k=>'<b>'+escapeHtml(k)+'</b>: '+escapeHtml(fmtV((r.antes||{})[k]).slice(0,60))+' → '+escapeHtml(fmtV(r.depois[k]).slice(0,60))).join('<br>')
+    : '';
+  dlgOpen(`<h3 style="margin:0 0 4px">🕓 Histórico de alterações</h3><div class="hint" style="margin-bottom:10px">${escapeHtml(nome||'')} — quem mexeu, em quê e quando.</div>
+    <div style="max-height:60vh;overflow:auto">${error?escapeHtml(error.message):((data||[]).length?(data||[]).map(r=>`<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:12.5px"><b>${escapeHtml(audWho(r.usuario_email))}</b> ${AUD_ACAO[r.acao]||r.acao} <b>${escapeHtml(AUD_TAB[r.tabela]||r.tabela)}</b> <span style="color:var(--ink-faint)">· ${audWhen(r.em)}</span>${det(r)?'<div style="margin-top:3px;color:var(--ink-soft);font-size:12px">'+det(r)+'</div>':''}</div>`).join(''):'<div class="no-rec">Nenhuma alteração registrada ainda (o registro começou em 25/09/2026).</div>')}</div>
+    <div style="margin-top:12px;text-align:right"><button class="om-cancel" data-close>Fechar</button></div>`, true);
+}
 function dlgOpen(html, wide){
   let box = document.getElementById('dlg');
   if(!box){ box = document.createElement('div'); box.id = 'dlg'; document.body.appendChild(box);
