@@ -382,6 +382,7 @@
         <h2 style="margin:0;">🗒️ Ata de Entregáveis</h2>
         <div id="ata-toggle" class="seg-toggle">
           <button type="button" class="active" data-mode="diario">Diário</button>
+          <button type="button" data-mode="marcos">🛤️ Marcos</button>
           <button type="button" data-mode="semanal">📅 Semanal</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label style="font-size:12.5px;color:var(--ink-faint)">Semana de <input type="date" id="ata-ceo-data" style="margin-left:4px"></label><button type="button" class="btn-export-pdf" id="ata-ceo-btn">⬇ Exportar semana para o CEO</button></div>
@@ -389,6 +390,7 @@
       <div style="color:var(--ink-faint); font-size:12.5px; margin-bottom:22px;">Histórico contínuo de decisões e entregas — mais recente primeiro.</div>
       <div id="ata-list" style="max-width:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px;align-items:start"></div>
       <div id="ata-semanal-list" style="max-width:none; display:none;"></div>
+      <div id="ata-marcos" style="display:none"></div>
     </div>
 
   </div>
@@ -1882,14 +1884,38 @@ async function renderAtaSemanal(){
     exportSemanaPDF({ semana_inicio: iso(seg), semana_fim: iso(dom), dias, entregou, em_aberto: (ult&&ult.em_aberto)||[] });
   });
 })();
+async function renderAtaMarcos(){
+  const el = document.getElementById('ata-marcos');
+  const { data, error } = await sb.from('crm_ata_entregaveis').select('data,dia_semana,marco_icone,marco_titulo,marco_texto,entregue').order('data');
+  if(error){ el.textContent = 'Erro: '+error.message; return; }
+  const dias = (data||[]);
+  if(!dias.length){ el.innerHTML = '<div class="no-rec">Nenhum registro ainda.</div>'; return; }
+  el.innerHTML = `<style>
+    .mc-wrap{position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:26px 0;padding-top:4px}
+    .mc-item{position:relative;padding:34px 14px 0 0}
+    .mc-item::before{content:"";position:absolute;top:13px;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--brand),#7d92ff);border-radius:2px}
+    .mc-item::after{content:attr(data-ico);position:absolute;top:-2px;left:0;width:30px;height:30px;border-radius:50%;background:var(--surface,#fff);border:3px solid var(--brand);display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1}
+    .mc-date{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;color:var(--brand);text-transform:uppercase}
+    .mc-tit{font-size:14.5px;font-weight:700;margin:2px 0 4px}
+    .mc-txt{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
+    .mc-n{font-size:11px;color:var(--ink-faint);margin-top:4px}
+  </style>
+  <div class="hint" style="margin-bottom:14px">Os grandes saltos de cada dia na evolução do negócio, em ordem cronológica — da esquerda para a direita.</div>
+  <div class="mc-wrap">${dias.map(d=>`<div class="mc-item" data-ico="${escapeHtml(d.marco_icone||'●')}">
+    <div class="mc-date">${escapeHtml(fmtDDMM(d.data))} · ${escapeHtml((d.dia_semana||'').split('-')[0])}</div>
+    <div class="mc-tit">${escapeHtml(d.marco_titulo||'Sem marco definido')}</div>
+    <div class="mc-txt">${escapeHtml(d.marco_texto||((d.entregue||[])[0]||''))}</div>
+    <div class="mc-n">${(d.entregue||[]).length} entregas no dia</div></div>`).join('')}</div>`;
+}
 document.querySelectorAll('#ata-toggle button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('#ata-toggle button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    const diario = btn.dataset.mode === 'diario';
-    document.getElementById('ata-list').style.display = diario ? 'block' : 'none';
-    document.getElementById('ata-semanal-list').style.display = diario ? 'none' : 'block';
-    if(diario) renderAta(); else renderAtaSemanal();
+    const m = btn.dataset.mode;
+    document.getElementById('ata-list').style.display = m==='diario' ? 'grid' : 'none';
+    document.getElementById('ata-semanal-list').style.display = m==='semanal' ? 'block' : 'none';
+    document.getElementById('ata-marcos').style.display = m==='marcos' ? 'block' : 'none';
+    if(m==='diario') renderAta(); else if(m==='semanal') renderAtaSemanal(); else renderAtaMarcos();
   });
 });
 
