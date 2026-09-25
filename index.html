@@ -1139,7 +1139,9 @@ const MOTIVOS = ['Sem interesse','Já possui proteção','Preço','Cobertura','M
 const MOTIVOS_PAUSA = ['Precisa pensar','Momento financeiro','Não respondeu','Não foi possível contato'];
 const TIPOS_ATIV = [['ligacao','📞 Ligação'],['whatsapp','💬 WhatsApp'],['email','✉️ E-mail'],['reuniao','🤝 Reunião'],['visita','🚗 Visita'],['proposta','📑 Proposta'],['outro','📝 Outro']];
 const RESULTADOS = ['Conversou','Sem resposta','Agendou','Enviou material','Demonstrou interesse','Sem interesse','Outro'];
-const OPP_PRODUTOS = ['Vida','Vida em grupo','RC Profissional','DIT / renda','Saúde','Odontológico','Previdência','Patrimonial / Empresarial','Residencial','Automóvel','Prestamista','D&O','Outro'];
+const OPP_PRODUTOS = ['Vida','RC Profissional','Saúde','Consórcio','Vida em grupo','DIT / renda','Odontológico','Previdência','Patrimonial / Empresarial','Residencial','Automóvel','Prestamista','D&O','Outro'];
+const OPP_PILARES = ['Carreira','Renda','Patrimônio'];
+const OPP_PILAR_DE = {'RC Profissional':'Carreira','Vida':'Renda','Vida em grupo':'Renda','DIT / renda':'Renda','Saúde':'Renda','Odontológico':'Renda','Prestamista':'Renda','Consórcio':'Patrimônio','Previdência':'Patrimônio','Patrimonial / Empresarial':'Patrimônio','Residencial':'Patrimônio','Automóvel':'Patrimônio','D&O':'Carreira'};
 const OPP_STATUS = [['aberta','Aberta'],['ganha','Ganha'],['perdida','Perdida'],['pausada','Pausada']];
 const DIAG_ESSENCIAL = [['status','Status do diagnóstico','select',['em_aberto','parcial','completo']],['renda_mensal_valor_exato','Renda mensal (R$)','number'],['despesas_mensais','Despesas mensais (R$)','number'],['dependentes','Nº de dependentes','number'],
   ['dependentes_idades','Idade dos dependentes','text'],['valor_bens_totais','Patrimônio total bruto (R$)','number'],['patrimonio_financeiro','Patrimônio financeiro (R$)','number'],['dividas_valor','Dívidas / financiamentos (R$)','number'],
@@ -1443,15 +1445,15 @@ async function pvOportunidades(p){
   host.innerHTML = `<div class="ql">Oportunidades por produto <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— a etapa de cada produto vive aqui; o funil da pessoa (Aliança) acompanha automaticamente a mais avançada</small></div>
     ${error?'<div class="om-err">'+escapeHtml(error.message)+'</div>':''}
     ${sug.length?`<div class="es-warn" style="margin-bottom:10px"><b>💡 Sugestões de cross-sell / up-sell</b><div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">${sug.map((s,i)=>`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button class="om-save" data-sugopp="${i}" style="padding:5px 10px;font-size:12px">+ ${escapeHtml(s.produto)}</button><small style="color:var(--ink-soft)">${escapeHtml(s.motivo)}</small></div>`).join('')}</div></div>`:''}
-    ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Etapa</th><th>Status</th><th>Prêmio previsto</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr data-opp="${o.id}"><td><b>${escapeHtml(o.produto)}</b></td><td>${escapeHtml((ETAPAS_FUNIL.find(e=>e.key===o.etapa)||{label:o.etapa}).label)}</td><td><span class="tagx ${o.status==='perdida'?'bad':(o.status==='ganha'?'':(o.status==='pausada'?'warn':''))}">${escapeHtml((OPP_STATUS.find(s=>s[0]===o.status)||[0,o.status])[1])}</span>${o.motivo_perda?'<br><small>'+escapeHtml(o.motivo_perda)+'</small>':''}</td><td>${fmtMoney(o.premio_previsto)}</td><td>${escapeHtml(o.responsavel||'—')}</td><td><a href="#" data-edit-opp="${o.id}">editar</a></td></tr>`).join('')}</tbody></table>`:'<div class="hint">Nenhuma oportunidade ainda.</div>'}
+    ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Pilar / necessidade</th><th>Etapa</th><th>Status</th><th>Prêmio previsto</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(o=>`<tr data-opp="${o.id}"><td><b>${escapeHtml(o.produto)}</b></td><td><small><b>${escapeHtml(o.pilar||OPP_PILAR_DE[o.produto]||'—')}</b>${o.necessidade?'<br>'+escapeHtml(o.necessidade):''}${o.proximo_passo?'<br>→ '+escapeHtml(o.proximo_passo):''}</small></td><td>${escapeHtml((ETAPAS_FUNIL.find(e=>e.key===o.etapa)||{label:o.etapa}).label)}</td><td><span class="tagx ${o.status==='perdida'?'bad':(o.status==='ganha'?'':(o.status==='pausada'?'warn':''))}">${escapeHtml((OPP_STATUS.find(s=>s[0]===o.status)||[0,o.status])[1])}</span>${o.motivo_perda?'<br><small>'+escapeHtml(o.motivo_perda)+'</small>':''}</td><td>${fmtMoney(o.premio_previsto)}</td><td>${escapeHtml(o.responsavel||'—')}</td><td><a href="#" data-edit-opp="${o.id}">editar</a></td></tr>`).join('')}</tbody></table>`:'<div class="hint">Nenhuma oportunidade ainda.</div>'}
     <div class="sg-row" style="margin-top:10px"><select id="op-new-prod" class="ca-inp" style="width:190px">${OPP_PRODUTOS.map(o=>`<option>${o}</option>`).join('')}</select><select id="op-new-etapa" class="ca-inp" style="width:150px">${ETAPAS_FUNIL.map(e=>`<option value="${e.key}">${e.label}</option>`).join('')}</select><input id="op-new-prem" type="number" class="ca-inp" placeholder="Prêmio previsto (R$)" style="width:170px"><button class="om-save" id="op-new-add">+ Nova oportunidade</button></div>`;
   const addOpp = async (produto)=>{
-    const { error } = await sb.from('crm_oportunidades').insert({ pessoa_id:p.id, produto, etapa:'contato', premio_previsto:null, responsavel:curUserName() });
+    const { error } = await sb.from('crm_oportunidades').insert({ pessoa_id:p.id, produto, pilar:OPP_PILAR_DE[produto]||null, etapa:'contato', premio_previsto:null, responsavel:curUserName() });
     if(error){ showToast('Erro: '+error.message); return; } await syncFunilComOpp(p.id, 'contato'); showToast('Oportunidade criada'); pvOportunidades(p);
   };
   host.querySelectorAll('[data-sugopp]').forEach(b=>b.addEventListener('click', ()=> addOpp(sug[Number(b.dataset.sugopp)].produto)));
   host.querySelector('#op-new-add').addEventListener('click', async ()=>{
-    const { error } = await sb.from('crm_oportunidades').insert({ pessoa_id:p.id, produto:document.getElementById('op-new-prod').value, etapa:document.getElementById('op-new-etapa').value, premio_previsto:document.getElementById('op-new-prem').value?Number(document.getElementById('op-new-prem').value):null, responsavel:curUserName() });
+    const { error } = await sb.from('crm_oportunidades').insert({ pessoa_id:p.id, produto:document.getElementById('op-new-prod').value, pilar:OPP_PILAR_DE[document.getElementById('op-new-prod').value]||null, etapa:document.getElementById('op-new-etapa').value, premio_previsto:document.getElementById('op-new-prem').value?Number(document.getElementById('op-new-prem').value):null, responsavel:curUserName() });
     if(error){ showToast('Erro: '+error.message); return; } await syncFunilComOpp(p.id, document.getElementById('op-new-etapa').value); showToast('Oportunidade criada'); pvOportunidades(p); });
   host.querySelectorAll('[data-edit-opp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); pvOppDialog(p, rows.find(r=>r.id===a.dataset.editOpp)); }));
 }
@@ -1462,6 +1464,10 @@ function pvOppDialog(p, o){
       <label class="fl"><span>Status</span><select id="oe-status">${OPP_STATUS.map(s=>`<option value="${s[0]}" ${o.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
       ${fld('oe-prem','Prêmio previsto (R$)',o.premio_previsto==null?'':String(o.premio_previsto),'number')}${fld('oe-resp','Responsável',o.responsavel)}
       <label class="fl"><span>Motivo (se perdida/pausada)</span><select id="oe-motivo"><option value="">—</option>${MOTIVOS.map(m=>`<option ${o.motivo_perda===m?'selected':''}>${m}</option>`).join('')}</select></label>${fld('oe-reat','Data de reativação',o.data_reativacao||'','date')}
+      <div class="ql full" style="grid-column:1/-1;margin-top:6px">Necessidade que originou esta oportunidade <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— Carreira → Renda → Proteção → Patrimônio</small></div>
+      <label class="fl"><span>Pilar identificado</span><select id="oe-pilar"><option value="">—</option>${OPP_PILARES.map(x=>`<option ${(o.pilar||OPP_PILAR_DE[o.produto])===x?'selected':''}>${x}</option>`).join('')}</select></label>
+      ${fld('oe-nec','Necessidade identificada',o.necessidade)}${fld('oe-prel','Produto relacionado',o.produto_relacionado)}${fld('oe-oid','Oportunidade identificada',o.oportunidade_identificada)}
+      ${fld('oe-pof','Produto ofertado',o.produto_ofertado)}${fld('oe-pcon','Produto contratado',o.produto_contratado)}${fld('oe-pp','Próximo passo',o.proximo_passo)}
       ${fld('oe-obs','Observações',o.observacoes,'text',true)}
     </div><div class="om-err" id="oe-err"></div></div>
     <div class="om-foot"><button class="om-cancel" id="oe-del" style="color:var(--red)">Excluir</button><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="oe-save">Salvar</button></div>`);
@@ -1470,6 +1476,7 @@ function pvOppDialog(p, o){
     if((st==='perdida'||st==='pausada') && !g('oe-motivo')){ document.getElementById('oe-err').textContent = 'Informe o motivo.'; return; }
     if(st==='pausada' && !g('oe-reat')){ document.getElementById('oe-err').textContent = 'Pausa exige data de reativação.'; return; }
     const upd = { etapa:g('oe-etapa'), status:st, premio_previsto:g('oe-prem')?Number(g('oe-prem')):null, responsavel:g('oe-resp')||null, motivo_perda:g('oe-motivo')||null, data_reativacao:g('oe-reat')||null, observacoes:g('oe-obs')||null,
+      pilar:g('oe-pilar')||null, necessidade:g('oe-nec')||null, produto_relacionado:g('oe-prel')||null, oportunidade_identificada:g('oe-oid')||null, produto_ofertado:g('oe-pof')||null, produto_contratado:g('oe-pcon')||null, proximo_passo:g('oe-pp')||null,
       fechada_em:(st==='ganha'||st==='perdida')?new Date().toISOString():null, updated_at:new Date().toISOString() };
     const { error } = await sb.from('crm_oportunidades').update(upd).eq('id', o.id); if(error){ document.getElementById('oe-err').textContent = 'Erro: '+error.message; return; }
     if(st==='ganha') await syncFunilComOpp(p.id, 'fechamento'); else if(st==='aberta') await syncFunilComOpp(p.id, upd.etapa);
@@ -3127,6 +3134,95 @@ function renderDayEvents(events, date){
   el.querySelectorAll('[data-agedit]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); agEdit(a.dataset.agedit); }));
 }
 
+// ---------- PROPOSTA COMERCIAL a partir das cotações das seguradoras ----------
+const PRO_FRENTES = ['Proteção Familiar','Proteção de Renda'];
+const proFrente = c => /morte|sucess|funeral/i.test(c||'') && !/invalid/i.test(c||'') ? PRO_FRENTES[0] : PRO_FRENTES[1];
+const proNum = v => { if(v==null||v==='') return null; const n = Number(String(v).replace(/[R$\s.]/g,'').replace(',','.')); return isNaN(n) ? null : n; };
+const proMoney2 = v => v==null ? '—' : 'R$ '+Number(v).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+const proFileB64 = f => new Promise((ok,ko)=>{ const r = new FileReader(); r.onload = ()=>ok(String(r.result).split(',')[1]); r.onerror = ko; r.readAsDataURL(f); });
+function esPropostaBoxHtml(){
+  return `<div class="es-box" id="pro-box"><div class="ql">📑 Proposta comercial a partir das cotações</div>
+    <div class="hint" style="margin-bottom:8px">Envie as cotações das seguradoras (PDF). O sistema lê <b>cobertura · capital segurado · prêmio</b> de cada uma e monta a proposta da CallMed Proteção Patrimonial, agrupada em Proteção Familiar e Proteção de Renda. Confira e ajuste a tabela antes de gerar.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input type="file" id="pro-files" accept="application/pdf" multiple><button class="om-save" id="pro-ler">🤖 Ler cotações</button><button class="om-cancel" id="pro-add">＋ Linha manual</button></div>
+    <div id="pro-msg" class="hint" style="margin-top:6px"></div><div id="pro-tab"></div></div>`;
+}
+function esBindProposta(e){
+  const box = document.getElementById('pro-box'); if(!box) return;
+  let P = e.proposta && e.proposta.itens ? e.proposta : { itens: [], arquivos: [] };
+  const salvar = async ()=>{ const { error } = await sb.from('crm_estudos').update({ proposta: P }).eq('id', e.id); if(error) showToast('Erro ao salvar a proposta: '+error.message); else e.proposta = P; };
+  const draw = ()=>{
+    const tot = f => P.itens.filter(i=>!f||i.frente===f).reduce((t,i)=>t+(Number(i.premio_mensal)||0),0);
+    document.getElementById('pro-tab').innerHTML = P.itens.length ? `<div style="overflow-x:auto;margin-top:8px"><table class="ca-table"><thead><tr><th>Frente</th><th>Cobertura</th><th>Seguradora</th><th>Capital / benefício</th><th>Mensalidade (R$)</th><th></th></tr></thead><tbody>
+      ${P.itens.map((it,i)=>`<tr><td><select data-pi="${i}" data-k="frente">${PRO_FRENTES.map(f=>`<option ${it.frente===f?'selected':''}>${f}</option>`).join('')}</select></td>
+        <td><input data-pi="${i}" data-k="cobertura" value="${escapeHtml(it.cobertura||'')}" style="min-width:150px"></td>
+        <td><input data-pi="${i}" data-k="seguradora" value="${escapeHtml(it.seguradora||'')}" style="width:100px"></td>
+        <td><input data-pi="${i}" data-k="capital_texto" value="${escapeHtml(it.capital_texto|| (it.capital!=null?proMoney2(it.capital):''))}" style="min-width:150px"></td>
+        <td><input data-pi="${i}" data-k="premio_mensal" value="${it.premio_mensal==null?'':String(it.premio_mensal).replace('.',',')}" style="width:90px"></td>
+        <td><a href="#" data-pdel="${i}" style="color:var(--red)">remover</a></td></tr>`).join('')}</tbody></table></div>
+      <div class="hint" style="margin-top:8px">${PRO_FRENTES.map(f=>f+': <b>'+proMoney2(tot(f))+'</b>').join(' · ')} · <b>Total mensal: ${proMoney2(tot())}</b></div>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="pro-save">💾 Salvar tabela</button><button class="om-save" id="pro-pdf">⬇ Gerar proposta (PDF)</button></div>` : '';
+    box.querySelectorAll('[data-pi]').forEach(inp=>inp.addEventListener('change', ()=>{
+      const it = P.itens[Number(inp.dataset.pi)], k = inp.dataset.k;
+      if(k==='premio_mensal') it[k] = proNum(inp.value); else if(k==='capital_texto'){ it[k] = inp.value; const n = proNum(inp.value); if(n!=null && /^[\sR$\d.,]+$/.test(inp.value)) it.capital = n; } else it[k] = inp.value;
+      if(k==='cobertura') it.frente = proFrente(inp.value);
+      salvar().then(draw); }));
+    box.querySelectorAll('[data-pdel]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); P.itens.splice(Number(a.dataset.pdel),1); salvar().then(draw); }));
+    const sv = document.getElementById('pro-save'); if(sv) sv.addEventListener('click', async ()=>{ await salvar(); showToast('Tabela salva'); });
+    const pf = document.getElementById('pro-pdf'); if(pf) pf.addEventListener('click', ()=> exportPropostaPDF(e, P));
+  };
+  document.getElementById('pro-add').addEventListener('click', ()=>{ P.itens.push({frente:PRO_FRENTES[1], cobertura:'', seguradora:'', capital_texto:'', premio_mensal:null}); salvar().then(draw); });
+  document.getElementById('pro-ler').addEventListener('click', async ()=>{
+    const files = [...document.getElementById('pro-files').files], msg = document.getElementById('pro-msg');
+    if(!files.length){ msg.textContent = 'Escolha ao menos um PDF de cotação.'; return; }
+    const btn = document.getElementById('pro-ler'); btn.disabled = true;
+    for(const f of files){
+      msg.textContent = '⏳ Lendo '+f.name+'…';
+      try{
+        const { data, error } = await sb.functions.invoke('extrair-cotacao', { body: { pdf_base64: await proFileB64(f), filename: f.name } });
+        if(error || (data&&data.error)) throw new Error(data&&data.error ? data.error : await ruErr(error));
+        const c = data.cotacao||{};
+        (c.itens||[]).forEach(it=>P.itens.push({ frente: proFrente(it.cobertura), cobertura: it.cobertura, seguradora: c.seguradora||'', capital: it.capital, capital_texto: it.capital_texto || (it.capital!=null?proMoney2(it.capital):''), premio_mensal: it.premio_mensal }));
+        if(c.total_mensal && !(c.itens||[]).some(i=>i.premio_mensal!=null)) showToast('A cotação de '+(c.seguradora||f.name)+' traz só o prêmio total ('+proMoney2(c.total_mensal)+'/mês) — distribua por cobertura na tabela.');
+        P.arquivos.push(f.name);
+      }catch(err){ msg.textContent = '❌ '+f.name+': '+(err.message||err); btn.disabled = false; await salvar(); draw(); return; }
+    }
+    msg.textContent = '✅ Cotações lidas. Confira os valores abaixo.'; btn.disabled = false; await salvar(); draw(); });
+  draw();
+}
+function exportPropostaPDF(e, P){
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const it = P.itens.filter(i=>i.cobertura);
+  const tot = f => it.filter(i=>!f||i.frente===f).reduce((t,i)=>t+(Number(i.premio_mensal)||0),0);
+  const segs = [...new Set(it.map(i=>i.seguradora).filter(Boolean))];
+  const cap = i => i.capital_texto || (i.capital!=null ? proMoney2(i.capital) : '—');
+  const nome = e.cliente_nome || 'Cliente';
+  document.getElementById('print-report').innerHTML = PDF2_CSS + `<div class="d2">
+    <div class="d2-page"><div class="d2-top"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><div class="t">Estudo personalizado de proteção<br>CallMed Proteção Patrimonial</div></div>
+      <h1>${escapeHtml(nome)}</h1>
+      <div class="sub">Proposta de proteção — estrutura consolidada por objetivo${segs.length?' · '+escapeHtml(segs.join(' + ')):''} · ${hoje}</div>
+      <h2><span class="n">01</span> Visão executiva</h2>
+      <p style="font-size:12px;line-height:1.55;color:#3b4054;margin:0 0 10px">A proposta foi organizada em duas frentes para facilitar a compreensão da proteção: <b>Proteção Familiar</b> e <b>Proteção de Renda</b>. Cada cobertura permanece vinculada à seguradora e ao capital informado na composição.</p>
+      <div class="d2-kpis" style="grid-template-columns:repeat(3,1fr)">
+        <div class="d2-kpi"><span>PROTEÇÃO FAMILIAR · custo mensal</span><b>${proMoney2(tot(PRO_FRENTES[0]))}</b><small>Proteções agrupadas por objetivo</small></div>
+        <div class="d2-kpi"><span>PROTEÇÃO DE RENDA · custo mensal</span><b>${proMoney2(tot(PRO_FRENTES[1]))}</b><small>Proteções agrupadas por objetivo</small></div>
+        <div class="d2-kpi" style="background:#0018FC"><span style="color:#dfe3ff">INVESTIMENTO MENSAL TOTAL</span><b style="color:#fff">${proMoney2(tot())}</b><small style="color:#dfe3ff">prêmio mensal consolidado</small></div></div>
+      <h2><span class="n">02</span> Coberturas e prêmios mensais</h2>
+      <table><thead><tr><th>Frente</th><th>Cobertura</th><th>Seguradora</th><th>Capital / benefício</th><th class="r">Mensalidade</th></tr></thead><tbody>
+        ${it.map(i=>`<tr><td>${escapeHtml(i.frente||'')}</td><td>${escapeHtml(i.cobertura)}</td><td>${escapeHtml(i.seguradora||'')}</td><td>${escapeHtml(cap(i))}</td><td class="r">${proMoney2(i.premio_mensal)}</td></tr>`).join('')}
+        <tr><td colspan="4"><b>TOTAL</b></td><td class="r"><b>${proMoney2(tot())}</b></td></tr></tbody></table>
+      <div class="d2-foot"><span>CallMed Proteção Patrimonial · Proposta 1/2</span><span>${hoje}</span></div></div>
+    <div class="d2-page"><div class="d2-top"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><div class="t">Estudo personalizado de proteção<br>CallMed Proteção Patrimonial</div></div>
+      <h2><span class="n">03</span> Como a proteção se complementa</h2>
+      <div class="d2-risk" style="grid-template-columns:1fr">
+        <div><b>Proteção Familiar</b><p>Garante liquidez para a família em caso de morte, incluindo a cobertura específica de sucessão.</p></div>
+        <div><b>Proteção de Renda</b><p>Reúne as coberturas destinadas a proteger a capacidade financeira diante de invalidez, afastamento temporário, doenças graves, cirurgias, internação hospitalar e fratura óssea.</p></div></div>
+      <h2><span class="n">04</span> Investimento mensal</h2>
+      <div class="d2-end" style="text-align:center"><b style="font-size:30px;font-family:Poppins,sans-serif">${proMoney2(tot())}</b><br>prêmio mensal consolidado</div>
+      <div class="d2-note">Proposta indicativa baseada nas cotações das seguradoras, sujeita à aceitação de risco e às condições gerais de cada produto. Valores mensais; capital e benefícios conforme apólice.</div>
+      <div class="d2-foot"><span>CallMed Proteção Patrimonial · Proposta 2/2</span><span>${hoje}</span></div></div></div>`;
+  setTimeout(()=>window.print(), 80);
+}
+
 // ---------- AUDITORIA: quem alterou, o quê e quando (registrado pelo banco a cada insert/update/delete) ----------
 const AUD_TAB = {crm_pessoas:'Cadastro', crm_apolices:'Apólice', crm_funil:'Funil', crm_oportunidades:'Oportunidade', crm_atividades:'Atividade', crm_diagnostico:'Diagnóstico', crm_estudos:'Estudo', crm_documentos:'Documento', crm_eventos_vida:'Evento de vida', crm_interacoes:'Interação', crm_jornada:'Jornada', crm_lead_notas:'Nota', crm_lembretes:'Lembrete', crm_pos_venda:'Pós-venda', crm_protecao_atual:'Proteção atual', crm_relacionamento:'Relacionamento', crm_tarefas_diarias:'Tarefa', crm_agenda:'Agenda', crm_comercial:'Comercial', crm_indicacoes:'Indicação', crm_metas:'Metas', crm_meta_comercial:'Premissas comerciais', crm_estrategias:'Estratégia', crm_base_conhecimento:'Base de conhecimento', crm_catalogo_produtos:'Catálogo', crm_ata_entregaveis:'Ata'};
 const AUD_ACAO = {INSERT:'criou', UPDATE:'alterou', DELETE:'apagou'};
@@ -4418,6 +4514,7 @@ function esShow(e){
       <table class="ca-table"><thead><tr><th>Seguradora</th><th>Fecha</th><th>Como</th><th>Cotação (R$/ano)</th><th>vs. atual</th></tr></thead><tbody>${rankRows||'<tr><td colspan="5">Sem lacunas cobertas pelo catálogo.</td></tr>'}</tbody></table>
       <div class="hint">O catálogo ainda não tem tabela de preços — lance aqui as cotações que você tirar em cada seguradora para ver a economia real frente ao prêmio atual.</div></div>
     ${esAnaliseBoxHtml()}
+    ${esPropostaBoxHtml()}
     <div class="es-box"><div class="ql">Parecer / observações</div><textarea id="es-obs" rows="5">${escapeHtml(e.observacoes||'')}</textarea>
       <div class="es-actions"><button class="om-cancel" id="es-parecer">Gerar parecer automático</button><button class="om-cancel" id="es-del" style="color:var(--red)">Excluir estudo</button><span style="flex:1"></span><button class="om-save" id="es-save">Salvar estudo</button></div></div>`;
   const $ = id=>document.getElementById(id);
@@ -4427,6 +4524,7 @@ function esShow(e){
   if($('es-newp')) $('es-newp').addEventListener('click', ()=> openNovoCliente({nome:e.cliente_nome, cpf:e.cliente_cpf}, async p=>{ await sb.from('crm_estudos').update({pessoa_id:p.id, cliente_nome:p.nome}).eq('id',e.id); renderEstudos(); }));
   adnBind();
   esBindAnaliseBox();
+  esBindProposta(e);
   if($('es-busca')){ let t; $('es-busca').addEventListener('input', ev=>{ clearTimeout(t); t = setTimeout(async ()=>{
     const q = ev.target.value.trim(); if(q.length<2){ $('es-busca-res').innerHTML=''; return; }
     const { data } = await sb.from('crm_pessoas').select('id,nome,cpf,crm').or(`nome.ilike.%${q}%,cpf.ilike.%${q}%,crm.ilike.%${q}%`).limit(8);
