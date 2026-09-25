@@ -1937,9 +1937,27 @@ async function renderAtaMarcos(){
     const dom = new Date(seg); dom.setDate(seg.getDate()+6);
     setR(mcIso(seg), mcIso(dom)); }));
   el.querySelector('#mc-export').addEventListener('click', ()=> exportMarcosPDF(dias));
+  el.insertAdjacentHTML('beforeend', '<div class="es-box" id="mc-ceo" style="margin-top:22px"></div>');
+  mcCeoDraw();
 }
-function exportMarcosPDF(dias){
+async function mcCeoDraw(){
+  const host = document.getElementById('mc-ceo'); if(!host) return;
+  const { data, error } = await sb.from('crm_pendencias_ceo').select('*').order('status',{ascending:false}).order('ordem').order('created_at');
+  if(error){ host.textContent = 'Erro: '+error.message; return; }
+  const rows = data||[];
+  host.innerHTML = `<div class="ql">🧭 Ações que dependem do CEO <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— entram no PDF “Exportar para o CEO” enquanto estiverem pendentes</small></div>
+    ${rows.length?rows.map(r=>`<div class="rec" style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" data-cdone="${r.id}" ${r.status==='feita'?'checked':''} style="margin-top:4px">
+      <div style="flex:1;${r.status==='feita'?'opacity:.55;text-decoration:line-through':''}"><b>${escapeHtml(r.titulo)}</b>${r.area?' <span class="tagx">'+escapeHtml(r.area)+'</span>':''}<br><small>${escapeHtml(r.detalhe||'')}</small></div>
+      <a href="#" data-cdel="${r.id}" style="color:var(--red);font-size:12px">remover</a></div>`).join(''):'<div class="hint">Nenhuma ação pendente com o CEO.</div>'}
+    <div class="sg-row" style="margin-top:10px"><input id="ceo-tit" class="ca-inp" placeholder="Nova ação que depende do CEO" style="flex:1;min-width:220px"><input id="ceo-area" class="ca-inp" placeholder="Área (Marca, Jurídico…)" style="width:170px"><input id="ceo-det" class="ca-inp" placeholder="Detalhe (opcional)" style="flex:1;min-width:200px"><button class="om-save" id="ceo-add">+ Adicionar</button></div>`;
+  host.querySelectorAll('[data-cdone]').forEach(c=>c.addEventListener('change', async ()=>{ await sb.from('crm_pendencias_ceo').update({status:c.checked?'feita':'pendente', concluida_em:c.checked?new Date().toISOString():null}).eq('id', c.dataset.cdone); mcCeoDraw(); }));
+  host.querySelectorAll('[data-cdel]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault(); if(!confirm('Remover esta ação?')) return; await sb.from('crm_pendencias_ceo').delete().eq('id', a.dataset.cdel); mcCeoDraw(); }));
+  host.querySelector('#ceo-add').addEventListener('click', async ()=>{ const t = document.getElementById('ceo-tit').value.trim(); if(!t){ showToast('Descreva a ação.'); return; }
+    const { error: er } = await sb.from('crm_pendencias_ceo').insert({ titulo:t, area:document.getElementById('ceo-area').value.trim()||null, detalhe:document.getElementById('ceo-det').value.trim()||null, ordem:rows.length+1 }); if(er){ showToast('Erro: '+er.message); return; } mcCeoDraw(); });
+}
+async function exportMarcosPDF(dias){
   if(!dias.length){ showToast('Nenhum marco no período selecionado.'); return; }
+  const { data: pend } = await sb.from('crm_pendencias_ceo').select('*').eq('status','pendente').order('ordem');
   const hoje = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
   const ini = dias[0].data, fim = dias[dias.length-1].data;
   const total = dias.reduce((t,d)=>t+(d.entregue||[]).length,0);
@@ -1954,6 +1972,7 @@ function exportMarcosPDF(dias){
       <p class="pr-section-title">Grandes marcos</p>
       <div class="pr-timeline">${dias.map(d=>`<div class="pr-tl-item"><span class="pr-tl-date">${escapeHtml(fmtDDMM(d.data))}</span><span class="pr-tl-day">${escapeHtml(d.dia_semana||'')}</span>
         <p class="pr-tl-text"><b>${escapeHtml((d.marco_icone||'')+' '+(d.marco_titulo||''))}</b><br>${escapeHtml(d.marco_texto||'')}</p></div>`).join('')}</div>
+      ${(pend||[]).length?`<p class="pr-section-title">Ações que dependem do CEO</p><div class="pr-box open" style="border-left:4px solid #0018FC"><ul>${pend.map(r=>`<li><b>${escapeHtml(r.titulo)}</b>${r.area?' ('+escapeHtml(r.area)+')':''}${r.detalhe?' — '+escapeHtml(r.detalhe):''}</li>`).join('')}</ul></div>`:''}
       ${abertos.length?`<p class="pr-section-title">Próximos passos em aberto</p><div class="pr-box open"><ul>${abertos.map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul></div>`:''}
       <div class="pr-footer"><span>Detalhes de cada dia na Ata diária do CRM · CallMed Proteção Patrimonial</span><span>Gerado em ${hoje}</span></div>
     </div>`;
