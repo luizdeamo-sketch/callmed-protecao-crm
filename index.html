@@ -323,14 +323,14 @@
 
     <div id="view-conhecimento" class="view" style="overflow-y:auto; padding:26px 32px;">
       <h2 style="margin-bottom:6px;">📚 Base de Conhecimento — manual comercial</h2>
-      <div class="op-filters" style="margin-bottom:14px;max-width:700px"><input id="kb-search" placeholder="Buscar por título ou tipo (ex.: objeção preço, script, playbook)..." style="flex:1;width:auto"><select id="kb-cat"><option value="">Todas as categorias</option></select><label class="chk" style="white-space:nowrap"><input type="checkbox" id="kb-full"> buscar também no texto</label></div>
-      <form class="add-form" id="conhecimento-form" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:20px; max-width:700px;">
+      <div class="op-filters" style="margin-bottom:14px;max-width:none"><input id="kb-search" placeholder="Buscar por título ou tipo (ex.: objeção preço, script, playbook)..." style="flex:1;width:auto"><select id="kb-cat"><option value="">Todas as categorias</option></select><label class="chk" style="white-space:nowrap"><input type="checkbox" id="kb-full"> buscar também no texto</label></div>
+      <form class="add-form" id="conhecimento-form" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); margin-bottom:20px; max-width:none;">
         <input name="titulo" placeholder="Título" required>
         <input name="categoria" placeholder="Categoria (ex.: objeção, script)">
         <textarea name="conteudo" placeholder="Conteúdo" rows="3" style="grid-column:1/-1;"></textarea>
         <button type="submit">+ Adicionar</button>
       </form>
-      <div id="conhecimento-list" style="max-width:700px;"></div>
+      <div id="conhecimento-list" style="max-width:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px;align-items:start"></div>
     </div>
 
     <div id="view-central" class="view">
@@ -358,7 +358,7 @@
     </div>
 
     <div id="view-sugestoes" class="view">
-      <div class="pg" style="max-width:920px">
+      <div class="pg" style="max-width:none">
         <div class="pg-head"><h2>💡 Sugestões de melhoria</h2><span class="sub">Ideias, problemas e pedidos para o sistema. Tudo fica registrado no histórico.</span></div>
         <div class="es-box">
           <div class="sg-row" style="margin-bottom:8px"><span class="ql" style="margin:0">Registrando como</span><select id="sg-who"><option>Amanda</option><option>Luiz</option><option>Outro</option></select></div>
@@ -387,8 +387,8 @@
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label style="font-size:12.5px;color:var(--ink-faint)">Semana de <input type="date" id="ata-ceo-data" style="margin-left:4px"></label><button type="button" class="btn-export-pdf" id="ata-ceo-btn">⬇ Exportar semana para o CEO</button></div>
       </div>
       <div style="color:var(--ink-faint); font-size:12.5px; margin-bottom:22px;">Histórico contínuo de decisões e entregas — mais recente primeiro.</div>
-      <div id="ata-list" style="max-width:760px;"></div>
-      <div id="ata-semanal-list" style="max-width:760px; display:none;"></div>
+      <div id="ata-list" style="max-width:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px;align-items:start"></div>
+      <div id="ata-semanal-list" style="max-width:none; display:none;"></div>
     </div>
 
   </div>
@@ -600,7 +600,7 @@
   .sg-atts{ display:flex; flex-wrap:wrap; gap:10px; margin-top:10px; align-items:center;}
   .sg-thumb{ max-width:220px; max-height:150px; border:1px solid var(--border); border-radius:8px; display:block; background:#f2f3f9; min-width:60px; min-height:40px;}
   .sg-file{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 10px; font-size:12.5px; color:var(--brand); text-decoration:none; font-weight:600;}
-  #view-pessoas.active{ display:block; overflow-y:auto;} #main{ padding:20px 28px;} #person-view{ max-width:1120px;}
+  #view-pessoas.active{ display:block; overflow-y:auto;} #main{ padding:20px 28px;} #person-view{ max-width:none;}
   .pv-tabs{ display:flex; gap:4px; border-bottom:1px solid var(--border); margin:14px 0 16px; overflow-x:auto;}
   .pv-tab{ border:none; background:transparent; padding:10px 16px; font-size:13.5px; font-weight:600; color:var(--ink-soft); cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap;}
   .pv-tab:hover{ color:var(--brand);} .pv-tab.on{ color:var(--brand); border-bottom-color:var(--brand);}
