@@ -383,14 +383,11 @@
         <div id="ata-toggle" class="seg-toggle">
           <button type="button" class="active" data-mode="diario">Diário</button>
           <button type="button" data-mode="marcos">🛤️ Marcos</button>
-          <button type="button" data-mode="semanal">📅 Semanal</button>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label style="font-size:12.5px;color:var(--ink-faint)">Semana de <input type="date" id="ata-ceo-data" style="margin-left:4px"></label><button type="button" class="btn-export-pdf" id="ata-ceo-btn">⬇ Exportar semana para o CEO</button></div>
       </div>
       <div style="color:var(--ink-faint); font-size:12.5px; margin-bottom:22px;">Histórico contínuo de decisões e entregas — mais recente primeiro.</div>
       <div id="ata-list" style="max-width:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(440px,1fr));gap:14px;align-items:start"></div>
-      <div id="ata-semanal-list" style="max-width:none; display:none;"></div>
-      <div id="ata-marcos" style="display:none"></div>
+            <div id="ata-marcos" style="display:none"></div>
     </div>
 
   </div>
@@ -1859,38 +1856,22 @@ async function renderAtaSemanal(){
     b.addEventListener('click', ()=> exportSemanaPDF(window._semanasData[parseInt(b.dataset.idx,10)]));
   });
 }
-// Compila as atas diárias da semana (seg–dom) em um relatório único para o CEO
-(function(){
-  const inp = document.getElementById('ata-ceo-data'); if(!inp) return;
-  const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-  inp.value = iso(new Date());
-  document.getElementById('ata-ceo-btn').addEventListener('click', async ()=>{
-    const base = new Date((inp.value||iso(new Date()))+'T00:00:00');
-    const seg = new Date(base); seg.setDate(base.getDate()-((base.getDay()+6)%7));
-    const dom = new Date(seg); dom.setDate(seg.getDate()+6);
-    const { data, error } = await sb.from('crm_ata_entregaveis').select('*').gte('data', iso(seg)).lte('data', iso(dom)).order('data');
-    if(error){ showToast('Erro: '+error.message); return; }
-    const byDate = {}; (data||[]).forEach(a=>{ byDate[a.data] = a; });
-    const dias = [], entregou = [];
-    for(let i=0;i<7;i++){
-      const d = new Date(seg); d.setDate(seg.getDate()+i); const a = byDate[iso(d)];
-      if(i>=5 && !a) continue;
-      dias.push({ dia: d.toLocaleDateString('pt-BR',{weekday:'long'}), data: fmtDDMM(iso(d)),
-        resumo: a && (a.entregue||[]).length ? (a.entregue||[]).slice(0,2).join(' · ')+((a.entregue||[]).length>2?' (+'+((a.entregue||[]).length-2)+' entregas)':'') : 'Sem atividade registrada.' });
-      if(a) entregou.push(...(a.entregue||[]));
-    }
-    if(!entregou.length){ showToast('Nenhuma ata registrada nessa semana.'); return; }
-    const ult = (data||[])[(data||[]).length-1];
-    exportSemanaPDF({ semana_inicio: iso(seg), semana_fim: iso(dom), dias, entregou, em_aberto: (ult&&ult.em_aberto)||[] });
-  });
-})();
+const MC = { ini:'', fim:'' };
+const mcIso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+async function mcFetch(){
+  let q = sb.from('crm_ata_entregaveis').select('data,dia_semana,marco_icone,marco_titulo,marco_texto,entregue,em_aberto').order('data');
+  if(MC.ini) q = q.gte('data', MC.ini);
+  if(MC.fim) q = q.lte('data', MC.fim);
+  return q;
+}
 async function renderAtaMarcos(){
   const el = document.getElementById('ata-marcos');
-  const { data, error } = await sb.from('crm_ata_entregaveis').select('data,dia_semana,marco_icone,marco_titulo,marco_texto,entregue').order('data');
+  const { data, error } = await mcFetch();
   if(error){ el.textContent = 'Erro: '+error.message; return; }
-  const dias = (data||[]);
-  if(!dias.length){ el.innerHTML = '<div class="no-rec">Nenhum registro ainda.</div>'; return; }
+  const dias = data||[];
   el.innerHTML = `<style>
+    .mc-bar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+    .mc-bar label{font-size:12px;color:var(--ink-faint);display:flex;flex-direction:column;gap:2px}
     .mc-wrap{position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:26px 0;padding-top:4px}
     .mc-item{position:relative;padding:34px 14px 0 0}
     .mc-item::before{content:"";position:absolute;top:13px;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--brand),#7d92ff);border-radius:2px}
@@ -1900,12 +1881,52 @@ async function renderAtaMarcos(){
     .mc-txt{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
     .mc-n{font-size:11px;color:var(--ink-faint);margin-top:4px}
   </style>
-  <div class="hint" style="margin-bottom:14px">Os grandes saltos de cada dia na evolução do negócio, em ordem cronológica — da esquerda para a direita.</div>
-  <div class="mc-wrap">${dias.map(d=>`<div class="mc-item" data-ico="${escapeHtml(d.marco_icone||'●')}">
+  <div class="mc-bar">
+    <label>De<input type="date" id="mc-ini" value="${MC.ini}"></label>
+    <label>Até<input type="date" id="mc-fim" value="${MC.fim}"></label>
+    <button type="button" class="om-cancel" data-rg="sem">Esta semana</button>
+    <button type="button" class="om-cancel" data-rg="mes">Este mês</button>
+    <button type="button" class="om-cancel" data-rg="tudo">Tudo</button>
+    <button type="button" class="btn-export-pdf" id="mc-export" style="margin-left:auto">⬇ Exportar para o CEO</button>
+  </div>
+  <div class="hint" style="margin-bottom:14px">Os grandes saltos de cada dia na evolução do negócio, em ordem cronológica. O detalhe de cada dia está na aba Diário.</div>
+  ${dias.length ? `<div class="mc-wrap">${dias.map(d=>`<div class="mc-item" data-ico="${escapeHtml(d.marco_icone||'●')}">
     <div class="mc-date">${escapeHtml(fmtDDMM(d.data))} · ${escapeHtml((d.dia_semana||'').split('-')[0])}</div>
     <div class="mc-tit">${escapeHtml(d.marco_titulo||'Sem marco definido')}</div>
     <div class="mc-txt">${escapeHtml(d.marco_texto||((d.entregue||[])[0]||''))}</div>
-    <div class="mc-n">${(d.entregue||[]).length} entregas no dia</div></div>`).join('')}</div>`;
+    <div class="mc-n">${(d.entregue||[]).length} entregas no dia</div></div>`).join('')}</div>` : '<div class="no-rec">Nenhum marco no período selecionado.</div>'}`;
+  const setR = (i,f)=>{ MC.ini=i; MC.fim=f; renderAtaMarcos(); };
+  el.querySelector('#mc-ini').addEventListener('change', e=>setR(e.target.value, MC.fim));
+  el.querySelector('#mc-fim').addEventListener('change', e=>setR(MC.ini, e.target.value));
+  el.querySelectorAll('[data-rg]').forEach(b=>b.addEventListener('click', ()=>{
+    const t = new Date(), k = b.dataset.rg;
+    if(k==='tudo') return setR('','');
+    if(k==='mes') return setR(mcIso(new Date(t.getFullYear(),t.getMonth(),1)), mcIso(new Date(t.getFullYear(),t.getMonth()+1,0)));
+    const seg = new Date(t); seg.setDate(t.getDate()-((t.getDay()+6)%7));
+    const dom = new Date(seg); dom.setDate(seg.getDate()+6);
+    setR(mcIso(seg), mcIso(dom)); }));
+  el.querySelector('#mc-export').addEventListener('click', ()=> exportMarcosPDF(dias));
+}
+function exportMarcosPDF(dias){
+  if(!dias.length){ showToast('Nenhum marco no período selecionado.'); return; }
+  const hoje = new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const ini = dias[0].data, fim = dias[dias.length-1].data;
+  const total = dias.reduce((t,d)=>t+(d.entregue||[]).length,0);
+  const ult = dias[dias.length-1];
+  const abertos = (ult.em_aberto||[]).slice(0,5);
+  const resumo = 'No período de '+fmtDateLong(ini)+' a '+fmtDateLong(fim)+', o projeto teve '+dias.length+(dias.length===1?' dia':' dias')+' de trabalho registrado e '+total+' entregas. Começou com "'+(dias[0].marco_titulo||'—')+'" e o marco mais recente é "'+(ult.marco_titulo||'—')+'".';
+  document.getElementById('print-report').innerHTML = `
+    <div class="pr-page">
+      <div class="pr-header"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><span class="pr-tag">Marcos · ${escapeHtml(fmtDDMM(ini))} a ${escapeHtml(fmtDDMM(fim))}</span></div>
+      <h1 class="pr-title">Marcos da evolução do negócio</h1>
+      <p class="pr-sub">${escapeHtml(resumo)}</p>
+      <p class="pr-section-title">Grandes marcos</p>
+      <div class="pr-timeline">${dias.map(d=>`<div class="pr-tl-item"><span class="pr-tl-date">${escapeHtml(fmtDDMM(d.data))}</span><span class="pr-tl-day">${escapeHtml(d.dia_semana||'')}</span>
+        <p class="pr-tl-text"><b>${escapeHtml((d.marco_icone||'')+' '+(d.marco_titulo||''))}</b><br>${escapeHtml(d.marco_texto||'')}</p></div>`).join('')}</div>
+      ${abertos.length?`<p class="pr-section-title">Próximos passos em aberto</p><div class="pr-box open"><ul>${abertos.map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul></div>`:''}
+      <div class="pr-footer"><span>Detalhes de cada dia na Ata diária do CRM · CallMed Proteção Patrimonial</span><span>Gerado em ${hoje}</span></div>
+    </div>`;
+  setTimeout(()=> window.print(), 80);
 }
 document.querySelectorAll('#ata-toggle button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -1913,9 +1934,8 @@ document.querySelectorAll('#ata-toggle button').forEach(btn=>{
     btn.classList.add('active');
     const m = btn.dataset.mode;
     document.getElementById('ata-list').style.display = m==='diario' ? 'grid' : 'none';
-    document.getElementById('ata-semanal-list').style.display = m==='semanal' ? 'block' : 'none';
     document.getElementById('ata-marcos').style.display = m==='marcos' ? 'block' : 'none';
-    if(m==='diario') renderAta(); else if(m==='semanal') renderAtaSemanal(); else renderAtaMarcos();
+    if(m==='diario') renderAta(); else renderAtaMarcos();
   });
 });
 
