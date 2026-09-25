@@ -210,6 +210,7 @@
     <button class="nav-btn active" data-view="operacao">🧭<span>Aliança</span></button>
     <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
     <button class="nav-btn" data-view="comercial" title="Metas comerciais e projeção de vendas">💼<span>Comercial</span></button>
+    <button class="nav-btn" data-view="reunioes" title="Reuniões gravadas: leitura da conversa e atualização automática do CRM">🎙️<span>Reuniões</span></button>
     <button class="nav-btn" data-view="indicadores" title="Indicadores do funil e da produção">📊<span>Indicadores</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
@@ -303,6 +304,13 @@
           <button type="submit">+ Agendar</button>
         </form>
         <div class="day-events" id="day-events"></div>
+      </div>
+    </div>
+
+    <div id="view-reunioes" class="view">
+      <div class="pg">
+        <div class="pg-head"><h2>🎙️ Reuniões gravadas</h2><span class="sub">Toda abordagem é gravada. A leitura da conversa (acertos, erros, objeções, oportunidades) alimenta o CRM automaticamente.</span></div>
+        <div id="ru-body"><div class="op-more">Carregando...</div></div>
       </div>
     </div>
 
@@ -983,6 +991,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'central') renderCentral();
     if(btn.dataset.view === 'indicadores') renderIndicadores();
     if(btn.dataset.view === 'comercial') renderComercial();
+    if(btn.dataset.view === 'reunioes') renderReunioes();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'agenda') renderCalendar();
     if(btn.dataset.view === 'conhecimento') renderConhecimento();
@@ -1163,12 +1172,14 @@ function pvRender(){
   view.innerHTML = `<div class="person-header"><div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn-ghost" id="btn-op-back">← Aliança</button><h2 style="margin:0">${escapeHtml(p.nome)}</h2></div>
       <div class="tags" style="margin-top:8px"><span class="tag">${TIPOS_PESSOA[p.tipo||'medico']||p.tipo}</span>${p.crm?`<span class="tag">CRM ${escapeHtml(p.crm)}</span>`:''}${p.especialidade?`<span class="tag">${escapeHtml(p.especialidade)}</span>`:''}${pvClassChip(p)}${(p.tags||[]).map(t=>`<span class="tag">🏷 ${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button><button class="om-cancel" id="pa-wa">💬 WhatsApp com script</button><button class="om-cancel" id="pa-audit" title="Quem alterou o quê, e quando">🕓 Histórico de alterações</button></div>
+      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button><button class="om-cancel" id="pa-wa">💬 WhatsApp com script</button><button class="om-cancel" id="pa-audit" title="Quem alterou o quê, e quando">🕓 Histórico de alterações</button><button class="om-save" id="pa-intel" title="Pesquisa pública e perguntas personalizadas para a abordagem">🧠 Inteligência</button><button class="om-cancel" id="pa-reuniao" title="Gravar/enviar uma reunião com esta pessoa">🎙️ Nova reunião</button></div>
       <div id="pv-next">${pvNextHtml(p)}</div>
     </div></div>
     <div class="pv-tabs">${PV_TABS.map(([k,l])=>`<button class="pv-tab${PV.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
     <div id="pv-body"></div>`;
     document.getElementById('pa-audit').addEventListener('click', ()=> auditDialog(p.id, p.nome));
+    document.getElementById('pa-intel').addEventListener('click', ()=> intelDialog(p));
+    document.getElementById('pa-reuniao').addEventListener('click', ()=> ruNovaDialog(p));
     pvShowTab(PV.tab);
 }
 function pvGoto(tab){ PV.tab = tab; document.querySelectorAll('.pv-tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab)); pvShowTab(tab); }
@@ -2740,6 +2751,193 @@ function pessoaOptionHtml(p, name, checked){
 }
 
 // ---------- janela genérica ----------
+// ---------- INTELIGÊNCIA DE PRÉ-VISITA + REUNIÕES GRAVADAS (a reunião alimenta o CRM) ----------
+const RU_ETAPAS = {contato:'Contato', atendimento:'Atendimento', agendamento:'Agendamento', reuniao:'Reunião', diagnostico:'Diagnóstico', proposta:'Proposta', fechamento:'Fechamento', follow_up:'Follow-up'};
+const ruLi = a => (a&&a.length) ? '<ul style="margin:4px 0 0;padding-left:18px">'+a.map(x=>'<li>'+escapeHtml(typeof x==='string'?x:JSON.stringify(x))+'</li>').join('')+'</ul>' : '<div style="color:var(--ink-faint)">não encontrado</div>';
+const ruBox = (t,h) => '<div class="es-box" style="margin-bottom:10px"><div class="ql">'+t+'</div><div style="font-size:12.5px;line-height:1.5">'+h+'</div></div>';
+const ruWho = async () => { try{ const { data } = await sb.auth.getUser(); return (data.user&&data.user.email||'').split('@')[0]||'sistema'; }catch(e){ return 'sistema'; } };
+const ruErr = async (error) => { let m = error.message||String(error); try{ if(error.context && error.context.json){ const j = await error.context.json(); if(j&&j.error) m = j.error; } }catch(e){} return m; };
+
+// ===== Inteligência (pesquisa pública + pool de perguntas personalizadas) =====
+function intelRelHtml(rel){
+  const porBloco = {}; (rel.perguntas||[]).forEach(q=>{ (porBloco[q.bloco||'Geral'] = porBloco[q.bloco||'Geral'] || []).push(q); });
+  const conf = (rel.identificacao||{}).confianca||'';
+  return `${ruBox('Identificação','Confiança de que é a mesma pessoa: <b>'+escapeHtml(conf||'—')+'</b>'+(rel.identificacao&&rel.identificacao.observacao?'<br>'+escapeHtml(rel.identificacao.observacao):''))}
+    ${ruBox('Perfil profissional', escapeHtml(rel.perfil_profissional||'não encontrado'))}
+    ${ruBox('Interesses e lazer', ruLi(rel.interesses_hobbies))}
+    ${ruBox('Vida pública (divulgada pela própria pessoa)', ruLi(rel.vida_publica))}
+    ${ruBox('Presença digital', (rel.presenca_digital||[]).length ? ruLi((rel.presenca_digital||[]).map(r=>r.rede+': '+r.url+(r.observacao?' — '+r.observacao:''))) : '<div style="color:var(--ink-faint)">não encontrado</div>')}
+    ${ruBox('Ganchos de rapport', ruLi(rel.gatilhos_rapport))}
+    ${rel.abertura_sugerida?ruBox('Abertura sugerida', escapeHtml(rel.abertura_sugerida)):''}
+    <div class="es-box" style="margin-bottom:10px"><div class="ql">Pool de perguntas personalizadas <button class="om-cancel" id="intel-copy" style="padding:2px 8px;font-size:11px;margin-left:8px">📋 Copiar</button></div>
+      ${Object.keys(porBloco).map(b=>`<div style="margin-top:8px"><b style="color:var(--brand)">${escapeHtml(b)}</b>${porBloco[b].map(q=>`<div style="margin:4px 0;font-size:12.5px">• ${escapeHtml(q.pergunta||'')}<div style="color:var(--ink-faint);font-size:11.5px;margin-left:10px">↳ ${escapeHtml(q.por_que||'')}</div></div>`).join('')}</div>`).join('')}</div>
+    ${(rel.cuidados||[]).length?ruBox('⚠️ Cuidados', ruLi(rel.cuidados)):''}
+    ${ruBox('Fontes', (rel.fontes||[]).length ? '<ul style="margin:0;padding-left:18px">'+(rel.fontes||[]).map(f=>'<li>'+escapeHtml(f.titulo||'')+' — <span style="word-break:break-all">'+escapeHtml(f.url||'')+'</span></li>').join('')+'</ul>' : '<div style="color:var(--ink-faint)">sem fontes</div>')}`;
+}
+async function intelDialog(p){
+  const { data } = await sb.from('crm_inteligencia').select('*').eq('pessoa_id', p.id).order('gerado_em',{ascending:false}).limit(1);
+  const last = (data||[])[0];
+  const draw = (rel, quando, quem) => {
+    dlgOpen(`<h3 style="margin:0 0 4px">🧠 Inteligência — ${escapeHtml(p.nome)}</h3>
+      <div class="hint" style="margin-bottom:10px">Pesquisa em fontes públicas (redes, site, publicações) para conhecer a pessoa antes da abordagem e montar perguntas sob medida. Só informações públicas; confirme sempre na conversa.${quando?'<br><b>Última pesquisa:</b> '+audWhen(quando)+' por '+escapeHtml(audWho(quem)):''}</div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><input id="intel-ctx" placeholder="Contexto extra opcional (cidade, hospital, @ do Instagram…)" style="flex:1;min-width:220px"><button class="om-save" id="intel-run">${rel?'🔄 Atualizar pesquisa':'🔍 Pesquisar agora'}</button></div>
+      <div id="intel-msg" class="hint"></div>
+      <div style="max-height:58vh;overflow:auto">${rel?intelRelHtml(rel):'<div class="no-rec">Ainda sem pesquisa para esta pessoa.</div>'}</div>
+      <div style="margin-top:12px;text-align:right"><button class="om-cancel" data-close>Fechar</button></div>`, true);
+    const cp = document.getElementById('intel-copy');
+    if(cp) cp.addEventListener('click', ()=>{ const t = (rel.perguntas||[]).map(q=>'['+q.bloco+'] '+q.pergunta).join('\n'); navigator.clipboard.writeText(t).then(()=>showToast('Perguntas copiadas')); });
+    document.getElementById('intel-run').addEventListener('click', async ()=>{
+      const btn = document.getElementById('intel-run'), msg = document.getElementById('intel-msg');
+      btn.disabled = true; msg.textContent = '⏳ Pesquisando na web e montando o perfil… pode levar de 1 a 2 minutos.';
+      const { data: r, error } = await sb.functions.invoke('inteligencia-pessoa', { body: { pessoa_id: p.id, contexto_extra: document.getElementById('intel-ctx').value||null } });
+      if(error || (r&&r.error)){ msg.textContent = '❌ '+(r&&r.error ? r.error : await ruErr(error)); btn.disabled = false; return; }
+      draw(r.relatorio, r.gerado_em || new Date().toISOString(), 'você');
+    });
+  };
+  draw(last?last.relatorio:null, last?last.gerado_em:null, last?last.gerado_por:null);
+}
+
+// ===== Reuniões gravadas =====
+function ruAnaliseHtml(a){
+  const et = (a.estagio_sugerido||{}).etapa;
+  return `${ruBox('Resumo', escapeHtml(a.resumo||''))}
+    ${ruBox('Estágio sugerido no funil', '<b>'+escapeHtml(RU_ETAPAS[et]||et||'—')+'</b> · temperatura <b>'+escapeHtml(a.temperatura||'—')+'</b><br>'+escapeHtml((a.estagio_sugerido||{}).justificativa||''))}
+    ${ruBox('Storytelling do cliente', escapeHtml(a.storytelling||''))}
+    ${ruBox('Dores identificadas', ruLi(a.dores))}
+    ${ruBox('Objeções', (a.objecoes||[]).length ? ruLi((a.objecoes||[]).map(o=>o.objecao+' → '+(o.como_tratada||'sem tratativa')+(o.resolvida?' ✅':' ⏳'))) : ruLi([]))}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px">
+      <div>${ruBox('✅ Onde acertamos', ruLi(a.onde_acertamos))}</div><div>${ruBox('🔧 Onde erramos / melhorar', ruLi(a.onde_erramos))}</div></div>
+    ${ruBox('Oportunidades (upsell / cross-sell)', ruLi((a.oportunidades||[]).map(o=>o.produto+' ('+o.tipo+') — '+o.motivo)))}
+    ${ruBox('Informações pessoais e ganchos', ruLi([].concat(a.informacoes_pessoais||[], (a.ganchos_rapport||[]).map(g=>'Gancho: '+g))))}
+    ${ruBox('Próximas ações', ruLi((a.proximas_acoes||[]).map(x=>x.acao+' — '+(x.responsavel||'')+(x.prazo_dias?' · em '+x.prazo_dias+' dia(s)':''))))}`;
+}
+async function ruVer(id){
+  const { data: reu, error } = await sb.from('crm_reunioes').select('*').eq('id', id).maybeSingle();
+  if(error || !reu){ showToast('Reunião não encontrada.'); return; }
+  await ensurePessoas();
+  const p = OP.pessoas.find(x=>x.id===reu.pessoa_id);
+  let audio = '';
+  if(reu.audio_path){ const { data: s } = await sb.storage.from('crm-docs').createSignedUrl(reu.audio_path, 3600); if(s && s.signedUrl) audio = `<audio controls src="${s.signedUrl}" style="width:100%;margin:6px 0"></audio>`; }
+  const a = reu.analise;
+  dlgOpen(`<h3 style="margin:0 0 4px">🎙️ ${escapeHtml(reu.titulo||'Reunião')}</h3>
+    <div class="hint" style="margin-bottom:8px">${p?escapeHtml(p.nome)+' · ':''}${audWhen(reu.data_hora)} · ${escapeHtml(reu.formato||'')} · status: <b>${reu.status==='aplicada'?'aplicada ao CRM':reu.status}</b></div>
+    ${audio}
+    <div id="ru-msg" class="hint"></div>
+    <div style="max-height:56vh;overflow:auto">${a?ruAnaliseHtml(a):'<div class="no-rec">Ainda sem análise.</div>'}
+      <details style="margin-top:8px"><summary>Ver transcrição</summary><div style="white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto;background:var(--bg-soft,#f6f7fc);padding:8px;border-radius:8px">${escapeHtml(reu.transcricao||'(sem transcrição)')}</div></details></div>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+      <button class="om-cancel" id="ru-reanalisar">🔄 ${a?'Analisar de novo':'Analisar'}</button>
+      ${a && reu.status!=='aplicada' ? '<button class="om-save" id="ru-aplicar">✅ Aplicar ao CRM</button>' : ''}
+      <button class="om-cancel" data-close>Fechar</button></div>`, true);
+  document.getElementById('ru-reanalisar').addEventListener('click', async ()=>{ await ruAnalisar(reu.id); ruVer(reu.id); });
+  const ap = document.getElementById('ru-aplicar');
+  if(ap) ap.addEventListener('click', async ()=>{ ap.disabled = true; document.getElementById('ru-msg').textContent = '⏳ Atualizando o CRM…'; try{ const r = await ruAplicar(reu); showToast(r); ruVer(reu.id); if(document.getElementById('view-reunioes').classList.contains('active')) renderReunioes(); }catch(e){ document.getElementById('ru-msg').textContent = '❌ '+(e.message||e); ap.disabled = false; } });
+}
+async function ruAnalisar(id){
+  showToast('⏳ Analisando a reunião…');
+  const { data: r, error } = await sb.functions.invoke('analisar-reuniao', { body: { reuniao_id: id } });
+  if(error || (r&&r.error)){ showToast('❌ '+(r&&r.error ? r.error : await ruErr(error))); return false; }
+  showToast('Análise pronta'); return true;
+}
+async function ruAplicar(reu){
+  const { data: fresh } = await sb.from('crm_reunioes').select('*').eq('id', reu.id).maybeSingle();
+  const a = fresh.analise; if(!a) throw new Error('Sem análise para aplicar.');
+  const who = await ruWho(), hoje = mcIso(new Date());
+  let pid = fresh.pessoa_id, criou = false;
+  const pi = a.pessoa_identificada||{};
+  if(!pid){
+    if(!pi.nome) throw new Error('A análise não identificou o nome do cliente — vincule a reunião a uma pessoa cadastrada.');
+    const found = await findPessoas({nome: pi.nome, crm: pi.crm, telefone: pi.telefone});
+    if(found.length===1) pid = found[0].id;
+    else if(found.length>1) throw new Error('Há mais de uma pessoa parecida com "'+pi.nome+'" no cadastro. Vincule a reunião manualmente para evitar duplicidade.');
+    else {
+      const { data: np, error } = await sb.from('crm_pessoas').insert({ nome: pi.nome, tipo:'medico', crm: pi.crm||null, especialidade: pi.especialidade||null, telefone: pi.telefone||null, email: pi.email||null, cidade: pi.cidade||null, origem:'Reunião gravada' }).select('id').single();
+      if(error) throw new Error(error.message); pid = np.id; criou = true;
+    }
+    await sb.from('crm_reunioes').update({ pessoa_id: pid }).eq('id', fresh.id);
+  }
+  // cadastro: só preenche o que está vazio (nunca sobrescreve)
+  const { data: pes } = await sb.from('crm_pessoas').select('*').eq('id', pid).maybeSingle();
+  const dc = a.dados_cadastro||{}, upd = {};
+  ['telefone','email','cidade','uf','especialidade','estado_civil'].forEach(k=>{ if(dc[k] && pes && !pes[k]) upd[k] = dc[k]; });
+  const acao = (a.proximas_acoes||[])[0];
+  if(acao && acao.acao){ upd.proxima_acao = acao.acao; const d = new Date(); d.setDate(d.getDate()+(Number(acao.prazo_dias)||3)); upd.proxima_data = mcIso(d); upd.proximo_responsavel = acao.responsavel && acao.responsavel!=='Cliente' ? acao.responsavel : who; }
+  if(Object.keys(upd).length){ const { error } = await sb.from('crm_pessoas').update(upd).eq('id', pid); if(error) throw new Error(error.message); }
+  // funil: fecha a etapa em aberto e abre a sugerida, se ainda não existir
+  const et = (a.estagio_sugerido||{}).etapa;
+  let funilTxt = '';
+  if(et && RU_ETAPAS[et]){
+    const { data: fun } = await sb.from('crm_funil').select('*').eq('pessoa_id', pid);
+    if(!(fun||[]).some(f=>f.etapa===et)){
+      await sb.from('crm_funil').update({ data_fim: hoje }).eq('pessoa_id', pid).is('data_fim', null);
+      const { error } = await sb.from('crm_funil').insert({ pessoa_id: pid, etapa: et, data_inicio: hoje, observacao: 'Atualizado pela reunião gravada: '+((a.estagio_sugerido||{}).justificativa||'').slice(0,200) });
+      if(error) throw new Error(error.message); funilTxt = ' · funil → '+RU_ETAPAS[et];
+    }
+  }
+  // atividade + nota (storytelling)
+  await sb.from('crm_atividades').insert({ pessoa_id: pid, tipo:'reuniao', data_hora: fresh.data_hora, resumo: a.nota_para_crm||a.resumo, resultado: 'Temperatura '+(a.temperatura||'—')+(et?' · estágio '+(RU_ETAPAS[et]||et):''), responsavel: who, proxima_acao: acao?acao.acao:null, proxima_data: upd.proxima_data||null });
+  const nota = [ a.storytelling, (a.dores||[]).length?'Dores: '+a.dores.join('; '):'', (a.objecoes||[]).length?'Objeções: '+a.objecoes.map(o=>o.objecao+(o.resolvida?' (resolvida)':' (em aberto)')).join('; '):'', (a.oportunidades||[]).length?'Oportunidades: '+a.oportunidades.map(o=>o.produto+' ['+o.tipo+']').join('; '):'', (a.ganchos_rapport||[]).length?'Ganchos: '+a.ganchos_rapport.join('; '):'' ].filter(Boolean).join('\n');
+  await sb.from('crm_lead_notas').insert({ pessoa_id: pid, texto: '🎙️ Reunião de '+audWhen(fresh.data_hora)+'\n'+nota, autor: who });
+  await sb.from('crm_reunioes').update({ status:'aplicada', aplicada_em: new Date().toISOString() }).eq('id', fresh.id);
+  OP.pessoas = [];
+  return (criou?'Cliente cadastrado · ':'')+'CRM atualizado'+funilTxt;
+}
+async function ruNovaDialog(pre){
+  await ensurePessoas();
+  let sel = pre ? pre.id : null;
+  const dtLocal = new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  dlgOpen(`<h3 style="margin:0 0 4px">🎙️ Nova reunião gravada</h3>
+    <div class="hint" style="margin-bottom:10px">Envie a gravação e a transcrição. A leitura da reunião e a atualização do CRM saem automaticamente.</div>
+    <div style="display:grid;gap:10px">
+      <label class="fl"><span>Cliente</span><input id="ru-busca" placeholder="Digite o nome para buscar… (ou deixe em branco se ainda não está cadastrado)" value="${pre?escapeHtml(pre.nome):''}" autocomplete="off"></label>
+      <div id="ru-res" class="hint"></div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px">
+        <label class="fl"><span>Título</span><input id="ru-tit" placeholder="Ex.: 1ª reunião — Dr. Fulano"></label>
+        <label class="fl"><span>Data e hora</span><input id="ru-dt" type="datetime-local" value="${dtLocal}"></label>
+        <label class="fl"><span>Formato</span><select id="ru-fmt"><option value="presencial">Presencial</option><option value="online">Online</option><option value="telefone">Telefone</option></select></label></div>
+      <label class="fl"><span>Gravação (áudio ou vídeo)</span><input id="ru-audio" type="file" accept="audio/*,video/*"></label>
+      <label class="fl"><span>Transcrição (cole o texto ou envie .txt/.vtt/.srt)</span><textarea id="ru-txt" rows="7" placeholder="Cole aqui a transcrição da reunião…"></textarea></label>
+      <input id="ru-txtfile" type="file" accept=".txt,.vtt,.srt,text/plain">
+      <div id="ru-msg" class="om-err"></div></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ru-go">Salvar e analisar</button></div>`, true);
+  const busca = document.getElementById('ru-busca'), res = document.getElementById('ru-res');
+  const showSel = () => { const p = OP.pessoas.find(x=>x.id===sel); res.innerHTML = p ? '✅ Vinculado a <b>'+escapeHtml(p.nome)+'</b>' : ''; };
+  showSel();
+  busca.addEventListener('input', ()=>{
+    sel = null; const q = busca.value.trim().toLowerCase();
+    if(q.length<3){ res.innerHTML = ''; return; }
+    const m = OP.pessoas.filter(p=>(p.nome||'').toLowerCase().includes(q)).slice(0,6);
+    res.innerHTML = m.length ? m.map(p=>`<div><a href="#" data-pid="${p.id}">${escapeHtml(p.nome)}</a> <small>${escapeHtml(p.especialidade||'')} ${p.crm?'· CRM '+escapeHtml(p.crm):''}</small></div>`).join('') : 'Ninguém encontrado — a análise poderá cadastrar como novo.';
+    res.querySelectorAll('[data-pid]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); sel = a.dataset.pid; busca.value = OP.pessoas.find(x=>x.id===sel).nome; showSel(); }));
+  });
+  document.getElementById('ru-txtfile').addEventListener('change', async e=>{ const f = e.target.files[0]; if(f) document.getElementById('ru-txt').value = await f.text(); });
+  document.getElementById('ru-go').addEventListener('click', async ()=>{
+    const msg = document.getElementById('ru-msg'), go = document.getElementById('ru-go'); msg.textContent = '';
+    const txt = document.getElementById('ru-txt').value.trim();
+    if(txt.length<200){ msg.textContent = 'Cole a transcrição da reunião (mínimo de algumas linhas) para eu conseguir analisar.'; return; }
+    go.disabled = true; msg.textContent = '⏳ Salvando…';
+    const { data: reu, error } = await sb.from('crm_reunioes').insert({ pessoa_id: sel, titulo: document.getElementById('ru-tit').value||null, data_hora: new Date(document.getElementById('ru-dt').value).toISOString(), formato: document.getElementById('ru-fmt').value, transcricao: txt, criado_por: await ruWho() }).select('id').single();
+    if(error){ msg.textContent = '❌ '+error.message; go.disabled = false; return; }
+    const f = document.getElementById('ru-audio').files[0];
+    if(f){ msg.textContent = '⏳ Enviando a gravação…'; const path = 'reunioes/'+reu.id+'/'+f.name.replace(/[^\w.\-]+/g,'_');
+      const up = await sb.storage.from('crm-docs').upload(path, f, { upsert:true });
+      if(up.error) showToast('Gravação não enviada: '+up.error.message); else await sb.from('crm_reunioes').update({ audio_path: path }).eq('id', reu.id); }
+    msg.textContent = '⏳ Analisando a reunião (até 1 minuto)…';
+    await ruAnalisar(reu.id);
+    ruVer(reu.id);
+  });
+}
+async function renderReunioes(){
+  const el = document.getElementById('ru-body');
+  await ensurePessoas();
+  const { data, error } = await sb.from('crm_reunioes').select('id,pessoa_id,titulo,data_hora,formato,status,analise,criado_por').order('data_hora',{ascending:false});
+  if(error){ el.textContent = 'Erro: '+error.message; return; }
+  const nm = id => { const p = OP.pessoas.find(x=>x.id===id); return p ? p.nome : null; };
+  el.innerHTML = `<div style="margin-bottom:12px"><button class="om-save" id="ru-nova">＋ Nova reunião gravada</button></div>` + ((data||[]).length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px">${data.map(r=>{ const a = r.analise||{}; const et = (a.estagio_sugerido||{}).etapa; return `<div class="kb-card" data-ru="${r.id}" style="cursor:pointer"><div class="cat">${audWhen(r.data_hora)} · ${escapeHtml(r.formato||'')}</div><h4>${escapeHtml(r.titulo||nm(r.pessoa_id)||(a.pessoa_identificada&&a.pessoa_identificada.nome)||'Reunião')}</h4><p>${escapeHtml((a.resumo||'Aguardando análise…').slice(0,180))}</p><div style="margin-top:6px;font-size:11.5px;color:var(--ink-faint)">${nm(r.pessoa_id)?'👤 '+escapeHtml(nm(r.pessoa_id))+' · ':''}${et?'Estágio: '+escapeHtml(RU_ETAPAS[et]||et)+' · ':''}${r.status==='aplicada'?'✅ aplicada ao CRM':(r.status==='analisada'?'🕓 aguardando aplicar':'rascunho')}</div></div>`; }).join('')}</div>` : '<div class="no-rec">Nenhuma reunião gravada ainda.</div>');
+  el.querySelector('#ru-nova').addEventListener('click', ()=> ruNovaDialog(null));
+  el.querySelectorAll('[data-ru]').forEach(c=>c.addEventListener('click', ()=> ruVer(c.dataset.ru)));
+}
+
 // ---------- AUDITORIA: quem alterou, o quê e quando (registrado pelo banco a cada insert/update/delete) ----------
 const AUD_TAB = {crm_pessoas:'Cadastro', crm_apolices:'Apólice', crm_funil:'Funil', crm_oportunidades:'Oportunidade', crm_atividades:'Atividade', crm_diagnostico:'Diagnóstico', crm_estudos:'Estudo', crm_documentos:'Documento', crm_eventos_vida:'Evento de vida', crm_interacoes:'Interação', crm_jornada:'Jornada', crm_lead_notas:'Nota', crm_lembretes:'Lembrete', crm_pos_venda:'Pós-venda', crm_protecao_atual:'Proteção atual', crm_relacionamento:'Relacionamento', crm_tarefas_diarias:'Tarefa', crm_agenda:'Agenda', crm_comercial:'Comercial', crm_indicacoes:'Indicação', crm_metas:'Metas', crm_meta_comercial:'Premissas comerciais', crm_estrategias:'Estratégia', crm_base_conhecimento:'Base de conhecimento', crm_catalogo_produtos:'Catálogo', crm_ata_entregaveis:'Ata'};
 const AUD_ACAO = {INSERT:'criou', UPDATE:'alterou', DELETE:'apagou'};
