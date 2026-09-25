@@ -384,6 +384,7 @@
           <button type="button" class="active" data-mode="diario">Diário</button>
           <button type="button" data-mode="semanal">📅 Semanal</button>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><label style="font-size:12.5px;color:var(--ink-faint)">Semana de <input type="date" id="ata-ceo-data" style="margin-left:4px"></label><button type="button" class="btn-export-pdf" id="ata-ceo-btn">⬇ Exportar semana para o CEO</button></div>
       </div>
       <div style="color:var(--ink-faint); font-size:12.5px; margin-bottom:22px;">Histórico contínuo de decisões e entregas — mais recente primeiro.</div>
       <div id="ata-list" style="max-width:760px;"></div>
@@ -1856,6 +1857,31 @@ async function renderAtaSemanal(){
     b.addEventListener('click', ()=> exportSemanaPDF(window._semanasData[parseInt(b.dataset.idx,10)]));
   });
 }
+// Compila as atas diárias da semana (seg–dom) em um relatório único para o CEO
+(function(){
+  const inp = document.getElementById('ata-ceo-data'); if(!inp) return;
+  const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  inp.value = iso(new Date());
+  document.getElementById('ata-ceo-btn').addEventListener('click', async ()=>{
+    const base = new Date((inp.value||iso(new Date()))+'T00:00:00');
+    const seg = new Date(base); seg.setDate(base.getDate()-((base.getDay()+6)%7));
+    const dom = new Date(seg); dom.setDate(seg.getDate()+6);
+    const { data, error } = await sb.from('crm_ata_entregaveis').select('*').gte('data', iso(seg)).lte('data', iso(dom)).order('data');
+    if(error){ showToast('Erro: '+error.message); return; }
+    const byDate = {}; (data||[]).forEach(a=>{ byDate[a.data] = a; });
+    const dias = [], entregou = [];
+    for(let i=0;i<7;i++){
+      const d = new Date(seg); d.setDate(seg.getDate()+i); const a = byDate[iso(d)];
+      if(i>=5 && !a) continue;
+      dias.push({ dia: d.toLocaleDateString('pt-BR',{weekday:'long'}), data: fmtDDMM(iso(d)),
+        resumo: a && (a.entregue||[]).length ? (a.entregue||[]).slice(0,2).join(' · ')+((a.entregue||[]).length>2?' (+'+((a.entregue||[]).length-2)+' entregas)':'') : 'Sem atividade registrada.' });
+      if(a) entregou.push(...(a.entregue||[]));
+    }
+    if(!entregou.length){ showToast('Nenhuma ata registrada nessa semana.'); return; }
+    const ult = (data||[])[(data||[]).length-1];
+    exportSemanaPDF({ semana_inicio: iso(seg), semana_fim: iso(dom), dias, entregou, em_aberto: (ult&&ult.em_aberto)||[] });
+  });
+})();
 document.querySelectorAll('#ata-toggle button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('#ata-toggle button').forEach(b=>b.classList.remove('active'));
