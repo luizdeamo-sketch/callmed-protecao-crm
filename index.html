@@ -231,7 +231,7 @@
             <span id="op-range"></span>
             <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button>
           </div>
-          <button id="op-hoje" class="om-cancel icon-btn" style="margin-left:auto" title="Hoje — painel do dia">☀️</button><button id="op-callhot" class="om-cancel icon-btn" title="Call Hot da semana — leads prioritários">🔥</button><button id="op-import" class="om-cancel icon-btn" title="Importar contatos">⬆</button><button id="op-newcli" class="om-save icon-btn" title="Novo cliente">＋</button>
+          <button id="op-hoje" class="om-cancel icon-btn" style="margin-left:auto" title="Hoje — painel do dia">☀️</button><button id="op-callhot" class="om-cancel icon-btn" title="Call Hot da semana — leads prioritários">🔥</button><button id="op-import" class="om-cancel icon-btn" title="Importar contatos">⬆</button><button id="op-export-contatos" class="om-cancel icon-btn" title="Exportar os contatos filtrados (você escolhe as colunas)">⬇</button><button id="op-newcli" class="om-save icon-btn" title="Novo cliente">＋</button>
           <span id="op-chip"></span>
         </div>
         <div class="op-filters-more" id="op-filters-more">
@@ -2171,7 +2171,9 @@ function opApplyFilters(keep, scrollToList){
   const nowD = new Date(); nowD.setHours(0,0,0,0);
   let list = OP.pessoas.filter(p=>{
     if(q){ const qd = dOnly(q); const okTxt = (p.nome||'').toLowerCase().includes(q) || (p.crm||'').toLowerCase().includes(q) || (p.especialidade||'').toLowerCase().includes(q);
-      const okNum = qd.length>=4 && (dOnly(p.cpf).includes(qd) || dOnly(p.telefone).includes(qd) || dOnly(p.crm).includes(qd));
+      // CPF/telefone com 8+ dígitos: exige igualdade exata (não só "contém"), para não misturar pessoas por coincidência de trecho do número.
+      // consultas mais curtas (últimos dígitos) continuam por trecho, como uma busca parcial.
+      const okNum = qd.length>=4 && ( qd.length>=8 ? (dOnly(p.cpf)===qd || dOnly(p.telefone)===qd) : (dOnly(p.cpf).includes(qd) || dOnly(p.telefone).includes(qd)) ) || (qd.length>=4 && dOnly(p.crm).includes(qd));
       if(!okTxt && !okNum) return false; }
     if(fperfil==='medico' && !isMedico(p)) return false;
     if(fperfil==='nao_medico' && isMedico(p)) return false;
@@ -2346,7 +2348,7 @@ function opRowHtml(p){
     const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}`;
     lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
   });
-  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${p.classificacao==='call_hot'?' · <span class="pl-tag hot" style="color:var(--red)">🔥 Call Hot</span>':(p.classificacao==='quente'?' · <span class="pl-tag warm">Quente</span>':'')}${(p.tags&&p.tags.length)?' · 🏷 '+escapeHtml(p.tags.join(', ')):''}${opNextInfo(p)}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
+  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${p.cpf?' · CPF '+escapeHtml(fmtCPF(p.cpf)):''}${p.classificacao==='call_hot'?' · <span class="pl-tag hot" style="color:var(--red)">🔥 Call Hot</span>':(p.classificacao==='quente'?' · <span class="pl-tag warm">Quente</span>':'')}${(p.tags&&p.tags.length)?' · 🏷 '+escapeHtml(p.tags.join(', ')):''}${opNextInfo(p)}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
 }
 
 function opAppendRows(n){
@@ -2861,13 +2863,18 @@ async function ruVer(id){
     <div class="hint" style="margin-bottom:8px">${p?escapeHtml(p.nome)+' · ':''}${audWhen(reu.data_hora)} · ${escapeHtml(reu.formato||'')} · status: <b>${reu.status==='aplicada'?'aplicada ao CRM':reu.status}</b></div>
     ${audio}
     <div id="ru-msg" class="hint"></div>
-    <div style="max-height:56vh;overflow:auto">${a?ruAnaliseHtml(a):'<div class="no-rec">Ainda sem análise.</div>'}
-      <details style="margin-top:8px"><summary>Ver transcrição</summary><div style="white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto;background:var(--bg-soft,#f6f7fc);padding:8px;border-radius:8px">${escapeHtml(reu.transcricao||'(sem transcrição)')}</div></details></div>
+    <div style="max-height:56vh;overflow:auto">${a?ruAnaliseHtml(a):(reu.transcricao?'<div class="no-rec">Ainda sem análise.</div>':`<div class="es-box"><div class="ql">Sem transcrição ainda</div><div class="hint" style="margin-bottom:6px">Ainda não transcrevemos o áudio sozinhos — cole a transcrição aqui (ou envie .txt/.vtt/.srt) para gerar a leitura automática.</div><textarea id="ru-txt2" rows="6" placeholder="Cole aqui a transcrição da reunião…" style="width:100%"></textarea><input id="ru-txtfile2" type="file" accept=".txt,.vtt,.srt,text/plain" style="margin-top:6px"></div>`)}
+      ${reu.transcricao?`<details style="margin-top:8px"><summary>Ver transcrição</summary><div style="white-space:pre-wrap;font-size:12px;max-height:240px;overflow:auto;background:var(--bg-soft,#f6f7fc);padding:8px;border-radius:8px">${escapeHtml(reu.transcricao)}</div></details>`:''}</div>
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
-      <button class="om-cancel" id="ru-reanalisar">🔄 ${a?'Analisar de novo':'Analisar'}</button>
+      <button class="om-cancel" id="ru-reanalisar">🔄 ${a?'Analisar de novo':(reu.transcricao?'Analisar':'Salvar transcrição e analisar')}</button>
       ${a && reu.status!=='aplicada' ? '<button class="om-save" id="ru-aplicar">✅ Aplicar ao CRM</button>' : ''}
       <button class="om-cancel" data-close>Fechar</button></div>`, true);
-  document.getElementById('ru-reanalisar').addEventListener('click', async ()=>{ await ruAnalisar(reu.id); ruVer(reu.id); });
+  const tf2 = document.getElementById('ru-txtfile2'); if(tf2) tf2.addEventListener('change', async e=>{ const f = e.target.files[0]; if(f) document.getElementById('ru-txt2').value = await f.text(); });
+  document.getElementById('ru-reanalisar').addEventListener('click', async ()=>{
+    if(!reu.transcricao){ const t2 = document.getElementById('ru-txt2').value.trim();
+      if(t2.length<200){ document.getElementById('ru-msg').textContent = 'Cole a transcrição (mínimo de algumas linhas) antes de analisar.'; return; }
+      const { error: e2 } = await sb.from('crm_reunioes').update({ transcricao: t2 }).eq('id', reu.id); if(e2){ showToast('Erro: '+e2.message); return; } reu.transcricao = t2; }
+    await ruAnalisar(reu.id); ruVer(reu.id); });
   const ap = document.getElementById('ru-aplicar');
   if(ap) ap.addEventListener('click', async ()=>{ ap.disabled = true; document.getElementById('ru-msg').textContent = '⏳ Atualizando o CRM…'; try{ const r = await ruAplicar(reu); showToast(r); ruVer(reu.id); if(document.getElementById('view-reunioes').classList.contains('active')) renderReunioes(); }catch(e){ document.getElementById('ru-msg').textContent = '❌ '+(e.message||e); ap.disabled = false; } });
 }
@@ -2925,7 +2932,7 @@ async function ruNovaDialog(pre){
   let sel = pre ? pre.id : null;
   const dtLocal = new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
   dlgOpen(`<h3 style="margin:0 0 4px">🎙️ Nova reunião gravada</h3>
-    <div class="hint" style="margin-bottom:10px">Envie a gravação e a transcrição. A leitura da reunião e a atualização do CRM saem automaticamente.</div>
+    <div class="hint" style="margin-bottom:10px">Envie a gravação OU a transcrição (não precisa dos dois). A leitura automática da reunião e a atualização do CRM só rodam quando há transcrição — ainda não transcrevemos o áudio sozinhos; se você só enviar a gravação, ela fica guardada e a transcrição pode ser colada depois.</div>
     <div style="display:grid;gap:10px">
       <label class="fl"><span>Cliente</span><input id="ru-busca" placeholder="Digite o nome para buscar… (ou deixe em branco se ainda não está cadastrado)" value="${pre?escapeHtml(pre.nome):''}" autocomplete="off"></label>
       <div id="ru-res" class="hint"></div>
@@ -2933,8 +2940,8 @@ async function ruNovaDialog(pre){
         <label class="fl"><span>Título</span><input id="ru-tit" placeholder="Ex.: 1ª reunião — Dr. Fulano"></label>
         <label class="fl"><span>Data e hora</span><input id="ru-dt" type="datetime-local" value="${dtLocal}"></label>
         <label class="fl"><span>Formato</span><select id="ru-fmt"><option value="presencial">Presencial</option><option value="online">Online</option><option value="telefone">Telefone</option></select></label></div>
-      <label class="fl"><span>Gravação (áudio ou vídeo)</span><input id="ru-audio" type="file" accept="audio/*,video/*"></label>
-      <label class="fl"><span>Transcrição (cole o texto ou envie .txt/.vtt/.srt)</span><textarea id="ru-txt" rows="7" placeholder="Cole aqui a transcrição da reunião…"></textarea></label>
+      <label class="fl"><span>Gravação (áudio ou vídeo) <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— opcional</small></span><input id="ru-audio" type="file" accept="audio/*,video/*"></label>
+      <label class="fl"><span>Transcrição (cole o texto ou envie .txt/.vtt/.srt) <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— opcional; sem ela não há leitura automática</small></span><textarea id="ru-txt" rows="7" placeholder="Cole aqui a transcrição da reunião…"></textarea></label>
       <input id="ru-txtfile" type="file" accept=".txt,.vtt,.srt,text/plain">
       <div id="ru-msg" class="om-err"></div></div>
     <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ru-go">Salvar e analisar</button></div>`, true);
@@ -2952,16 +2959,18 @@ async function ruNovaDialog(pre){
   document.getElementById('ru-go').addEventListener('click', async ()=>{
     const msg = document.getElementById('ru-msg'), go = document.getElementById('ru-go'); msg.textContent = '';
     const txt = document.getElementById('ru-txt').value.trim();
-    if(txt.length<200){ msg.textContent = 'Cole a transcrição da reunião (mínimo de algumas linhas) para eu conseguir analisar.'; return; }
-    go.disabled = true; msg.textContent = '⏳ Salvando…';
-    const { data: reu, error } = await sb.from('crm_reunioes').insert({ pessoa_id: sel, titulo: document.getElementById('ru-tit').value||null, data_hora: new Date(document.getElementById('ru-dt').value).toISOString(), formato: document.getElementById('ru-fmt').value, transcricao: txt, criado_por: await ruWho() }).select('id').single();
-    if(error){ msg.textContent = '❌ '+error.message; go.disabled = false; return; }
     const f = document.getElementById('ru-audio').files[0];
+    if(!txt && !f){ msg.textContent = 'Envie ao menos a gravação ou a transcrição.'; return; }
+    const temTexto = txt.length>=200;
+    if(txt && !temTexto){ msg.textContent = 'A transcrição está curta demais (mínimo de algumas linhas) — ou apague o texto e envie só a gravação.'; return; }
+    go.disabled = true; msg.textContent = '⏳ Salvando…';
+    const { data: reu, error } = await sb.from('crm_reunioes').insert({ pessoa_id: sel, titulo: document.getElementById('ru-tit').value||null, data_hora: new Date(document.getElementById('ru-dt').value).toISOString(), formato: document.getElementById('ru-fmt').value, transcricao: txt||null, criado_por: await ruWho() }).select('id').single();
+    if(error){ msg.textContent = '❌ '+error.message; go.disabled = false; return; }
     if(f){ msg.textContent = '⏳ Enviando a gravação…'; const path = 'reunioes/'+reu.id+'/'+f.name.replace(/[^\w.\-]+/g,'_');
       const up = await sb.storage.from('crm-docs').upload(path, f, { upsert:true });
       if(up.error) showToast('Gravação não enviada: '+up.error.message); else await sb.from('crm_reunioes').update({ audio_path: path }).eq('id', reu.id); }
-    msg.textContent = '⏳ Analisando a reunião (até 1 minuto)…';
-    await ruAnalisar(reu.id);
+    if(temTexto){ msg.textContent = '⏳ Analisando a reunião (até 1 minuto)…'; await ruAnalisar(reu.id); }
+    else showToast('Reunião salva com a gravação. Cole a transcrição depois para gerar a leitura automática.');
     ruVer(reu.id);
   });
 }
@@ -4677,7 +4686,7 @@ document.getElementById('op-newcli').addEventListener('click', ()=> openNovoClie
 // ---------- SUGESTÕES DE MELHORIA (texto livre + voz, com histórico e status) ----------
 const SG_STATUS = [['nova','Nova','#0018fc'],['em_analise','Em análise','#c8790b'],['aprovada','Aprovada','#149c6b'],['em_execucao','Em execução','#7b3fe4'],['concluida','Concluída','#2f9e57'],['rejeitada','Rejeitada','#c23636'],['depois','Deixar para depois','#8990a3']];
 const SG_TIPOS = {ideia:'Ideia nova', melhoria:'Melhoria', problema:'Problema / erro'};
-const SG_TELAS = ['Aliança','Central de Apólices','Estudo','Cadastro do cliente','Novo cliente','Agenda','Base','Ata','Login / acesso','Outro'];
+const SG_TELAS = ['Aliança','Central de Apólices','Comercial','Reuniões','Indicadores','Estudo','Cadastro do cliente','Novo cliente','Agenda','Base','Ata','Login / acesso','Outro'];
 const SG = { list:[], filter:'', q:'', rec:null, media:null, chunks:[], audioBlob:null, recording:false };
 const sgLabel = (k)=> (SG_STATUS.find(s=>s[0]===k)||[k,k,'#666']);
 
@@ -4903,6 +4912,30 @@ const CT_FIELDS = [
   ['origem','Origem',/^origem/i],['quem_indicou','Quem indicou',/indic/i],['campanha','Campanha',/campanha/i],['parceiro','Parceiro',/parceiro/i],['observacoes','Observação',/observa/i],
   ['classificacao','Classificação (Frio/Quente/Call Hot)',/classifica|temperatura/i],['tags','Tags (separadas por ; ou ,)',/tag/i]];
 const CT_TEMPLATE_HEADS = ['Nome*','Sobrenome','CPF','Data de nascimento','Gênero','Profissão','CRM','Especialidade','Regime de trabalho','Telefone','E-mail','CEP','Logradouro','Número','Complemento','Bairro','Cidade','Estado','Origem','Quem indicou','Campanha','Parceiro','Observação','Classificação','Tags'];
+// ---- exportar contatos filtrados (Aliança), com colunas escolhidas ----
+const OP_EXPORT_COLS = [
+  ['nome','Nome', p=>p.nome], ['cpf','CPF', p=>p.cpf?fmtCPF(p.cpf):''], ['telefone','Telefone', p=>p.telefone||''], ['email','E-mail', p=>p.email||''],
+  ['crm','CRM', p=>p.crm?(p.crm+(p.crm_uf?'/'+p.crm_uf:'')):''], ['especialidade','Especialidade', p=>p.especialidade||''],
+  ['classificacao','Classificação', p=>CLASSIF[p.classificacao]||''], ['tags','Tags', p=>(p.tags||[]).join(', ')],
+  ['origem','Origem', p=>p.origem||''], ['proxima_acao','Próxima ação', p=>p.proxima_acao||''], ['proxima_data','Data da próxima ação', p=>p.proxima_data?fmtDate(p.proxima_data):''],
+  ['cidade','Cidade', p=>[p.cidade,p.uf].filter(Boolean).join('/')],
+];
+document.getElementById('op-export-contatos').addEventListener('click', ()=>{
+  const n = OP.filtered.length;
+  const box = dlgOpen(`<h3 style="margin:0 0 4px">⬇ Exportar contatos filtrados</h3>
+    <div class="hint" style="margin-bottom:10px">${n} contato(s) no filtro atual da Aliança. Escolha as colunas do CSV.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:6px;margin-bottom:12px">${OP_EXPORT_COLS.map(([k,l])=>`<label class="chk"><input type="checkbox" class="oex-col" value="${k}" ${['nome','cpf','telefone','classificacao','tags'].includes(k)?'checked':''}> ${l}</label>`).join('')}</div>
+    <div style="text-align:right;display:flex;gap:8px;justify-content:flex-end"><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="oex-go">⬇ Exportar CSV</button></div>`);
+  box.querySelector('#oex-go').addEventListener('click', ()=>{
+    const sel = [...box.querySelectorAll('.oex-col:checked')].map(c=>c.value);
+    if(!sel.length){ showToast('Escolha ao menos uma coluna.'); return; }
+    const cols = OP_EXPORT_COLS.filter(c=>sel.includes(c[0]));
+    const esc = v=>{ const t = v==null?'':String(v); return /[;"\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
+    const csv = '﻿' + [cols.map(c=>c[1]).join(';')].concat(OP.filtered.map(p=>cols.map(c=>esc(c[2](p))).join(';'))).join('\n');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download = 'contatos-callmed-'+ymd(new Date())+'.csv'; a.click();
+    dlgClose(); showToast(n+' contato(s) exportado(s)');
+  });
+});
 let CT = null;
 document.getElementById('op-import').addEventListener('click', ()=>{
   const box = dlgOpen(`<div class="om-title"><div><h3>Importar contatos em massa</h3><div class="om-sub">Excel (.xlsx) ou CSV. Só o nome é obrigatório; colunas que você não tiver podem ficar de fora. O sistema cruza cada linha com o cadastro (CPF, CRM e nome) para não duplicar.</div></div><button data-close>✕</button></div>
