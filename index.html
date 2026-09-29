@@ -2905,10 +2905,17 @@ async function ruVer(id){
       <button class="om-cancel" data-close>Fechar</button></div>`, true);
   const tf2 = document.getElementById('ru-txtfile2'); if(tf2) tf2.addEventListener('change', async e=>{ const f = e.target.files[0]; if(f) document.getElementById('ru-txt2').value = await f.text(); });
   document.getElementById('ru-reanalisar').addEventListener('click', async ()=>{
+    const btn = document.getElementById('ru-reanalisar'); btn.disabled = true;
     if(!reu.transcricao){ const t2 = document.getElementById('ru-txt2').value.trim();
-      if(t2.length<200){ document.getElementById('ru-msg').textContent = 'Cole a transcrição (mínimo de algumas linhas) antes de analisar.'; return; }
-      const { error: e2 } = await sb.from('crm_reunioes').update({ transcricao: t2 }).eq('id', reu.id); if(e2){ showToast('Erro: '+e2.message); return; } reu.transcricao = t2; }
-    await ruAnalisar(reu.id); ruVer(reu.id); });
+      if(t2.length<200){ document.getElementById('ru-msg').textContent = 'Cole a transcrição (mínimo de algumas linhas) antes de analisar.'; btn.disabled = false; return; }
+      document.getElementById('ru-msg').textContent = '⏳ Salvando a transcrição…';
+      const { error: e2 } = await sb.from('crm_reunioes').update({ transcricao: t2 }).eq('id', reu.id);
+      if(e2){ document.getElementById('ru-msg').textContent = '❌ Não consegui salvar a transcrição: '+e2.message; btn.disabled = false; return; }
+      reu.transcricao = t2; showToast('✅ Transcrição salva'); }
+    document.getElementById('ru-msg').textContent = '⏳ Analisando com IA…';
+    await ruAnalisar(reu.id);
+    if(document.getElementById('view-reunioes').classList.contains('active')) renderReunioes();
+    ruVer(reu.id); });
   const ap = document.getElementById('ru-aplicar');
   if(ap) ap.addEventListener('click', async ()=>{ ap.disabled = true; document.getElementById('ru-msg').textContent = '⏳ Atualizando o CRM…'; try{ const r = await ruAplicar(reu); showToast(r); ruVer(reu.id); if(document.getElementById('view-reunioes').classList.contains('active')) renderReunioes(); }catch(e){ document.getElementById('ru-msg').textContent = '❌ '+(e.message||e); ap.disabled = false; } });
 }
@@ -3091,7 +3098,9 @@ function exportDiagnostico2pPDF(e, calc){
         ${R.map(r=>`<tr><td>${escapeHtml(r.label)}</td><td class="r">${tem(r)||'—'}</td><td>${tem(r)?'<span class="tag ok">Já possui</span>':'<span class="tag gap">Lacuna identificada</span>'}</td></tr>`).join('')}</tbody></table>
       <h2><span class="n">04</span> Sua necessidade de proteção</h2>
       <table><thead><tr><th>Cobertura</th><th class="r">Necessidade</th><th class="r">Já tem</th><th class="r">Complemento</th><th>Cobertura atual</th></tr></thead><tbody>
-        ${R.map(r=>{ const pc = !r.diaria && r.necessidade>0 ? Math.min(100, (r.jaTem||0)/r.necessidade*100) : (r.jaTem>0?100:0); return `<tr><td>${escapeHtml(r.label)}</td><td class="r">${valor(r)}</td><td class="r">${tem(r)||'—'}</td><td class="r ${r.valor>0?'gap':'ok'}">${r.diaria?(r.jaTem>0?'—':fmtMoney(r.valor)+'/dia'):(r.valor>0?fmtMoney(r.valor):'—')}</td><td><div class="cmp"><i style="width:${pc}%"></i></div></td></tr>`; }).join('')}</tbody></table>
+        ${R.map(r=>{ const pc = !r.diaria && r.necessidade>0 ? Math.min(100, (r.jaTem||0)/r.necessidade*100) : (r.jaTem>0?100:0); return `<tr><td>${escapeHtml(r.label)}</td><td class="r">${valor(r)}</td><td class="r">${tem(r)||'—'}</td><td class="r ${r.valor>0?'gap':'ok'}">${r.diaria?(r.jaTem>0?'—':fmtMoney(r.valor)+'/dia'):(r.valor>0?fmtMoney(r.valor):'—')}</td><td><div class="cmp"><i style="width:${pc}%"></i></div></td></tr>`; }).join('')}
+        <tr style="font-weight:800;background:#f7f8fe"><td>TOTAL</td><td class="r">${fmtMoney(nD.reduce((t,r)=>t+(r.necessidade||0),0))}</td><td class="r">${fmtMoney(nD.reduce((t,r)=>t+(r.jaTem||0),0))}</td><td class="r">${fmtMoney(nD.reduce((t,r)=>t+(r.valor||0),0))}</td><td></td></tr></tbody></table>
+      <div class="d2-note">Total não soma as coberturas em diária (DIT, internação) — valores por dia, não somáveis ao capital.</div>
       <div class="d2-end"><b>Em uma frase:</b> ${fraseTem}, mas ${fraseGap}.</div>
       <div class="d2-note">Análise indicativa, baseada nas informações prestadas; sujeita à subscrição de cada seguradora. O complemento já desconta o que o cliente possui em apólices atuais.</div>
       ${foot(2)}</div></div>`;
@@ -3882,8 +3891,25 @@ async function caFormMulti(file, f){
   await ensurePessoas();
   const rows = f.multiplas.map(c=>{
     const d = dOnly(c.cpf);
-    const match = d.length===11 ? OP.pessoas.find(p=>dOnly(p.cpf)===d) : null;
-    return {...c, match};
+    let match = d.length===11 ? OP.pessoas.find(p=>dOnly(p.cpf)===d) : null;
+    let why = match ? 'CPF' : null;
+    // CPF pode falhar na leitura do PDF (OCR); tenta por nome antes de considerar "novo" —
+    // mesma lógica de "nome idêntico"/"nome semelhante" usada no resto do sistema (findPessoas).
+    if(!match && c.nome){
+      const tk = normNome(c.nome);
+      if(tk.length>=2){
+        const key = tk.join(' ');
+        match = OP.pessoas.find(p=>normNome(p.nome).join(' ')===key);
+        if(match) why = 'nome idêntico';
+        if(!match){
+          match = OP.pessoas.find(p=>{ const pt = normNome(p.nome); if(pt.length<2) return false;
+            const a = new Set(tk), b = new Set(pt), small = a.size<=b.size?a:b, big = a.size<=b.size?b:a;
+            return ([...small].every(t=>big.has(t)) && small.size>=2) || (tk[0]===pt[0] && tk[tk.length-1]===pt[pt.length-1]); });
+          if(match) why = 'nome semelhante';
+        }
+      }
+    }
+    return {...c, match, matchWhy:why};
   });
   const nEncontrados = rows.filter(r=>r.match).length;
   const covs = covValueRows('cm', f.coberturas||[], f.coberturas_valores||{});
@@ -3900,7 +3926,7 @@ async function caFormMulti(file, f){
       </div><div class="ql" style="margin-top:8px">Coberturas identificadas (aplicadas a todas)</div><div class="cv-grid">${covs}</div></div>
       <div class="q"><div class="ql">2. Pessoas encontradas no documento (${rows.length})</div>
         <table class="ca-table"><thead><tr><th></th><th>Nome (extraído do documento)</th><th>CPF</th><th>Cadastro</th></tr></thead><tbody>
-          ${rows.map((r,i)=>`<tr><td><input type="checkbox" class="cm-row" data-i="${i}" checked></td><td><input type="text" class="cm-nome" data-i="${i}" value="${escapeHtml(r.nome||'')}" placeholder="Sem nome identificado — preencha" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:4px 6px"></td><td class="mono">${escapeHtml(r.cpf)}</td><td>${r.match?`<span class="tagx" style="background:var(--green-soft);color:var(--green)">✔ ${escapeHtml(r.match.nome)}</span>`:'<span class="tagx warn">novo cadastro</span>'}</td></tr>`).join('')}
+          ${rows.map((r,i)=>`<tr><td><input type="checkbox" class="cm-row" data-i="${i}" checked></td><td><input type="text" class="cm-nome" data-i="${i}" value="${escapeHtml(r.nome||'')}" placeholder="Sem nome identificado — preencha" style="width:100%;border:1px solid var(--border);border-radius:6px;padding:4px 6px"></td><td class="mono">${escapeHtml(r.cpf)}</td><td>${r.match?`<span class="tagx" style="background:var(--green-soft);color:var(--green)" title="Encontrado por: ${escapeHtml(r.matchWhy||'')}">✔ ${escapeHtml(r.match.nome)}${r.matchWhy&&r.matchWhy!=='CPF'?' <small>('+escapeHtml(r.matchWhy)+')</small>':''}</span>`:'<span class="tagx warn">novo cadastro</span>'}</td></tr>`).join('')}
         </tbody></table>
       </div>
       <div class="om-err" id="cm-err"></div></div>
