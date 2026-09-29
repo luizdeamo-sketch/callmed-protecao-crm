@@ -211,6 +211,7 @@
     <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
     <button class="nav-btn" data-view="comercial" title="Metas comerciais e projeção de vendas">💼<span>Comercial</span></button>
     <button class="nav-btn" data-view="reunioes" title="Reuniões gravadas: leitura da conversa e atualização automática do CRM">🎙️<span>Reuniões</span></button>
+    <button class="nav-btn" data-view="maiscarlas" title="Painel Mais Carlas: pontes de escalistas e indicação por médicos atendidos">🤝<span>Mais Carlas</span></button>
     <button class="nav-btn" data-view="indicadores" title="Indicadores do funil e da produção">📊<span>Indicadores</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
@@ -312,6 +313,13 @@
       <div class="pg">
         <div class="pg-head"><h2>🎙️ Reuniões gravadas</h2><span class="sub">Toda abordagem é gravada. A leitura da conversa (acertos, erros, objeções, oportunidades) alimenta o CRM automaticamente.</span></div>
         <div id="ru-body"><div class="op-more">Carregando...</div></div>
+      </div>
+    </div>
+
+    <div id="view-maiscarlas" class="view">
+      <div class="pg">
+        <div class="pg-head"><h2>🤝 Painel Mais Carlas</h2><span class="sub">A confiança da Carla, em rede: pontes de escalistas e indicação por médicos já atendidos.</span></div>
+        <div id="mc2-body"><div class="op-more">Carregando...</div></div>
       </div>
     </div>
 
@@ -993,6 +1001,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'indicadores') renderIndicadores();
     if(btn.dataset.view === 'comercial') renderComercial();
     if(btn.dataset.view === 'reunioes') renderReunioes();
+    if(btn.dataset.view === 'maiscarlas') renderMaisCarlas();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'agenda') renderCalendar();
     if(btn.dataset.view === 'conhecimento') renderConhecimento();
@@ -3276,8 +3285,174 @@ function exportPropostaPDF(e, P){
   setTimeout(()=>window.print(), 80);
 }
 
+// ---------- PAINEL MAIS CARLAS: pontes de escalistas + indicação por médicos atendidos ----------
+const MC2_TIPOS = [['escalista','Escalista'],['medico_cliente','Médico cliente'],['outro','Outro']];
+const MC2_FRENTES = [['ponte_escalista','Ponte de escalista'],['indicacao_medico','Indicação de médico atendido']];
+const MC2_STATUS = [['registrada','Registrada'],['aceitou_contato','Aceitou contato'],['recusou','Recusou'],['sem_retorno','Sem retorno'],['virou_lead','Virou lead'],['reuniao','Em reunião'],['proposta','Proposta enviada'],['plano_fechado','Plano fechado']];
+const MC2_STATUS_L = Object.fromEntries(MC2_STATUS);
+const MC2_TIPO_L = Object.fromEntries(MC2_TIPOS);
+const mc2Money = v => v==null ? '—' : 'R$ '+Number(v).toLocaleString('pt-BR');
+const mc2Card = (v,l,sub)=>`<div style="background:var(--card,#fff);border:1px solid var(--border);border-radius:12px;padding:14px"><b style="display:block;font-size:22px;font-family:'Poppins',sans-serif;color:var(--brand)">${v}</b><span style="font-size:12px;color:var(--ink-soft)">${l}</span>${sub?`<div style="font-size:11.5px;color:var(--ink-faint);margin-top:2px">${sub}</div>`:''}</div>`;
+const MC2 = { indicadores:[], regs:[] };
+async function mc2Load(){
+  const [ind, reg] = await Promise.all([
+    sb.from('crm_indicadores').select('*').order('nome'),
+    sb.from('crm_mais_carlas').select('*, crm_pessoas(nome)').order('data_registro',{ascending:false}),
+  ]);
+  MC2.indicadores = ind.data||[]; MC2.regs = reg.data||[];
+  return { errI: ind.error, errR: reg.error };
+}
+async function renderMaisCarlas(){
+  const host = document.getElementById('mc2-body');
+  host.innerHTML = '<div class="op-more">Carregando...</div>';
+  const { errI, errR } = await mc2Load();
+  if(errI || errR){ host.innerHTML = '<div class="op-more">Erro: '+escapeHtml((errI||errR).message)+'</div>'; return; }
+  mc2Draw(host);
+}
+function mc2Draw(host){
+  const ind = MC2.indicadores, regs = MC2.regs;
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const semanaIni = new Date(hoje); semanaIni.setDate(hoje.getDate()-((hoje.getDay()+6)%7));
+  const indAtivos = ind.filter(i=>i.ativo);
+  const pontesSemana = regs.filter(r=>r.frente==='ponte_escalista' && new Date(r.data_registro+'T00:00:00')>=semanaIni);
+  const aceitaram = regs.filter(r=>['aceitou_contato','virou_lead','reuniao','proposta','plano_fechado'].includes(r.status));
+  const taxaFn = (stage)=>{ const n = regs.filter(r=>r.status===stage).length; return n; };
+  const nReg = regs.length||1;
+  const taxa = (arr)=> arr.length ? Math.round(arr.length/nReg*100) : 0;
+  const comDevida = regs.filter(r=>!r.comissao_paga).reduce((t,r)=>t+(Number(r.comissao_devida)||0),0);
+  const comPaga = regs.filter(r=>r.comissao_paga).reduce((t,r)=>t+(Number(r.comissao_devida)||0),0);
+  // ranking
+  const byInd = new Map();
+  regs.forEach(r=>{ const k = r.indicador_id; if(!byInd.has(k)) byInd.set(k, []); byInd.get(k).push(r); });
+  const ranking = indAtivos.concat(ind.filter(i=>!i.ativo)).map(i=>{
+    const rs = byInd.get(i.id)||[];
+    const planos = rs.filter(r=>r.status==='plano_fechado').length;
+    const reunioes = rs.filter(r=>['reuniao','proposta','plano_fechado'].includes(r.status)).length;
+    const aceit = rs.filter(r=>['aceitou_contato','virou_lead','reuniao','proposta','plano_fechado'].includes(r.status)).length;
+    const dev = rs.filter(r=>!r.comissao_paga).reduce((t,r)=>t+(Number(r.comissao_devida)||0),0);
+    const pag = rs.filter(r=>r.comissao_paga).reduce((t,r)=>t+(Number(r.comissao_devida)||0),0);
+    const ult = rs.map(r=>r.data_registro).sort().slice(-1)[0];
+    return {i, n:rs.length, aceit, reunioes, planos, dev, pag, ult};
+  }).filter(x=>x.n>0 || x.i.ativo);
+  ranking.sort((a,b)=>b.n-a.n);
+  // funil por origem
+  const porFrente = f => regs.filter(r=>r.frente===f);
+  const funilRow = (label, arr) => `<tr><td>${label}</td><td>${arr.length}</td><td>${arr.filter(r=>['aceitou_contato','virou_lead','reuniao','proposta','plano_fechado'].includes(r.status)).length}</td><td>${arr.filter(r=>['reuniao','proposta','plano_fechado'].includes(r.status)).length}</td><td>${arr.filter(r=>r.status==='plano_fechado').length}</td></tr>`;
+  // alertas
+  const diasDesde = d => d ? Math.floor((hoje - new Date(d+'T00:00:00'))/86400000) : null;
+  const alEscalistaParado = indAtivos.filter(i=>i.tipo==='escalista').filter(i=>{ const rs = byInd.get(i.id)||[]; const ult = rs.map(r=>r.data_registro).sort().slice(-1)[0]; const d = diasDesde(ult); return d===null || d>14; });
+  const alSemContato = regs.filter(r=>r.status==='registrada' && diasDesde(r.data_registro)>2);
+  const alAgradecPendente = regs.filter(r=>r.status==='plano_fechado' && !r.agradecimento_feito);
+  const nomeInd = id => (ind.find(i=>i.id===id)||{}).nome || '—';
+  const nomeAlvo = r => r.crm_pessoas?.nome || r.nome_indicado || '—';
+
+  host.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:14px">
+      ${mc2Card(String(indAtivos.length),'Indicadores ativos','')}
+      ${mc2Card(String(pontesSemana.length),'Pontes/indicações nesta semana','')}
+      ${mc2Card(String(aceitaram.length),'Aceitaram contato (total)',regs.length?taxa(aceitaram)+'% do total':'')}
+      ${mc2Card(mc2Money(comDevida),'Comissão devida','ainda não paga')}
+      ${mc2Card(mc2Money(comPaga),'Comissão paga','')}
+    </div>
+    <div class="es-box"><div class="ql">Funil por origem <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— qual frente rende mais</small></div>
+      <table class="ca-table"><thead><tr><th>Origem</th><th>Registros</th><th>Aceitaram contato</th><th>Em reunião/proposta</th><th>Plano fechado</th></tr></thead><tbody>
+        ${funilRow('🤝 Ponte de escalista', porFrente('ponte_escalista'))}
+        ${funilRow('📣 Indicação de médico atendido', porFrente('indicacao_medico'))}
+      </tbody></table></div>
+    ${(alEscalistaParado.length||alSemContato.length||alAgradecPendente.length)?`<div class="es-box" style="border-left:4px solid var(--amber,#e0a94f)"><div class="ql">⚠️ Alertas</div>
+      ${alEscalistaParado.length?`<div class="hint">• Escalista sem ponte há mais de 14 dias: ${alEscalistaParado.map(i=>escapeHtml(i.nome)).join(', ')}</div>`:''}
+      ${alSemContato.length?`<div class="hint">• ${alSemContato.length} registro(s) sem contato há mais de 48h — ainda em "Registrada"</div>`:''}
+      ${alAgradecPendente.length?`<div class="hint">• ${alAgradecPendente.length} plano(s) fechado(s) sem agradecimento ao indicador ainda marcado</div>`:''}
+    </div>`:''}
+    <div class="es-box"><div class="ql">Ranking de indicadores <button class="om-save" id="mc2-novo-ind" style="margin-left:10px;padding:4px 10px;font-size:12px">＋ Novo indicador</button></div>
+      ${ranking.length?`<table class="ca-table"><thead><tr><th>Nome</th><th>Tipo</th><th>Registros</th><th>Aceitaram</th><th>Reuniões</th><th>Planos</th><th>Devida</th><th>Paga</th><th>Última</th><th></th></tr></thead><tbody>
+        ${ranking.map(x=>`<tr><td><b>${escapeHtml(x.i.nome)}</b>${x.i.ativo?'':' <small style="color:var(--ink-faint)">(inativo)</small>'}</td><td>${escapeHtml(MC2_TIPO_L[x.i.tipo]||x.i.tipo)}</td><td>${x.n}</td><td>${x.aceit}</td><td>${x.reunioes}</td><td>${x.planos}</td><td>${mc2Money(x.dev)}</td><td>${mc2Money(x.pag)}</td><td>${x.ult?fmtDate(x.ult):'—'}</td><td><a href="#" data-editind="${x.i.id}">editar</a></td></tr>`).join('')}
+      </tbody></table>`:'<div class="hint">Nenhum indicador cadastrado ainda.</div>'}</div>
+    <div class="es-box"><div class="ql">Registros (pontes e indicações) <button class="om-save" id="mc2-novo-reg" style="margin-left:10px;padding:4px 10px;font-size:12px">＋ Nova ponte/indicação</button></div>
+      ${regs.length?`<table class="ca-table"><thead><tr><th>Data</th><th>Indicador</th><th>Frente</th><th>Indicado</th><th>Status</th><th>Comissão</th><th></th></tr></thead><tbody>
+        ${regs.map(r=>`<tr><td>${fmtDate(r.data_registro)}</td><td>${escapeHtml(nomeInd(r.indicador_id))}</td><td><small>${escapeHtml((MC2_FRENTES.find(f=>f[0]===r.frente)||[,r.frente])[1])}</small></td><td>${escapeHtml(nomeAlvo(r))}</td><td><span class="tagx ${r.status==='plano_fechado'?'':(r.status==='recusou'||r.status==='sem_retorno'?'bad':'warn')}">${escapeHtml(MC2_STATUS_L[r.status]||r.status)}</span></td><td>${mc2Money(r.comissao_devida)}${r.comissao_devida!=null?(r.comissao_paga?' ✅':' ⏳'):''}</td><td><a href="#" data-editreg="${r.id}">editar</a></td></tr>`).join('')}
+      </tbody></table>`:'<div class="hint">Nenhum registro ainda.</div>'}
+      <div class="hint" style="margin-top:8px">LGPD: uma indicação só pode virar lead depois de "aceita_contato" marcado — o escalista/indicador vê só se a ponte foi aceita, nunca dados de saúde, financeiros ou de apólice.</div></div>`;
+  host.querySelector('#mc2-novo-ind').addEventListener('click', ()=> mc2IndDialog(null));
+  host.querySelector('#mc2-novo-reg').addEventListener('click', ()=> mc2RegDialog(null));
+  host.querySelectorAll('[data-editind]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); mc2IndDialog(ind.find(i=>i.id===a.dataset.editind)); }));
+  host.querySelectorAll('[data-editreg]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); mc2RegDialog(regs.find(r=>r.id===a.dataset.editreg)); }));
+}
+function mc2IndDialog(i){
+  i = i || {nome:'',tipo:'escalista',telefone:'',modelo_remuneracao:'',data_entrada:ymdToday(),ativo:true};
+  dlgOpen(`<h3 style="margin:0 0 8px">${i.id?'Editar indicador':'Novo indicador'}</h3>
+    <div style="display:grid;gap:10px">
+      ${fld('mi-nome','Nome',i.nome)}
+      <label class="fl"><span>Tipo</span><select id="mi-tipo">${MC2_TIPOS.map(t=>`<option value="${t[0]}" ${i.tipo===t[0]?'selected':''}>${t[1]}</option>`).join('')}</select></label>
+      ${fld('mi-tel','Telefone',i.telefone)}
+      ${fld('mi-rem','Modelo de remuneração','text'===i.modelo_remuneracao?'':i.modelo_remuneracao,'text',true)}
+      ${fld('mi-data','Data de entrada',i.data_entrada,'date')}
+      <label class="chk"><input type="checkbox" id="mi-ativo" ${i.ativo?'checked':''}> Ativo</label>
+      <div id="mi-err" class="om-err"></div></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:space-between">
+      ${i.id?'<button class="om-cancel" id="mi-del" style="color:var(--red)">Excluir</button>':'<span></span>'}
+      <span style="display:flex;gap:8px"><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="mi-save">Salvar</button></span></div>`, true);
+  const g = id=>document.getElementById(id).value.trim();
+  document.getElementById('mi-save').addEventListener('click', async ()=>{
+    if(!g('mi-nome')){ document.getElementById('mi-err').textContent = 'Informe o nome.'; return; }
+    const payload = { nome:g('mi-nome'), tipo:g('mi-tipo'), telefone:g('mi-tel')||null, modelo_remuneracao:g('mi-rem')||null, data_entrada:g('mi-data')||null, ativo:document.getElementById('mi-ativo').checked };
+    const { error } = i.id ? await sb.from('crm_indicadores').update(payload).eq('id', i.id) : await sb.from('crm_indicadores').insert(payload);
+    if(error){ document.getElementById('mi-err').textContent = 'Erro: '+error.message; return; }
+    dlgClose(); showToast('Indicador salvo'); renderMaisCarlas(); });
+  const del = document.getElementById('mi-del'); if(del) del.addEventListener('click', async ()=>{
+    if(!confirm('Excluir este indicador? Os registros ligados a ele também serão apagados.')) return;
+    const { error } = await sb.from('crm_indicadores').delete().eq('id', i.id); if(error){ showToast('Erro: '+error.message); return; }
+    dlgClose(); showToast('Indicador excluído'); renderMaisCarlas(); });
+}
+function mc2RegDialog(r){
+  r = r || {indicador_id:'',frente:'ponte_escalista',pessoa_id:null,nome_indicado:'',telefone_indicado:'',crm_indicado:'',aceita_contato:null,status:'registrada',canal:'',data_registro:ymdToday(),observacao:'',agradecimento_feito:false,comissao_devida:null,comissao_paga:false,data_pagamento:null};
+  let selPessoa = r.pessoa_id ? {id:r.pessoa_id, nome:r.crm_pessoas?.nome||''} : null;
+  dlgOpen(`<h3 style="margin:0 0 8px">${r.id?'Editar registro':'Nova ponte/indicação'}</h3>
+    <div style="display:grid;gap:10px">
+      <label class="fl"><span>Indicador</span><select id="mr-ind">${MC2.indicadores.map(i=>`<option value="${i.id}" ${r.indicador_id===i.id?'selected':''}>${escapeHtml(i.nome)} (${MC2_TIPO_L[i.tipo]})</option>`).join('')}</select></label>
+      <label class="fl"><span>Frente</span><select id="mr-frente">${MC2_FRENTES.map(f=>`<option value="${f[0]}" ${r.frente===f[0]?'selected':''}>${f[1]}</option>`).join('')}</select></label>
+      <label class="fl"><span>Pessoa indicada — já cadastrada?</span><input id="mr-busca" placeholder="Buscar por nome... (ou deixe em branco e preencha abaixo)" value="${selPessoa?escapeHtml(selPessoa.nome):''}" autocomplete="off"></label>
+      <div id="mr-res" class="hint"></div>
+      ${fld('mr-nome','Nome (se ainda não cadastrada)',r.nome_indicado)}${fld('mr-tel','Telefone',r.telefone_indicado)}${fld('mr-crm','CRM',r.crm_indicado)}
+      <label class="chk"><input type="checkbox" id="mr-aceita" ${r.aceita_contato?'checked':''}> Confirmado: a pessoa aceita ser contatada (LGPD)</label>
+      <label class="fl"><span>Status</span><select id="mr-status">${MC2_STATUS.map(s=>`<option value="${s[0]}" ${r.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
+      ${fld('mr-canal','Canal',r.canal)}${fld('mr-data','Data',r.data_registro,'date')}
+      ${fld('mr-obs','Observação',r.observacao,'text',true)}
+      <label class="chk"><input type="checkbox" id="mr-agrad" ${r.agradecimento_feito?'checked':''}> Agradecimento ao indicador já feito</label>
+      ${fld('mr-com','Comissão devida (R$)',r.comissao_devida==null?'':String(r.comissao_devida),'number')}
+      <label class="chk"><input type="checkbox" id="mr-pago" ${r.comissao_paga?'checked':''}> Comissão paga</label>
+      ${fld('mr-datapag','Data do pagamento',r.data_pagamento,'date')}
+      <div id="mr-err" class="om-err"></div></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:space-between">
+      ${r.id?'<button class="om-cancel" id="mr-del" style="color:var(--red)">Excluir</button>':'<span></span>'}
+      <span style="display:flex;gap:8px"><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="mr-save">Salvar</button></span></div>`, true);
+  const busca = document.getElementById('mr-busca'), res = document.getElementById('mr-res');
+  busca.addEventListener('input', async ()=>{
+    selPessoa = null; const q = busca.value.trim(); if(q.length<3){ res.innerHTML=''; return; }
+    const { data } = await sb.from('crm_pessoas').select('id,nome,crm').ilike('nome',`%${q}%`).limit(6);
+    res.innerHTML = (data||[]).map(p=>`<div><a href="#" data-pid="${p.id}">${escapeHtml(p.nome)}</a> ${p.crm?'<small>CRM '+escapeHtml(p.crm)+'</small>':''}</div>`).join('') || 'Ninguém encontrado — preencha os campos manuais abaixo.';
+    res.querySelectorAll('[data-pid]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); const p = data.find(x=>x.id===a.dataset.pid); selPessoa = p; busca.value = p.nome; res.innerHTML = '✅ vinculado ao cadastro existente'; }));
+  });
+  const g = id=>document.getElementById(id).value.trim();
+  document.getElementById('mr-save').addEventListener('click', async ()=>{
+    if(!g('mr-ind')){ document.getElementById('mr-err').textContent = 'Selecione o indicador.'; return; }
+    if(!selPessoa && !g('mr-nome')){ document.getElementById('mr-err').textContent = 'Selecione a pessoa cadastrada ou informe o nome.'; return; }
+    const status = g('mr-status');
+    if(['virou_lead','reuniao','proposta','plano_fechado'].includes(status) && !document.getElementById('mr-aceita').checked){ document.getElementById('mr-err').textContent = 'Sem "aceita ser contatada" marcado, o registro não pode avançar para esse status (regra de LGPD).'; return; }
+    const payload = { indicador_id:g('mr-ind'), frente:g('mr-frente'), pessoa_id:selPessoa?selPessoa.id:null, nome_indicado:selPessoa?null:(g('mr-nome')||null), telefone_indicado:g('mr-tel')||null, crm_indicado:g('mr-crm')||null,
+      aceita_contato:document.getElementById('mr-aceita').checked, status, canal:g('mr-canal')||null, data_registro:g('mr-data')||ymdToday(), observacao:g('mr-obs')||null,
+      agradecimento_feito:document.getElementById('mr-agrad').checked, comissao_devida:g('mr-com')?Number(g('mr-com')):null, comissao_paga:document.getElementById('mr-pago').checked, data_pagamento:g('mr-datapag')||null, updated_at:new Date().toISOString() };
+    const { error } = r.id ? await sb.from('crm_mais_carlas').update(payload).eq('id', r.id) : await sb.from('crm_mais_carlas').insert(payload);
+    if(error){ document.getElementById('mr-err').textContent = 'Erro: '+error.message; return; }
+    dlgClose(); showToast('Registro salvo'); renderMaisCarlas(); });
+  const del = document.getElementById('mr-del'); if(del) del.addEventListener('click', async ()=>{
+    if(!confirm('Excluir este registro?')) return;
+    const { error } = await sb.from('crm_mais_carlas').delete().eq('id', r.id); if(error){ showToast('Erro: '+error.message); return; }
+    dlgClose(); showToast('Registro excluído'); renderMaisCarlas(); });
+}
+
 // ---------- AUDITORIA: quem alterou, o quê e quando (registrado pelo banco a cada insert/update/delete) ----------
-const AUD_TAB = {crm_pessoas:'Cadastro', crm_apolices:'Apólice', crm_funil:'Funil', crm_oportunidades:'Oportunidade', crm_atividades:'Atividade', crm_diagnostico:'Diagnóstico', crm_estudos:'Estudo', crm_documentos:'Documento', crm_eventos_vida:'Evento de vida', crm_interacoes:'Interação', crm_jornada:'Jornada', crm_lead_notas:'Nota', crm_lembretes:'Lembrete', crm_pos_venda:'Pós-venda', crm_protecao_atual:'Proteção atual', crm_relacionamento:'Relacionamento', crm_tarefas_diarias:'Tarefa', crm_agenda:'Agenda', crm_comercial:'Comercial', crm_indicacoes:'Indicação', crm_metas:'Metas', crm_meta_comercial:'Premissas comerciais', crm_estrategias:'Estratégia', crm_base_conhecimento:'Base de conhecimento', crm_catalogo_produtos:'Catálogo', crm_ata_entregaveis:'Ata'};
+const AUD_TAB = {crm_pessoas:'Cadastro', crm_apolices:'Apólice', crm_funil:'Funil', crm_oportunidades:'Oportunidade', crm_atividades:'Atividade', crm_diagnostico:'Diagnóstico', crm_estudos:'Estudo', crm_documentos:'Documento', crm_eventos_vida:'Evento de vida', crm_interacoes:'Interação', crm_jornada:'Jornada', crm_lead_notas:'Nota', crm_lembretes:'Lembrete', crm_pos_venda:'Pós-venda', crm_protecao_atual:'Proteção atual', crm_relacionamento:'Relacionamento', crm_tarefas_diarias:'Tarefa', crm_agenda:'Agenda', crm_comercial:'Comercial', crm_indicacoes:'Indicação', crm_metas:'Metas', crm_meta_comercial:'Premissas comerciais', crm_estrategias:'Estratégia', crm_indicadores:'Indicador (Mais Carlas)', crm_mais_carlas:'Registro Mais Carlas', crm_base_conhecimento:'Base de conhecimento', crm_catalogo_produtos:'Catálogo', crm_ata_entregaveis:'Ata'};
 const AUD_ACAO = {INSERT:'criou', UPDATE:'alterou', DELETE:'apagou'};
 const audWhen = s => { const d = new Date(s); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
 const audWho = e => (e||'desconhecido').split('@')[0];
@@ -5299,7 +5474,7 @@ document.getElementById('who-email').title = 'Clique para trocar o nome exibido'
 document.getElementById('who-email').addEventListener('click', ()=>userNameDialog(false));
 
 // ---- backup ----
-const BACKUP_TABLES = ['crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal'];
+const BACKUP_TABLES = ['crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
 async function backupNow(){
   const btn = document.getElementById('btn-backup'); btn.disabled = true; const out = {exportado_em:new Date().toISOString(), tabelas:{}};
   try{
