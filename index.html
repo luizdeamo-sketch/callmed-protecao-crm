@@ -1227,6 +1227,7 @@ async function pvResumo(body, p){
       ${pvField('CPF', escapeHtml(p.cpf||''), true)}${pvField('Telefone', p.telefone?escapeHtml(p.telefone)+(wa?` <a href="${wa}" target="_blank" rel="noopener" title="Abrir WhatsApp">💬</a> <a href="tel:${dOnly(p.telefone)}" title="Ligar">📞</a>`:''):'')}${pvField('E-mail', escapeHtml(p.email||''))}
       ${pvField('Nascimento', p.data_nascimento?fmtDate(p.data_nascimento):'')}${pvField('Profissão / Regime', escapeHtml(p.profissao||'')+(p.regime_trabalho?' · '+escapeHtml(p.regime_trabalho):''))}
       ${pvField('Origem', escapeHtml(p.origem||'')+(p.quem_indicou?' · indicado por '+escapeHtml(p.quem_indicou):''))}${pvField('Campanha / Parceiro', escapeHtml(p.campanha||'')+(p.parceiro?' · '+escapeHtml(p.parceiro):''))}
+      ${pvField('Base legal de contato (LGPD)', p.base_legal_contato ? escapeHtml(p.base_legal_contato) : '<span style="color:var(--red)">⚠️ não preenchida — confirme antes de abordar</span>')}
       ${pvField('Endereço', escapeHtml(end))}${pvField('CNPJ / Razão social', escapeHtml(p.cnpj||'')+(p.razao_social?' · '+escapeHtml(p.razao_social):''))}${pvField('Observações', escapeHtml(p.observacoes||''))}
     </div></div>
     <div class="es-box" id="pv-lead"><div class="ql">Quem é o Lead?</div><div class="op-more">Carregando...</div></div>
@@ -4849,6 +4850,7 @@ sgTa.addEventListener('dragleave', ()=>sgTa.classList.remove('over'));
 sgTa.addEventListener('drop', e=>{ e.preventDefault(); sgTa.classList.remove('over'); sgAddFiles(e.dataTransfer.files); });
 
 // ---------- CADASTRO: campos completos, tags, classificação, edição e importação de contatos ----------
+const LGPD_BASES = ['','Cliente/relação ativa (CallMed Plantões)','Consentimento (formulário/opt-in)','Sorteio/evento com aceite de contato','Indicação direta de outro médico','Cliente CallMed Proteção Patrimonial (já contratou)','A confirmar'];
 const PF_EXTRA = [['profissao','Profissão'],['regime_trabalho','Regime de trabalho'],['cep','CEP'],['logradouro','Logradouro'],['numero','Número'],['complemento','Complemento'],['bairro','Bairro'],['cidade','Cidade'],['uf','UF'],['campanha','Campanha'],['parceiro','Parceiro']];
 const CLASSIF = {frio:'Frio', quente:'Quente', call_hot:'Call Hot'};
 const classifOptions = (sel)=> '<option value="">—</option>' + Object.entries(CLASSIF).map(([k,l])=>`<option value="${k}" ${sel===k?'selected':''}>${l}</option>`).join('');
@@ -4879,6 +4881,7 @@ function openEditPessoa(p){
       <label class="fl"><span>Gênero</span><select id="pe-sexo"><option value="">—</option><option value="M" ${p.sexo==='M'?'selected':''}>Masculino</option><option value="F" ${p.sexo==='F'?'selected':''}>Feminino</option></select></label>
       <label class="fl"><span>Estado civil</span><select id="pe-estado_civil"><option value="">—</option>${['solteiro','casado','união estável','divorciado','viúvo'].map(o=>`<option ${p.estado_civil===o?'selected':''}>${o}</option>`).join('')}</select></label>
       ${fld('pe-origem','Origem',p.origem)}${fld('pe-quem_indicou','Quem indicou',p.quem_indicou)}
+      <label class="fl"><span>Base legal de contato (LGPD) <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— por que podemos falar com essa pessoa</small></span><select id="pe-base_legal_contato">${LGPD_BASES.map(o=>`<option value="${o}" ${(p.base_legal_contato||'')===o?'selected':''}>${o||'— a confirmar —'}</option>`).join('')}</select></label>
       ${pfExtraFieldsHtml('pe-', p)}
     </div><div class="om-err" id="pe-err"></div></div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="pe-save">Salvar</button></div>`, true);
@@ -4886,7 +4889,7 @@ function openEditPessoa(p){
   box.querySelector('#pe-save').addEventListener('click', async ()=>{
     const g = id=>document.getElementById('pe-'+id).value.trim(); if(!g('nome')){ document.getElementById('pe-err').textContent = 'O nome é obrigatório.'; return; }
     const upd = { nome:g('nome'), tipo:g('tipo')||'medico', tags:pfTags('pe-') };
-    ['cpf','crm','crm_uf','data_nascimento','telefone','email','especialidade','cnpj','razao_social','sexo','estado_civil','origem','quem_indicou','classificacao','observacoes'].concat(PF_EXTRA.map(x=>x[0])).forEach(k=>{ upd[k] = g(k)||null; });
+    ['cpf','crm','crm_uf','data_nascimento','telefone','email','especialidade','cnpj','razao_social','sexo','estado_civil','origem','quem_indicou','classificacao','observacoes','base_legal_contato'].concat(PF_EXTRA.map(x=>x[0])).forEach(k=>{ upd[k] = g(k)||null; });
     const { error } = await sb.from('crm_pessoas').update(upd).eq('id', p.id);
     if(error){ document.getElementById('pe-err').textContent = 'Erro: '+error.message; return; }
     const op = OP.pessoas.find(x=>x.id===p.id); if(op) Object.assign(op, upd);
