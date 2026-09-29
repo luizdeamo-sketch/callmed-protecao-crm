@@ -1175,7 +1175,7 @@ function pvRender(){
   view.innerHTML = `<div class="person-header"><div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn-ghost" id="btn-op-back">← Aliança</button><h2 style="margin:0">${escapeHtml(p.nome)}</h2></div>
       <div class="tags" style="margin-top:8px"><span class="tag">${TIPOS_PESSOA[p.tipo||'medico']||p.tipo}</span>${p.crm?`<span class="tag">CRM ${escapeHtml(p.crm)}</span>`:''}${p.especialidade?`<span class="tag">${escapeHtml(p.especialidade)}</span>`:''}${pvClassChip(p)}${(p.tags||[]).map(t=>`<span class="tag">🏷 ${escapeHtml(t)}</span>`).join('')}</div>
-      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button><button class="om-cancel" id="pa-wa">💬 WhatsApp com script</button><button class="om-cancel" id="pa-audit" title="Quem alterou o quê, e quando">🕓 Histórico de alterações</button><button class="om-save" id="pa-intel" title="Pesquisa pública e perguntas personalizadas para a abordagem">🧠 Inteligência</button><button class="om-cancel" id="pa-reuniao" title="Gravar/enviar uma reunião com esta pessoa">🎙️ Nova reunião</button></div>
+      <div class="person-actions"><button class="om-cancel" id="pa-editar">✏️ Editar cadastro</button><button class="om-save" id="pa-estudo">🔍 Novo estudo</button><button class="om-cancel" id="pa-apolice">📄 Anexar apólice</button><button class="om-cancel" id="pa-wa">💬 WhatsApp com script</button><button class="om-cancel" id="pa-audit" title="Quem alterou o quê, e quando">🕓 Histórico de alterações</button><button class="om-save" id="pa-intel" title="Pesquisa pública e perguntas personalizadas para a abordagem">🧠 Inteligência</button><button class="om-cancel" id="pa-reuniao" title="Gravar/enviar uma reunião com esta pessoa">🎙️ Nova reunião</button><button class="om-cancel" id="pa-del" style="color:var(--red)" title="Apaga o cadastro e tudo ligado a ele">🗑 Excluir cadastro</button></div>
       <div id="pv-next">${pvNextHtml(p)}</div>
     </div></div>
     <div class="pv-tabs">${PV_TABS.map(([k,l])=>`<button class="pv-tab${PV.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
@@ -1183,7 +1183,29 @@ function pvRender(){
     document.getElementById('pa-audit').addEventListener('click', ()=> auditDialog(p.id, p.nome));
     document.getElementById('pa-intel').addEventListener('click', ()=> intelDialog(p));
     document.getElementById('pa-reuniao').addEventListener('click', ()=> ruNovaDialog(p));
+    document.getElementById('pa-del').addEventListener('click', ()=> pvDelConfirm(p));
     pvShowTab(PV.tab);
+}
+async function pvDelConfirm(p){
+  const [{count:napo}, {count:nopp}, {count:nativ}, {count:nest}] = await Promise.all([
+    sb.from('crm_apolices').select('id',{count:'exact',head:true}).eq('pessoa_id',p.id),
+    sb.from('crm_oportunidades').select('id',{count:'exact',head:true}).eq('pessoa_id',p.id),
+    sb.from('crm_atividades').select('id',{count:'exact',head:true}).eq('pessoa_id',p.id),
+    sb.from('crm_estudos').select('id',{count:'exact',head:true}).eq('pessoa_id',p.id),
+  ]).then(r=>r.map(x=>({count:x.count||0})));
+  dlgOpen(`<h3 style="margin:0 0 6px;color:var(--red)">🗑 Excluir cadastro</h3>
+    <div class="hint" style="margin-bottom:10px">Isso apaga <b>${escapeHtml(p.nome)}</b> e tudo ligado a ele: <b>${napo} apólice(s)</b>, <b>${nopp} oportunidade(s)</b>, <b>${nativ} atividade(s)</b>${nest?', '+nest+' estudo(s) desvinculado(s)':''}, além de funil, diagnóstico, notas, eventos e reuniões. <b>Não pode ser desfeito.</b></div>
+    <label class="fl"><span>Digite o nome completo <b>${escapeHtml(p.nome)}</b> para confirmar</span><input id="pd-conf" placeholder="${escapeHtml(p.nome)}"></label>
+    <div id="pd-err" class="om-err"></div>
+    <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end"><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="pd-go" style="background:var(--red);border-color:var(--red)">Excluir definitivamente</button></div>`, true);
+  document.getElementById('pd-go').addEventListener('click', async ()=>{
+    const v = document.getElementById('pd-conf').value.trim();
+    if(v.toLowerCase() !== p.nome.trim().toLowerCase()){ document.getElementById('pd-err').textContent = 'O nome digitado não bate. Confira e tente de novo.'; return; }
+    const { error } = await sb.from('crm_pessoas').delete().eq('id', p.id);
+    if(error){ document.getElementById('pd-err').textContent = 'Erro: '+error.message; return; }
+    OP.pessoas = OP.pessoas.filter(x=>x.id!==p.id); OP.dirty = true; dlgClose(); showToast('Cadastro excluído');
+    document.querySelector('.nav-btn[data-view="operacao"]').click();
+  });
 }
 function pvGoto(tab){ PV.tab = tab; document.querySelectorAll('.pv-tab').forEach(b=>b.classList.toggle('on', b.dataset.tab===tab)); pvShowTab(tab); }
 function pvShowTab(tab){
