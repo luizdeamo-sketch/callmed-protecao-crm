@@ -1008,14 +1008,14 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'ata') renderAta();
   });
 });
-function goToPersonView(personId){
+function goToPersonView(personId, tab){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   const opBtn = document.querySelector('.nav-btn[data-view="operacao"]');
   opBtn.classList.add('active');
   opSetHeaderTitle(opBtn);
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   document.getElementById('view-pessoas').classList.add('active');
-  openPerson(personId);
+  openPerson(personId, tab);
 }
 
 document.getElementById('btn-copy-ics').addEventListener('click', ()=>{
@@ -1162,13 +1162,13 @@ const waLink = (tel)=>{ const d = dOnly(tel); if(d.length<10) return null; retur
 const ymdToday = ()=> ymd(new Date());
 const daysTo = (s)=> s ? Math.round((new Date(s+'T00:00:00') - new Date(new Date().toDateString()))/86400000) : null;
 
-async function openPerson(id){
+async function openPerson(id, tab){
   currentPersonId = id;
   const view = document.getElementById('person-view');
   view.innerHTML = '<div style="padding:40px;color:var(--ink-faint);">Carregando...</div>';
   const { data: person, error } = await sb.from('crm_pessoas').select('*').eq('id', id).single();
   if(error){ view.innerHTML = 'Erro: ' + escapeHtml(error.message); return; }
-  PV.person = person; window._curPerson = person; PV.tab = 'resumo';
+  PV.person = person; window._curPerson = person; PV.tab = tab || 'resumo';
   pvRender();
 }
 function pvClassChip(p){ return p.classificacao ? `<span class="tag" style="background:${p.classificacao==='call_hot'?'#fde8e8':(p.classificacao==='quente'?'var(--amber-soft)':'var(--brand-soft)')}">${p.classificacao==='call_hot'?'🔥 ':''}${CLASSIF[p.classificacao]}</span>` : ''; }
@@ -2736,7 +2736,30 @@ function docsExtract(text){
   if(!f.capital && Object.keys(f.coberturas_valores).length) f.capital = Object.values(f.coberturas_valores).reduce((a,b)=>a+b,0);
   f._chars = t.length;
   f.multiplas = extractMultiPessoas(t);
+  f.apolicesMultiplas = extractMultiApolices(t);
   return f;
+}
+// Um documento pode trazer mais de uma apólice DA MESMA pessoa (ex.: duas apólices anexadas juntas
+// para comparação). Não interpretamos nada — só separamos o texto em blocos e lemos cada um puro,
+// usando como âncora o número da apólice (quando há mais de um distinto) ou, na falta disso, a
+// primeira menção de cada seguradora diferente. Limite técnico de 5 apólices por upload.
+function extractMultiApolices(text){
+  const apRe = /(?:ap[óo]lice|proposta)\s*(?:n[ºo°.]*|n[úu]mero)?\s*[:\-]?\s*([0-9][0-9.\-\/]{5,24})/gi;
+  const marks = []; let m;
+  while((m = apRe.exec(text))){ marks.push({pos:m.index, num:m[1].replace(/[.\-\/]+$/,'')}); }
+  const distinctNums = [...new Set(marks.map(x=>x.num))];
+  let anchors = [];
+  if(distinctNums.length>=2){ distinctNums.forEach(num=>{ const first = marks.find(x=>x.num===num); anchors.push(first.pos); }); }
+  else{
+    const segMarks = [];
+    DOCS_INSURERS.forEach(([n,re])=>{ const re2 = new RegExp(re.source, 'gi'); let mm; while((mm=re2.exec(text))){ segMarks.push({pos:mm.index, seg:n}); } });
+    segMarks.sort((a,b)=>a.pos-b.pos);
+    const seenSeg = new Set();
+    segMarks.forEach(x=>{ if(!seenSeg.has(x.seg)){ seenSeg.add(x.seg); anchors.push(x.pos); } });
+  }
+  anchors = [...new Set(anchors)].sort((a,b)=>a-b).slice(0,5);
+  if(anchors.length<2) return null;
+  return anchors.map((pos,i)=> docsExtract(text.slice(pos, anchors[i+1]!=null ? anchors[i+1] : text.length)));
 }
 // Documento pode trazer várias pessoas juntas (ex.: um PDF só com N certificados). Não assumimos um layout
 // fixo: procuramos todo CPF válido no texto e tentamos achar um nome próximo dele (mesma linha ou linhas
@@ -3884,6 +3907,10 @@ async function caNext(){
   let f = {};
   try{ f = await docsRead(file); }catch(e){ f = {_erro:e.message}; }
   if(!window._caFixed && f.multiplas && f.multiplas.length>1){ await caFormMulti(file, f); return; }
+  if(f.apolicesMultiplas && f.apolicesMultiplas.length>1){
+    const found = window._caFixed ? [{...window._caFixed, why:'cadastro aberto'}] : await findPessoas({cpf:f.cpf, nome:f.nome});
+    await caFormApolices(file, f, found); return;
+  }
   const found = window._caFixed ? [{...window._caFixed, why:'cadastro aberto'}] : await findPessoas({cpf:f.cpf, nome:f.nome});
   caForm(file, f, found);
 }
@@ -4069,8 +4096,17 @@ async function caSave(file, f){
         altura_cm:adnPre.altura_cm??null, peso_kg:adnPre.peso_kg??null, dependentes_qtd:adnPre.dependentes_qtd??null, fumante:adnPre.fumante??null }).select('id').single();
       if(error) throw error;
       await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
-      window._dlgOnClose = null; dlgClose(); showToast('Enviada para o Estudo');
-      caQueue = []; showEstudoView(pessoaId||null, data.id);
+      // também registra como apólice do cliente (proteção atual), pra aparecer em "Apólices do cliente"
+      // e entrar automaticamente na soma do Novo Estudo — sem contar como venda (vínculo ≠ CallMed).
+      if(pessoaId){
+        const { data: ap2 } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, numero_apolice:g('ca-num')||null, seguradora:g('ca-seg'), tipo_seguro:g('ca-prod'),
+          data_emissao:g('ca-ini')||null, data_vencimento:g('ca-fim')||null, valor_premio:num('ca-prem'), valor_cobertura:capTotal, status:'ativa',
+          arquivo_apolice:path, origem_apolice:tipo, coberturas:covs, coberturas_valores:covVals, dados_extraidos:f, vinculo_comercial:g('ca-vinc')||'Outra corretora', observacoes:g('ca-obs')||null }).select('id').single();
+        if(ap2) await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap2.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+      }
+      window._dlgOnClose = null; dlgClose(); showToast('Apólice registrada e enviada para o Estudo');
+      caQueue = [];
+      if(pessoaId){ goToPersonView(pessoaId, 'protecao'); } else showEstudoView(null, data.id);
       return;
     }
     const { data: ap, error } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, numero_apolice:g('ca-num')||null, seguradora:g('ca-seg'), tipo_seguro:g('ca-prod'),
@@ -4083,6 +4119,81 @@ async function caSave(file, f){
     window._dlgOnClose = null; dlgClose(); showToast(sel==='novo' ? 'Apólice salva e novo cliente cadastrado' : 'Apólice associada ao cliente');
     if(caQueue.length) caNext(); else { const fx = window._caFixed; window._caFixed = null; if(fx) goToPersonView(fx.id); else renderCentral(true); }
   }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar apólice'; }
+}
+// ---- documento com várias apólices DA MESMA pessoa (ex.: duas apólices anexadas juntas p/ comparação) ----
+async function caFormApolices(file, f, found){
+  const top = found[0] && (found[0].why==='CPF idêntico' || found[0].why==='CRM idêntico' || found[0].why==='nome idêntico' || found[0].why==='cadastro aberto') ? found[0].id : null;
+  const opts = found.map((p,i)=>pessoaOptionHtml(p,'cx-pes', p.id===top)).join('');
+  const rows = f.apolicesMultiplas;
+  const rowHtml = (r,i)=>`<div class="q" style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px">
+      <label class="chk" style="margin-bottom:6px"><input type="checkbox" class="cx-row" data-i="${i}" checked> <b>Apólice ${i+1}</b></label>
+      <div class="fgrid">
+        ${fld('cx-seg-'+i,'Seguradora',r.seguradora)}${fld('cx-prod-'+i,'Produto / tipo',r.tipo_seguro)}${fld('cx-num-'+i,'Nº da apólice',r.numero_apolice)}
+        ${fld('cx-ini-'+i,'Início da vigência',r.vig_ini,'date')}${fld('cx-fim-'+i,'Fim da vigência',r.vig_fim,'date')}
+        ${fld('cx-prem-'+i,'Prêmio anual (R$)',r.premio?String(r.premio_periodo==='mensal'?r.premio*12:r.premio):'','number')}
+      </div>
+      <div class="ql" style="margin-top:8px">Coberturas — nome técnico, capital e (se identificado) o prêmio de cada uma</div>
+      <div class="cv-grid">${covValueRows('cx'+i, r.coberturas||[], r.coberturas_valores||{})}</div></div>`;
+  const box = dlgOpen(`<div class="om-title"><div><h3>Documento com várias apólices — ${escapeHtml(file.name)}</h3><div class="om-sub">Achei ${rows.length} apólice(s) no mesmo documento. Confira, complete o que faltar (o nome técnico de cada cobertura muda por seguradora) e desmarque quem não quiser salvar.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body">
+      <div class="q"><div class="ql">1. O que são estas apólices?</div>
+        <label class="rd"><input type="radio" name="cx-tipo" value="estudo" checked> <b>Para estudo</b> — o cliente já tem, quer que a gente analise</label>
+        <label class="rd"><input type="radio" name="cx-tipo" value="concorrente"> <b>De outro corretor/seguradora</b> — para oferecermos algo melhor</label>
+        <label class="rd"><input type="radio" name="cx-tipo" value="carteira"> <b>De cliente já cadastrado</b> — carteira existente / renovação</label>
+        <label class="rd"><input type="radio" name="cx-tipo" value="nova"> <b>Apólices novas</b> — fechadas por nós, emitidas agora</label></div>
+      <div class="q"><div class="ql">2. De quem são?</div>
+        ${opts || '<div class="hint">Nenhum cliente cadastrado encontrado com esses dados.</div>'}
+        <label class="pk"><input type="radio" name="cx-pes" value="novo" ${opts && top?'':(opts?'':'checked')}><span><b>Cadastrar como novo cliente</b> ${f.nome?'— '+escapeHtml(f.nome):''}</span></label>
+        <div class="fgrid" id="cx-novo" style="display:none">${fld('cx-n-nome','Nome do cliente',f.nome,'text',true)}${fld('cx-n-cpf','CPF',f.cpf)}${fld('cx-n-crm','CRM',f.crm)}<label class="fl"><span>Perfil</span><select id="cx-n-tipo">${tipoOptions(f.crm?'medico':'outro')}</select></label></div></div>
+      <label class="fl"><span>Vínculo comercial *</span><select id="cx-vinc"><option value="Outra corretora">Outra corretora</option><option value="CallMed">CallMed</option><option value="Direto com seguradora">Direto com seguradora</option><option value="Não identificado">Não identificado</option></select></label>
+      <div class="q"><div class="ql">3. As apólices (${rows.length})</div>${rows.map(rowHtml).join('')}</div>
+      <div class="om-err" id="cx-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="cx-save">Salvar apólices marcadas</button></div>`, true);
+  const showPes = ()=>{ document.getElementById('cx-novo').style.display = (document.querySelector('input[name="cx-pes"]:checked')||{}).value==='novo' ? 'grid':'none'; };
+  box.querySelectorAll('input[name="cx-pes"]').forEach(r=>r.addEventListener('change', showPes)); showPes();
+  rows.forEach((r,i)=> covValueBind(box, 'cx'+i));
+  window._dlgOnClose = ()=>{ if(caQueue.length) caNext(); };
+  box.querySelector('#cx-save').addEventListener('click', ()=> caSaveApolices(file, f, rows, box));
+}
+async function caSaveApolices(file, f, rows, box){
+  const err = document.getElementById('cx-err'); err.textContent = '';
+  const tipo = (document.querySelector('input[name="cx-tipo"]:checked')||{}).value;
+  const vinc = document.getElementById('cx-vinc').value;
+  if(!vinc){ err.textContent = 'Informe o vínculo comercial.'; return; }
+  if(tipo==='nova' && vinc!=='CallMed'){ err.textContent = 'Incoerente: apólice nova não pode ter vínculo diferente de "CallMed".'; return; }
+  if((tipo==='estudo'||tipo==='concorrente') && vinc==='CallMed'){ err.textContent = 'Incoerente: apólice existente/para análise não pode ter vínculo "CallMed".'; return; }
+  let sel = (document.querySelector('input[name="cx-pes"]:checked')||{}).value;
+  const g = id=>{ const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  if(sel==='novo' && !g('cx-n-nome')){ err.textContent = 'Informe o nome do cliente.'; return; }
+  const checked = [...box.querySelectorAll('.cx-row:checked')].map(c=>Number(c.dataset.i));
+  if(!checked.length){ err.textContent = 'Marque ao menos uma apólice para salvar.'; return; }
+  const btn = document.getElementById('cx-save'); btn.disabled = true; btn.textContent = 'Salvando...';
+  try{
+    let pessoaId = (sel && sel!=='novo') ? sel : null;
+    if(sel==='novo'){
+      const row = {nome:g('cx-n-nome'), tipo:g('cx-n-tipo')||'medico'}; if(g('cx-n-cpf')) row.cpf=g('cx-n-cpf'); if(g('cx-n-crm')) row.crm=g('cx-n-crm');
+      const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single();
+      if(error) throw error; pessoaId = data.id; OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+    }
+    const path = await docsUpload(file, 'apolices');
+    let ok = 0;
+    for(const i of checked){
+      const covs = [...box.querySelectorAll(`.cx${i}-cov:checked`)].map(c=>c.value);
+      const covVals = covValueCollect(box, 'cx'+i);
+      const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
+      const num = id=>{ const v = g(id+'-'+i); return v==='' ? null : Number(v); };
+      const { data: ap, error } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, numero_apolice:g('cx-num-'+i)||null, seguradora:g('cx-seg-'+i)||null, tipo_seguro:g('cx-prod-'+i)||null,
+        data_emissao:g('cx-ini-'+i)||null, data_vencimento:g('cx-fim-'+i)||null, valor_premio:num('cx-prem'), valor_cobertura:capTotal, status:'ativa',
+        arquivo_apolice:path, origem_apolice:tipo, coberturas:covs, coberturas_valores:covVals, dados_extraidos:rows[i], vinculo_comercial:vinc,
+        observacoes:`Lido junto com outra(s) apólice(s) no mesmo documento "${file.name}".` }).select('id').single();
+      if(error) throw error;
+      await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+      ok++;
+    }
+    OP.dirty = true; CA.loaded = false;
+    window._dlgOnClose = null; dlgClose(); showToast(`${ok} apólice(s) salva(s)`);
+    caQueue = []; goToPersonView(pessoaId, 'protecao');
+  }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e); btn.disabled = false; btn.textContent = 'Salvar apólices marcadas'; }
 }
 (function(){
   const dz = document.getElementById('ca-dz'), inp = document.getElementById('ca-file');
