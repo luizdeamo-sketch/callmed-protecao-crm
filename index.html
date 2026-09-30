@@ -211,7 +211,6 @@
     <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
     <button class="nav-btn" data-view="comercial" title="Metas comerciais e projeção de vendas">💼<span>Comercial</span></button>
     <button class="nav-btn" data-view="reunioes" title="Reuniões gravadas: leitura da conversa e atualização automática do CRM">🎙️<span>Reuniões</span></button>
-    <button class="nav-btn" data-view="maiscarlas" title="Painel Indicação: pontes de escalistas e indicação por médicos atendidos">🤝<span>Indicação</span></button>
     <button class="nav-btn" data-view="indicadores" title="Indicadores do funil e da produção">📊<span>Indicadores</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
@@ -313,13 +312,6 @@
       <div class="pg">
         <div class="pg-head"><h2>🎙️ Reuniões gravadas</h2><span class="sub">Toda abordagem é gravada. A leitura da conversa (acertos, erros, objeções, oportunidades) alimenta o CRM automaticamente.</span></div>
         <div id="ru-body"><div class="op-more">Carregando...</div></div>
-      </div>
-    </div>
-
-    <div id="view-maiscarlas" class="view">
-      <div class="pg">
-        <div class="pg-head"><h2>🤝 Painel Indicação</h2><span class="sub">A confiança que a Carla já tem, em rede: pontes de escalistas e indicação por médicos já atendidos.</span></div>
-        <div id="mc2-body"><div class="op-more">Carregando...</div></div>
       </div>
     </div>
 
@@ -1001,7 +993,6 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'indicadores') renderIndicadores();
     if(btn.dataset.view === 'comercial') renderComercial();
     if(btn.dataset.view === 'reunioes') renderReunioes();
-    if(btn.dataset.view === 'maiscarlas') renderMaisCarlas();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'agenda') renderCalendar();
     if(btn.dataset.view === 'conhecimento') renderConhecimento();
