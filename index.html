@@ -2035,7 +2035,7 @@ const OP_EXPANDED_W = 11;
 let OP_SUM_HEIGHT_INIT = null;
 try{ const h = localStorage.getItem('op-sum-h'); if(h) OP_SUM_HEIGHT_INIT = parseInt(h,10); }catch(e){}
 const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
-             plant:new Map(), dirty:false, start:new Date(2026,9,1), monthsCount:12, sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null, sumHeight:OP_SUM_HEIGHT_INIT };
+             plant:new Map(), dirty:false, start:new Date(2026,9,1), monthsCount:12, rangeIni:null, rangeFim:null, sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null, sumHeight:OP_SUM_HEIGHT_INIT };
 const OP_PAGE = 120;
 const TIPOS_PESSOA = {medico:'Médico', profissional_saude:'Outro profissional de saúde', empresa:'Empresa / PJ', outro:'Outro (não médico)'};
 const isMedico = (p)=> (p.tipo||'medico')==='medico';
@@ -2054,15 +2054,26 @@ function opProdKey(tipo){
   return 'outros';
 }
 
-// eixo do tempo com meses de largura variável (mês aberto = dias visíveis)
+// eixo do tempo com meses de largura variável (mês aberto = dias visíveis).
+// Quando um Período curto está ativo (OP.rangeIni/rangeFim), o mês expandido mostra
+// só os dias dentro do intervalo escolhido (dayFrom..dayTo), não o mês inteiro.
 function opBuildMonths(){
   const out = []; let cum = 0;
   for(let i=0;i<OP.monthsCount;i++){
     const s = new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1);
     const e = new Date(OP.start.getFullYear(), OP.start.getMonth()+i+1, 1);
     const exp = OP.expanded.has(opMKey(s));
-    const wu = exp ? OP_EXPANDED_W : 1;
-    out.push({s, e, exp, wu, cum, days:Math.round((e-s)/DAY), name:OP_MESES[s.getMonth()], yr:String(s.getFullYear()).slice(2), key:opMKey(s)});
+    const days = Math.round((e-s)/DAY);
+    let dayFrom = 1, dayTo = days;
+    if(exp && OP.rangeIni && OP.rangeFim){
+      if(OP.rangeIni >= s && OP.rangeIni < e) dayFrom = OP.rangeIni.getDate();
+      if(OP.rangeFim >= s && OP.rangeFim < e) dayTo = OP.rangeFim.getDate();
+    }
+    const visDays = dayTo - dayFrom + 1;
+    const visS = new Date(s.getFullYear(), s.getMonth(), dayFrom);
+    const visE = new Date(s.getFullYear(), s.getMonth(), dayTo+1);
+    const wu = exp ? OP_EXPANDED_W * (visDays/days) : 1;
+    out.push({s, e, exp, wu, cum, days, dayFrom, dayTo, visDays, visS, visE, name:OP_MESES[s.getMonth()], yr:String(s.getFullYear()).slice(2), key:opMKey(s)});
     cum += wu;
   }
   OP.total = cum;
@@ -2071,11 +2082,11 @@ function opBuildMonths(){
 }
 function opPct(d){
   const m0 = OP.months[0];
-  if(d < m0.s) return -1;
+  if(d < m0.visS) return -1;
   const last = OP.months[OP.months.length-1];
-  if(d >= last.e) return 101;
+  if(d >= last.visE) return 101;
   for(const m of OP.months){
-    if(d >= m.s && d < m.e) return m.l + (d - m.s)/(m.e - m.s)*m.w;
+    if(d >= m.s && d < m.e) return m.l + (d - m.visS)/(m.visE - m.visS)*m.w;
   }
   return 101;
 }
@@ -2083,7 +2094,7 @@ function opDateAt(pct){
   for(const m of OP.months){
     if(pct >= m.l && pct < m.l + m.w){
       const f = (pct - m.l)/m.w;
-      return new Date(m.s.getFullYear(), m.s.getMonth(), Math.min(m.days, Math.floor(f*m.days)+1));
+      return new Date(m.s.getFullYear(), m.s.getMonth(), m.dayFrom + Math.min(m.visDays-1, Math.floor(f*m.visDays)));
     }
   }
   return new Date();
@@ -2295,10 +2306,10 @@ function opGridCss(){
   OP.months.forEach((m,i)=>{
     if(i>0) layers.push(line(m.l.toFixed(3), '#dfe3ef'));
     if(m.exp){
-      for(let d=1; d<m.days; d++) layers.push(line((m.l + d/m.days*m.w).toFixed(3), '#eef0f6'));
-      for(let d=0; d<m.days; d++){
-        const dt = new Date(m.s.getFullYear(), m.s.getMonth(), d+1);
-        if(opIsNonBusinessDay(dt)) weekendBlocks.push(block((m.l + d/m.days*m.w).toFixed(3), (m.l + (d+1)/m.days*m.w).toFixed(3), 'rgba(60,70,110,.07)'));
+      for(let vi=1; vi<m.visDays; vi++) layers.push(line((m.l + vi/m.visDays*m.w).toFixed(3), '#eef0f6'));
+      for(let vi=0; vi<m.visDays; vi++){
+        const dt = new Date(m.s.getFullYear(), m.s.getMonth(), m.dayFrom+vi);
+        if(opIsNonBusinessDay(dt)) weekendBlocks.push(block((m.l + vi/m.visDays*m.w).toFixed(3), (m.l + (vi+1)/m.visDays*m.w).toFixed(3), 'rgba(60,70,110,.07)'));
       }
     }
   });
@@ -2313,7 +2324,7 @@ function opGridCss(){
 function opSummary(){
   const months = OP.months;
   const dayList = months.map(mo => mo.exp
-    ? Array.from({length:mo.days}, (_,d)=> new Date(mo.s.getFullYear(), mo.s.getMonth(), d+1))
+    ? Array.from({length:mo.visDays}, (_,vi)=> new Date(mo.s.getFullYear(), mo.s.getMonth(), mo.dayFrom+vi))
     : [new Date(mo.e.getTime()-DAY)]); // mês fechado: só o último dia
   const stageCounts = ETAPAS_FUNIL.map(()=> dayList.map(days=> days.map(()=>0)));
   const cliCounts = dayList.map(days=> days.map(()=>0));
@@ -2344,8 +2355,8 @@ function opSumRowHtml(label, dotColor, countsPerMonth, dayListPerMonth, stKey){
       return `<div class="op-sumcell${v?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" style="left:${mo.l}%;width:${mo.w}%">${v||'·'}</div>`;
     }
     return dayListPerMonth[mi].map((dt,di)=>{
-      const v = countsPerMonth[mi][di], left = mo.l + di/mo.days*mo.w, width = mo.w/mo.days;
-      return `<div class="op-sumcell${v?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" data-d="${di+1}" style="left:${left}%;width:${width}%">${v||'·'}</div>`;
+      const v = countsPerMonth[mi][di], left = mo.l + di/mo.visDays*mo.w, width = mo.w/mo.visDays;
+      return `<div class="op-sumcell${v?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" data-d="${mo.dayFrom+di}" style="left:${left}%;width:${width}%">${v||'·'}</div>`;
     }).join('');
   }).join('');
   return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right">${cells}</div></div>`;
@@ -2364,7 +2375,7 @@ function opRenderAll(prevShown){
   document.getElementById('op-range').textContent = `${OP_MESES[OP.start.getMonth()]}/${String(OP.start.getFullYear()).slice(2)}–${OP_MESES[lastM.getMonth()]}/${String(lastM.getFullYear()).slice(2)}`;
   const anyExp = OP.months.some(m=>m.exp);
   const heads = OP.months.map(mo=>{
-    const days = mo.exp ? Array.from({length:mo.days},(_,d)=>{ const off = opIsNonBusinessDay(new Date(mo.s.getFullYear(), mo.s.getMonth(), d+1)); return `<span class="op-dh${off?' off':''}" style="left:${d/mo.days*100}%;width:${100/mo.days}%">${d+1}</span>`; }).join('') : '';
+    const days = mo.exp ? Array.from({length:mo.visDays},(_,vi)=>{ const dnum = mo.dayFrom+vi; const off = opIsNonBusinessDay(new Date(mo.s.getFullYear(), mo.s.getMonth(), dnum)); return `<span class="op-dh${off?' off':''}" style="left:${vi/mo.visDays*100}%;width:${100/mo.visDays}%">${dnum}</span>`; }).join('') : '';
     return `<div class="op-mh${(now>=mo.s&&now<mo.e)?' cur':''}${mo.exp?' exp':''}" style="left:${mo.l}%;width:${mo.w}%"><div class="op-mt"><span>${mo.name}<small>${mo.yr}</small></span><button class="op-mtoggle" data-mkey="${mo.key}" title="${mo.exp?'Minimizar mês':'Abrir o mês inteiro (dias)'}">${mo.exp?'⤡':'⤢'}</button></div>${days}</div>`;
   }).join('');
   host.innerHTML = `<div class="op-inner" style="min-width:calc(var(--oplw) + ${OP.total*OP_UNIT_PX}px)">
@@ -2552,6 +2563,7 @@ document.getElementById('view-operacao').addEventListener('click', (e)=>{
   if(tg){
     const k = tg.dataset.mkey;
     if(OP.expanded.has(k)) OP.expanded.delete(k); else OP.expanded.add(k);
+    OP.rangeIni = null; OP.rangeFim = null; // toggle manual de mês sempre mostra o mês inteiro, não um recorte de dias
     opApplyFilters(true); return;
   }
   const sc = e.target.closest('.op-sumcell.clk');
@@ -2609,6 +2621,7 @@ function opApplyPeriod(){
   const totalDays = Math.round((dFim-dIni)/DAY)+1;
   OP.start = start; OP.monthsCount = monthsCount; OP.sumFilter = null;
   const shortRange = totalDays <= 45;
+  OP.rangeIni = shortRange ? dIni : null; OP.rangeFim = shortRange ? dFim : null;
   for(let i=0;i<monthsCount;i++){
     const key = opMKey(new Date(start.getFullYear(), start.getMonth()+i, 1));
     if(shortRange) OP.expanded.add(key); else OP.expanded.delete(key);
