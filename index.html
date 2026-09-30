@@ -2290,28 +2290,53 @@ function opGridCss(){
   return layers.join(',');
 }
 
+// Resumo mensal: mês fechado mostra 1 número (o do último dia do mês, como referência de fechamento).
+// Mês aberto (expandido em dias) mostra o número de CADA dia — o valor se mantém (carrega) até mudar,
+// em vez de aparecer só no dia exato em que a etapa começou e ficar em branco no resto do mês.
 function opSummary(){
   const months = OP.months;
-  const stageCounts = ETAPAS_FUNIL.map(()=>months.map(()=>0));
-  const cliCounts = months.map(()=>0);
-  OP.funil.forEach((m,pid)=>{
-    months.forEach((mo,mi)=>{ const i = opStageAt(pid, mi); if(i>=0) stageCounts[i][mi]++; });
+  const dayList = months.map(mo => mo.exp
+    ? Array.from({length:mo.days}, (_,d)=> new Date(mo.s.getFullYear(), mo.s.getMonth(), d+1))
+    : [new Date(mo.e.getTime()-DAY)]); // mês fechado: só o último dia
+  const stageCounts = ETAPAS_FUNIL.map(()=> dayList.map(days=> days.map(()=>0)));
+  const cliCounts = dayList.map(days=> days.map(()=>0));
+  OP.pessoas.forEach(p=>{
+    const stages = opStages(p.id);
+    if(stages.length){
+      months.forEach((mo,mi)=>{ dayList[mi].forEach((dt,di)=>{
+        let cur = null; for(const s of stages){ if(s.date<=dt) cur = s; else break; }
+        if(cur) stageCounts[cur.i][mi][di]++;
+      }); });
+    }
+    const apos = OP.apo.get(p.id);
+    if(apos && apos.length){
+      months.forEach((mo,mi)=>{ dayList[mi].forEach((dt,di)=>{
+        const isCli = apos.some(a=>{ if(a.status==='cancelada') return false; const r = opApoRange(a); return r.start && r.end && r.start<=dt && r.end>dt; });
+        if(isCli) cliCounts[mi][di]++;
+      }); });
+    }
   });
-  OP.apo.forEach((list,pid)=>{ months.forEach((mo,mi)=>{ if(opClienteNoMes(pid, mi)) cliCounts[mi]++; }); });
-  return {stageCounts, cliCounts};
+  return {stageCounts, cliCounts, dayList};
 }
-function opSumRowHtml(label, dotColor, counts, stKey){
+function opSumRowHtml(label, dotColor, countsPerMonth, dayListPerMonth, stKey){
   const sf = OP.sumFilter;
-  return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right" style="--opgrid:none">${
-    OP.months.map((mo,mi)=>{
-      const on = sf && sf.st===stKey && sf.mi===mi;
-      return `<div class="op-sumcell${counts[mi]?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" style="left:${mo.l}%;width:${mo.w}%">${counts[mi]||'·'}</div>`;
-    }).join('')}</div></div>`;
+  const cells = OP.months.map((mo,mi)=>{
+    const on = sf && sf.st===stKey && sf.mi===mi;
+    if(!mo.exp){
+      const v = countsPerMonth[mi][0];
+      return `<div class="op-sumcell${v?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" style="left:${mo.l}%;width:${mo.w}%">${v||'·'}</div>`;
+    }
+    return dayListPerMonth[mi].map((dt,di)=>{
+      const v = countsPerMonth[mi][di], left = mo.l + di/mo.days*mo.w, width = mo.w/mo.days;
+      return `<div class="op-sumcell${v?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" data-d="${di+1}" style="left:${left}%;width:${width}%">${v||'·'}</div>`;
+    }).join('');
+  }).join('');
+  return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right" style="--opgrid:none">${cells}</div></div>`;
 }
 function opSumRowsHtml(){
   const sm = opSummary();
-  return ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], i)).join('')
-    + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, 'cli');
+  return ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], sm.dayList, i)).join('')
+    + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, sm.dayList, 'cli');
 }
 
 function opRenderAll(prevShown){
