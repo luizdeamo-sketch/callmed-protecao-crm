@@ -227,9 +227,18 @@
           <input id="op-search" placeholder="Buscar por nome, CPF, CRM ou telefone...">
           <button id="op-ftoggle" class="om-cancel">⚙ Filtros<span id="op-fcount" class="op-fcount" style="display:none"></span></button>
           <div class="op-nav-pill">
-            <button id="op-prev12" title="Voltar 12 meses">«</button><button id="op-prev" title="Voltar 1 mês">‹</button>
+            <button id="op-prev12" title="Voltar (tamanho do período atual)">«</button><button id="op-prev" title="Voltar 1 mês">‹</button>
             <span id="op-range"></span>
-            <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar 12 meses">»</button>
+            <button id="op-next" title="Avançar 1 mês">›</button><button id="op-next12" title="Avançar (tamanho do período atual)">»</button>
+          </div>
+          <div class="op-period-wrap" style="position:relative">
+            <button id="op-period-toggle" class="om-cancel" title="Escolher um período específico (data início e fim)">📅 Período</button>
+            <div class="op-period-pop" id="op-period-pop">
+              <label class="fl"><span>De</span><input type="date" id="op-period-ini"></label>
+              <label class="fl"><span>Até</span><input type="date" id="op-period-fim"></label>
+              <div class="hint" style="margin:4px 0 8px">Período curto (até ~6 semanas) abre automático em dias, ocupando a tela inteira. Período longo mostra 1 número por mês, como hoje.</div>
+              <button class="om-save" id="op-period-apply" style="width:100%">Aplicar</button>
+            </div>
           </div>
           <button id="op-hoje" class="om-cancel icon-btn" style="margin-left:auto" title="Hoje — painel do dia">☀️</button><button id="op-callhot" class="om-cancel icon-btn" title="Call Hot da semana — leads prioritários">🔥</button><button id="op-import" class="om-cancel icon-btn" title="Importar contatos">⬆</button><button id="op-export-contatos" class="om-cancel icon-btn" title="Exportar os contatos filtrados (você escolhe as colunas)">⬇</button><button id="op-newcli" class="om-save icon-btn" title="Novo cliente">＋</button>
           <span id="op-chip"></span>
@@ -468,6 +477,9 @@
   #op-sort-quick:hover{ color:var(--brand);}
   .op-sort-menu{ display:none; position:absolute; top:100%; left:0; margin-top:4px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:0 6px 20px rgba(20,25,50,.12); z-index:20; min-width:230px; padding:4px; flex-direction:column;}
   .op-sort-menu.open{ display:flex;}
+  .op-period-pop{ display:none; position:absolute; top:100%; left:0; margin-top:4px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); box-shadow:0 6px 20px rgba(20,25,50,.12); z-index:20; min-width:220px; padding:10px; flex-direction:column; gap:6px;}
+  .op-period-pop.open{ display:flex;}
+  .op-period-pop input[type=date]{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:6px 8px; font-size:13px; width:100%;}
   .op-sort-opt{ text-align:left; background:none; border:none; padding:8px 10px; font-size:12.5px; text-transform:none; letter-spacing:normal; font-weight:500; color:var(--ink); border-radius:6px; cursor:pointer;}
   .op-sort-opt:hover{ background:var(--brand-soft);}
   .op-sort-opt.sel{ background:var(--brand-soft); color:var(--brand); font-weight:700;}
@@ -2027,13 +2039,13 @@ const OP_EXPANDED_W = 11;
 let OP_SUM_HEIGHT_INIT = null;
 try{ const h = localStorage.getItem('op-sum-h'); if(h) OP_SUM_HEIGHT_INIT = parseInt(h,10); }catch(e){}
 const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
-             plant:new Map(), dirty:false, start:new Date(2026,9,1), sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null, sumHeight:OP_SUM_HEIGHT_INIT };
+             plant:new Map(), dirty:false, start:new Date(2026,9,1), monthsCount:12, sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null, sumHeight:OP_SUM_HEIGHT_INIT };
 const OP_PAGE = 120;
 const TIPOS_PESSOA = {medico:'Médico', profissional_saude:'Outro profissional de saúde', empresa:'Empresa / PJ', outro:'Outro (não médico)'};
 const isMedico = (p)=> (p.tipo||'medico')==='medico';
 const tipoOptions = (sel)=> Object.entries(TIPOS_PESSOA).map(([k,l])=>`<option value="${k}" ${sel===k?'selected':''}>${l}</option>`).join('');
 const DAY = 86400000;
-const opEnd = ()=> new Date(OP.start.getFullYear(), OP.start.getMonth()+12, 1);
+const opEnd = ()=> new Date(OP.start.getFullYear(), OP.start.getMonth()+OP.monthsCount, 1);
 const opMKey = (d)=> d.getFullYear()+'-'+d.getMonth();
 
 function opD(s){ if(!s) return null; const x = String(s).slice(0,10).split('-'); return new Date(+x[0], +x[1]-1, +x[2]); }
@@ -2049,7 +2061,7 @@ function opProdKey(tipo){
 // eixo do tempo com meses de largura variável (mês aberto = dias visíveis)
 function opBuildMonths(){
   const out = []; let cum = 0;
-  for(let i=0;i<12;i++){
+  for(let i=0;i<OP.monthsCount;i++){
     const s = new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1);
     const e = new Date(OP.start.getFullYear(), OP.start.getMonth()+i+1, 1);
     const exp = OP.expanded.has(opMKey(s));
@@ -2064,7 +2076,7 @@ function opBuildMonths(){
 function opPct(d){
   const m0 = OP.months[0];
   if(d < m0.s) return -1;
-  const last = OP.months[11];
+  const last = OP.months[OP.months.length-1];
   if(d >= last.e) return 101;
   for(const m of OP.months){
     if(d >= m.s && d < m.e) return m.l + (d - m.s)/(m.e - m.s)*m.w;
@@ -2352,7 +2364,7 @@ function opRenderAll(prevShown){
   const host = document.getElementById('op-scroll');
   const now = new Date();
   host.style.setProperty('--opgrid', opGridCss());
-  const lastM = new Date(OP.start.getFullYear(), OP.start.getMonth()+11, 1);
+  const lastM = new Date(OP.start.getFullYear(), OP.start.getMonth()+OP.monthsCount-1, 1);
   document.getElementById('op-range').textContent = `${OP_MESES[OP.start.getMonth()]}/${String(OP.start.getFullYear()).slice(2)}–${OP_MESES[lastM.getMonth()]}/${String(lastM.getFullYear()).slice(2)}`;
   const anyExp = OP.months.some(m=>m.exp);
   const heads = OP.months.map(mo=>{
@@ -2370,7 +2382,7 @@ function opRenderAll(prevShown){
       ${OP_SIT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-f-situacao').value===o.v?' sel':''}" data-sitv="${o.v}">${o.l}</button>`).join('')}
       <div class="op-sort-lbl">Ordenar</div>
       ${OP_SORT_OPTS.map(o=>`<button class="op-sort-opt${document.getElementById('op-sort').value===o.v?' sel':''}" data-sortv="${o.v}">${o.l}</button>`).join('')}
-    </div></div></div>
+    </div></div><div class="op-right"></div></div>
     <div id="op-body"></div><div class="op-more" id="op-more"></div></div>`;
   opAppendRows(Math.max(prevShown||0, OP_PAGE));
 }
@@ -2592,8 +2604,33 @@ document.getElementById('op-ftoggle').addEventListener('click', ()=> document.ge
 const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
 document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
 document.getElementById('op-next').addEventListener('click', ()=>opShift(1));
-document.getElementById('op-prev12').addEventListener('click', ()=>opShift(-12));
-document.getElementById('op-next12').addEventListener('click', ()=>opShift(12));
+document.getElementById('op-prev12').addEventListener('click', ()=>opShift(-OP.monthsCount));
+document.getElementById('op-next12').addEventListener('click', ()=>opShift(OP.monthsCount));
+// ---- Período (data início/fim) — período curto abre em dias ocupando a tela; período longo mostra por mês ----
+function opApplyPeriod(){
+  const ini = document.getElementById('op-period-ini').value, fim = document.getElementById('op-period-fim').value;
+  if(!ini || !fim){ showToast('Informe as duas datas.'); return; }
+  const dIni = opD(ini), dFim = opD(fim);
+  if(dFim < dIni){ showToast('A data fim não pode ser antes da data início.'); return; }
+  const start = new Date(dIni.getFullYear(), dIni.getMonth(), 1);
+  const endExclusive = new Date(dFim.getFullYear(), dFim.getMonth()+1, 1);
+  const monthsCount = Math.max(1, (endExclusive.getFullYear()-start.getFullYear())*12 + (endExclusive.getMonth()-start.getMonth()));
+  const totalDays = Math.round((dFim-dIni)/DAY)+1;
+  OP.start = start; OP.monthsCount = monthsCount; OP.sumFilter = null;
+  const shortRange = totalDays <= 45;
+  for(let i=0;i<monthsCount;i++){
+    const key = opMKey(new Date(start.getFullYear(), start.getMonth()+i, 1));
+    if(shortRange) OP.expanded.add(key); else OP.expanded.delete(key);
+  }
+  document.getElementById('op-period-pop').classList.remove('open');
+  opApplyFilters(true);
+}
+document.getElementById('op-period-toggle').addEventListener('click', e=>{ e.stopPropagation(); document.getElementById('op-period-pop').classList.toggle('open'); });
+document.getElementById('op-period-apply').addEventListener('click', opApplyPeriod);
+document.addEventListener('click', e=>{
+  if(e.target.closest('#op-period-toggle') || e.target.closest('#op-period-pop')) return;
+  const p = document.getElementById('op-period-pop'); if(p) p.classList.remove('open');
+});
 
 // ---------- DOCUMENTOS: leitura automática (PDF/imagem) ----------
 const DOCS_INSURERS = [
