@@ -211,7 +211,7 @@
     <button class="nav-btn" data-view="central" title="Central de Apólices">📄<span>Apólices</span></button>
     <button class="nav-btn" data-view="comercial" title="Metas comerciais e projeção de vendas">💼<span>Comercial</span></button>
     <button class="nav-btn" data-view="reunioes" title="Reuniões gravadas: leitura da conversa e atualização automática do CRM">🎙️<span>Reuniões</span></button>
-    <button class="nav-btn" data-view="maiscarlas" title="Painel Mais Carlas: pontes de escalistas e indicação por médicos atendidos">🤝<span>Mais Carlas</span></button>
+    <button class="nav-btn" data-view="maiscarlas" title="Painel Indicação: pontes de escalistas e indicação por médicos atendidos">🤝<span>Indicação</span></button>
     <button class="nav-btn" data-view="indicadores" title="Indicadores do funil e da produção">📊<span>Indicadores</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
@@ -318,7 +318,7 @@
 
     <div id="view-maiscarlas" class="view">
       <div class="pg">
-        <div class="pg-head"><h2>🤝 Painel Mais Carlas</h2><span class="sub">A confiança da Carla, em rede: pontes de escalistas e indicação por médicos já atendidos.</span></div>
+        <div class="pg-head"><h2>🤝 Painel Indicação</h2><span class="sub">A confiança que a Carla já tem, em rede: pontes de escalistas e indicação por médicos já atendidos.</span></div>
         <div id="mc2-body"><div class="op-more">Carregando...</div></div>
       </div>
     </div>
@@ -1863,7 +1863,7 @@ document.getElementById('agenda-form').addEventListener('submit', async (e)=>{
 });
 
 const ETAPAS_FUNIL = [
-  {key:'contato', label:'Contato'}, {key:'atendimento', label:'Atendimento'}, {key:'agendamento', label:'Agendamento'},
+  {key:'indicacao', label:'Indicação'}, {key:'contato', label:'Contato'}, {key:'atendimento', label:'Atendimento'}, {key:'agendamento', label:'Agendamento'},
   {key:'reuniao', label:'Reunião'}, {key:'diagnostico', label:'Diagnóstico'}, {key:'proposta', label:'Proposta'},
   {key:'fechamento', label:'Fechamento'}, {key:'follow_up', label:'Follow-up'},
 ];
@@ -2035,7 +2035,7 @@ const OP_PRODUTOS = [
   {k:'prev', l:'Previdência', re:/previd/i, c:'#8b5cf6'},
   {k:'outros', l:'Outros', re:/.*/, c:'#9aa0b4'},
 ];
-const OP_STAGE_COLORS = ['#9fb0ff','#7d92ff','#5b74ff','#3a55ff','#1f3af0','#0018fc','#0012c9','#000d94'];
+const OP_STAGE_COLORS = ['#c7cef9','#9fb0ff','#7d92ff','#5b74ff','#3a55ff','#1f3af0','#0018fc','#0012c9','#000d94'];
 const OP_MESES = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
 const OP_SORT_OPTS = [
   {v:'nome', l:'Nome (A-Z)'},
@@ -3484,7 +3484,7 @@ function mc2RegDialog(r){
 }
 
 // ---------- AUDITORIA: quem alterou, o quê e quando (registrado pelo banco a cada insert/update/delete) ----------
-const AUD_TAB = {crm_pessoas:'Cadastro', crm_apolices:'Apólice', crm_funil:'Funil', crm_oportunidades:'Oportunidade', crm_atividades:'Atividade', crm_diagnostico:'Diagnóstico', crm_estudos:'Estudo', crm_documentos:'Documento', crm_eventos_vida:'Evento de vida', crm_interacoes:'Interação', crm_jornada:'Jornada', crm_lead_notas:'Nota', crm_lembretes:'Lembrete', crm_pos_venda:'Pós-venda', crm_protecao_atual:'Proteção atual', crm_relacionamento:'Relacionamento', crm_tarefas_diarias:'Tarefa', crm_agenda:'Agenda', crm_comercial:'Comercial', crm_indicacoes:'Indicação', crm_metas:'Metas', crm_meta_comercial:'Premissas comerciais', crm_estrategias:'Estratégia', crm_indicadores:'Indicador (Mais Carlas)', crm_mais_carlas:'Registro Mais Carlas', crm_base_conhecimento:'Base de conhecimento', crm_catalogo_produtos:'Catálogo', crm_ata_entregaveis:'Ata'};
+const AUD_TAB = {crm_pessoas:'Cadastro', crm_apolices:'Apólice', crm_funil:'Funil', crm_oportunidades:'Oportunidade', crm_atividades:'Atividade', crm_diagnostico:'Diagnóstico', crm_estudos:'Estudo', crm_documentos:'Documento', crm_eventos_vida:'Evento de vida', crm_interacoes:'Interação', crm_jornada:'Jornada', crm_lead_notas:'Nota', crm_lembretes:'Lembrete', crm_pos_venda:'Pós-venda', crm_protecao_atual:'Proteção atual', crm_relacionamento:'Relacionamento', crm_tarefas_diarias:'Tarefa', crm_agenda:'Agenda', crm_comercial:'Comercial', crm_indicacoes:'Indicação', crm_metas:'Metas', crm_meta_comercial:'Premissas comerciais', crm_estrategias:'Estratégia', crm_indicadores:'Indicador', crm_mais_carlas:'Registro de indicação', crm_base_conhecimento:'Base de conhecimento', crm_catalogo_produtos:'Catálogo', crm_ata_entregaveis:'Ata'};
 const AUD_ACAO = {INSERT:'criou', UPDATE:'alterou', DELETE:'apagou'};
 const audWhen = s => { const d = new Date(s); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
 const audWho = e => (e||'desconhecido').split('@')[0];
@@ -3633,6 +3633,17 @@ async function ncCheckDup(){
   box.innerHTML = found.length ? `<div class="dup"><b>${strong.length?'⚠️ Já existe cadastro com esses dados (CPF igual: use/una ao cadastro existente):':'Atenção — cadastros semelhantes (telefone igual só avisa):'}</b>${found.map(p=>`<div>• ${escapeHtml(p.nome)} <small>(${escapeHtml(p.why)})</small> <a href="#" data-openp="${p.id}">abrir cadastro</a></div>`).join('')}</div>` : '';
   box.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); ncClose(); goToPersonView(a.dataset.openp); }));
 }
+// origem "Indicação" no Novo cliente: entra direto na etapa "Indicação" do funil e cria/atualiza o
+// registro no Painel Indicação (procura um indicador com esse nome; se não achar, cria um novo "outro").
+async function ncRegistrarIndicacao(pessoaId, quemIndicou){
+  try{
+    await sb.from('crm_funil').insert({pessoa_id:pessoaId, etapa:'indicacao', data_inicio:ymdToday(), observacao:'Cadastro criado como indicação de '+quemIndicou});
+    const nome = quemIndicou.trim();
+    let { data: ind } = await sb.from('crm_indicadores').select('id').ilike('nome', nome).limit(1).maybeSingle();
+    if(!ind){ const r = await sb.from('crm_indicadores').insert({nome, tipo:'outro'}).select('id').single(); ind = r.data; }
+    if(ind) await sb.from('crm_mais_carlas').insert({indicador_id:ind.id, pessoa_id:pessoaId, frente:'indicacao_medico', status:'virou_lead', aceita_contato:true, data_registro:ymdToday(), observacao:'Criado a partir do cadastro Novo cliente'});
+  }catch(e){ console.warn('ncRegistrarIndicacao', e); }
+}
 async function ncSave(){
   const err = document.getElementById('nc-err'); err.textContent = '';
   if(!ncVal('nome')){ err.textContent = 'Informe o nome. Se anexou um documento e o nome não foi lido, digite-o para eu criar o lead.'; return; }
@@ -3657,6 +3668,7 @@ async function ncSave(){
     } else {
       const r = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single(); if(r.error) throw r.error; data = r.data;
       OP.pessoas.push(data); OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'));
+      if(row.origem==='Indicação' && row.quem_indicou) await ncRegistrarIndicacao(data.id, row.quem_indicou);
     }
     await ncRegisterDocs(data.id);
     const cb = window._ncOnSaved; window._ncOnSaved = null; window._ncFiles = []; window._dlgOnClose = null; NC.pessoaId = null; dlgClose();
