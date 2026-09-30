@@ -4324,7 +4324,7 @@ function covValueCollect(box, prefix){
 }
 // ---- Coberturas conforme aparecem literalmente na apólice: nome livre + capital + prêmio mensal (tabela solta na Amanda) ----
 function covDetRowHtml(prefix, r, i){
-  return `<div class="cov-det-row" data-i="${i}" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:5px;align-items:center">
+  return `<div class="cov-det-row ${prefix}-det-row" data-i="${i}" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:5px;align-items:center">
     <input type="text" class="${prefix}-det-nome" placeholder="Nome da cobertura (como está na apólice)" value="${escapeHtml(r.nome||'')}" style="flex:2;min-width:180px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
     <input type="number" step="any" class="${prefix}-det-capital" placeholder="Capital (R$)" value="${r.capital!=null?r.capital:''}" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
     <input type="number" step="any" class="${prefix}-det-premio" placeholder="Prêmio mensal (R$)" value="${r.premio!=null?r.premio:''}" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
