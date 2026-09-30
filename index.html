@@ -1501,8 +1501,9 @@ async function pvApolices(p){
   rows.forEach(a=>(a.coberturas_detalhe||[]).forEach(c=> covDetRowsAll.push({...c, apolice:a.tipo_seguro, seguradora:a.seguradora})));
   host.innerHTML = `<div class="ql">Apólices do cliente (${rows.length})</div>
     ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Seguradora</th><th>Vigência</th><th>Prêmio</th><th>Origem / vínculo</th><th>Status</th><th>Documento</th><th></th></tr></thead><tbody>${rows.map(a=>{ const d = daysTo(a.data_vencimento); return `<tr><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${escapeHtml(a.seguradora||'—')}</td><td>${fmtDate(a.data_emissao)||'—'} → <b>${fmtDate(a.data_vencimento)||'—'}</b>${d!==null&&d>=0&&d<=60?` <span class="tagx warn">${d}d</span>`:''}</td><td>${fmtMoney(a.valor_premio)}</td><td>${escapeHtml(CA_ORIGENS[a.origem_apolice]||a.origem_apolice||'—')} · ${escapeHtml(a.vinculo_comercial||'—')}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td>${a.arquivo_apolice?`<a href="#" data-viewdoc="${escapeHtml(a.arquivo_apolice)}">📎 abrir</a>`:'—'}</td><td><a href="#" data-editapo="${a.id}">✏️ editar</a></td></tr>`; }).join('')}</tbody></table>`:'<div class="hint">Nenhuma apólice vinculada. Use “Anexar apólice” no topo ou a Central de Apólices.</div>'}
-    ${covDetRowsAll.length?`<div class="ql" style="margin-top:12px">Coberturas conforme os documentos</div>
-    <table class="ca-table"><thead><tr><th>Cobertura</th><th>Capital Segurado (R$)</th><th>Prêmio Mensal (R$)</th><th>Apólice</th></tr></thead><tbody>${covDetRowsAll.map(c=>`<tr><td>${escapeHtml(c.nome||'—')}</td><td>${fmtMoney(c.capital)}</td><td>${fmtMoney(c.premio)}</td><td>${escapeHtml(c.apolice||'—')}${c.seguradora?' · '+escapeHtml(c.seguradora):''}</td></tr>`).join('')}</tbody></table>`:''}
+    ${covDetRowsAll.length?(()=>{ const tot = covDetTotal(covDetRowsAll); return `<div class="ql" style="margin-top:12px">Coberturas conforme os documentos</div>
+    <table class="ca-table"><thead><tr><th>Cobertura</th><th>Capital Segurado (R$)</th><th>Prêmio Mensal (R$)</th><th>Apólice</th><th>Observação</th></tr></thead><tbody>${covDetRowsAll.map(c=>`<tr><td>${escapeHtml(c.nome||'—')}</td><td>${fmtMoney(c.capital)}</td><td>${fmtMoney(c.premio)}</td><td>${escapeHtml(c.apolice||'—')}${c.seguradora?' · '+escapeHtml(c.seguradora):''}</td><td>${escapeHtml(c.obs||'')}</td></tr>`).join('')}
+    <tr style="font-weight:700;background:#f6f7fc"><td>Total</td><td>${fmtMoney(tot.capital)}</td><td>${fmtMoney(tot.premio)}</td><td></td><td></td></tr></tbody></table>`; })():''}
     <div class="ql" style="margin-top:12px">Proteção atual (coberturas nas apólices)</div>
     <div class="chks">${ES_CORE.concat(ES_OPT).concat(['rc_profissional']).map(k=>`<span class="tagx" style="${have.has(k)?'':'background:#f2f3f9;color:var(--ink-faint);text-decoration:line-through'}" title="${escapeHtml(covProtect(k))}">${covLabel(k)}</span>`).join(' ')}</div>
     ${cap?`<div class="hint">Capital de vida já segurado: <b>${fmtMoney(cap)}</b></div>`:''}`;
@@ -2818,17 +2819,20 @@ function extractMultiApolices(text){
   while((m = apRe.exec(text))){ marks.push({pos:m.index, num:m[1].replace(/[.\-\/]+$/,'')}); }
   const distinctNums = [...new Set(marks.map(x=>x.num))];
   let anchors = [];
-  if(distinctNums.length>=2){ distinctNums.forEach(num=>{ const first = marks.find(x=>x.num===num); anchors.push(first.pos); }); }
+  if(distinctNums.length>=2){ distinctNums.forEach(num=>{ const first = marks.find(x=>x.num===num); anchors.push({pos:first.pos, num}); }); }
   else{
     const segMarks = [];
     DOCS_INSURERS.forEach(([n,re])=>{ const re2 = new RegExp(re.source, 'gi'); let mm; while((mm=re2.exec(text))){ segMarks.push({pos:mm.index, seg:n}); } });
     segMarks.sort((a,b)=>a.pos-b.pos);
     const seenSeg = new Set();
-    segMarks.forEach(x=>{ if(!seenSeg.has(x.seg)){ seenSeg.add(x.seg); anchors.push(x.pos); } });
+    segMarks.forEach(x=>{ if(!seenSeg.has(x.seg)){ seenSeg.add(x.seg); anchors.push({pos:x.pos, num:null}); } });
   }
-  anchors = [...new Set(anchors)].sort((a,b)=>a-b).slice(0,5);
+  const seenPos = new Set();
+  anchors = anchors.filter(a=>{ if(seenPos.has(a.pos)) return false; seenPos.add(a.pos); return true; }).sort((a,b)=>a.pos-b.pos).slice(0,5);
   if(anchors.length<2) return null;
-  return anchors.map((pos,i)=> docsExtract(text.slice(pos, anchors[i+1]!=null ? anchors[i+1] : text.length)));
+  // usa o número do próprio âncora (já confirmado) em vez de deixar o docsExtract do trecho reler
+  // e eventualmente pegar outro número de apólice/proposta mencionado dentro do mesmo trecho.
+  return anchors.map((a,i)=>{ const f = docsExtract(text.slice(a.pos, anchors[i+1] ? anchors[i+1].pos : text.length)); if(a.num) f.numero_apolice = a.num; return f; });
 }
 // Documento pode trazer várias pessoas juntas (ex.: um PDF só com N certificados). Não assumimos um layout
 // fixo: procuramos todo CPF válido no texto e tentamos achar um nome próximo dele (mesma linha ou linhas
@@ -4217,8 +4221,10 @@ async function caFormApolices(file, f, found){
         ${fld('cx-ini-'+i,'Início da vigência',r.vig_ini,'date')}${fld('cx-fim-'+i,'Fim da vigência',r.vig_fim,'date')}
         ${fld('cx-prem-'+i,'Prêmio anual (R$)',r.premio?String(r.premio_periodo==='mensal'?r.premio*12:r.premio):'','number')}
       </div>
-      <div class="ql" style="margin-top:8px">Coberturas — nome técnico, capital e (se identificado) o prêmio de cada uma</div>
-      <div class="cv-grid">${covValueRows('cx'+i, r.coberturas||[], r.coberturas_valores||{})}</div></div>`;
+      <div class="ql" style="margin-top:8px">Coberturas — catálogo CallMed <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— usado nas comparações de lacuna</small></div>
+      <div class="cv-grid">${covValueRows('cx'+i, r.coberturas||[], r.coberturas_valores||{})}</div>
+      <div class="ql" style="margin-top:8px">Coberturas conforme aparecem na apólice <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— nome livre + capital + prêmio mensal, igual ao documento</small></div>
+      ${covDetRows('cx'+i, r.coberturas_detalhe||[])}</div>`;
   const box = dlgOpen(`<div class="om-title"><div><h3>Documento com várias apólices — ${escapeHtml(file.name)}</h3><div class="om-sub">Achei ${rows.length} apólice(s) no mesmo documento. Confira, complete o que faltar (o nome técnico de cada cobertura muda por seguradora) e desmarque quem não quiser salvar.</div></div><button data-close>✕</button></div>
     <div class="dlg-body">
       <div class="q"><div class="ql">1. O que são estas apólices?</div>
@@ -4236,7 +4242,7 @@ async function caFormApolices(file, f, found){
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="cx-save">Salvar apólices marcadas</button></div>`, true);
   const showPes = ()=>{ document.getElementById('cx-novo').style.display = (document.querySelector('input[name="cx-pes"]:checked')||{}).value==='novo' ? 'grid':'none'; };
   box.querySelectorAll('input[name="cx-pes"]').forEach(r=>r.addEventListener('change', showPes)); showPes();
-  rows.forEach((r,i)=> covValueBind(box, 'cx'+i));
+  rows.forEach((r,i)=>{ covValueBind(box, 'cx'+i); covDetBind(box, 'cx'+i); });
   window._dlgOnClose = ()=>{ if(caQueue.length) caNext(); };
   box.querySelector('#cx-save').addEventListener('click', ()=> caSaveApolices(file, f, rows, box));
 }
@@ -4265,11 +4271,12 @@ async function caSaveApolices(file, f, rows, box){
     for(const i of checked){
       const covs = [...box.querySelectorAll(`.cx${i}-cov:checked`)].map(c=>c.value);
       const covVals = covValueCollect(box, 'cx'+i);
+      const covDet = covDetCollect(box, 'cx'+i);
       const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
       const num = id=>{ const v = g(id+'-'+i); return v==='' ? null : Number(v); };
       const { data: ap, error } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, numero_apolice:g('cx-num-'+i)||null, seguradora:g('cx-seg-'+i)||null, tipo_seguro:g('cx-prod-'+i)||null,
         data_emissao:g('cx-ini-'+i)||null, data_vencimento:g('cx-fim-'+i)||null, valor_premio:num('cx-prem'), valor_cobertura:capTotal, status:'ativa',
-        arquivo_apolice:path, origem_apolice:tipo, coberturas:covs, coberturas_valores:covVals, dados_extraidos:rows[i], vinculo_comercial:vinc,
+        arquivo_apolice:path, origem_apolice:tipo, coberturas:covs, coberturas_valores:covVals, coberturas_detalhe:covDet.length?covDet:null, dados_extraidos:rows[i], vinculo_comercial:vinc,
         observacoes:`Lido junto com outra(s) apólice(s) no mesmo documento "${file.name}".` }).select('id').single();
       if(error) throw error;
       await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
@@ -4317,10 +4324,11 @@ function covValueCollect(box, prefix){
 }
 // ---- Coberturas conforme aparecem literalmente na apólice: nome livre + capital + prêmio mensal (tabela solta na Amanda) ----
 function covDetRowHtml(prefix, r, i){
-  return `<div class="cov-det-row" data-i="${i}" style="display:flex;gap:6px;margin-bottom:5px;align-items:center">
-    <input type="text" class="${prefix}-det-nome" placeholder="Nome da cobertura (como está na apólice)" value="${escapeHtml(r.nome||'')}" style="flex:2;min-width:0;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
+  return `<div class="cov-det-row" data-i="${i}" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:5px;align-items:center">
+    <input type="text" class="${prefix}-det-nome" placeholder="Nome da cobertura (como está na apólice)" value="${escapeHtml(r.nome||'')}" style="flex:2;min-width:180px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
     <input type="number" step="any" class="${prefix}-det-capital" placeholder="Capital (R$)" value="${r.capital!=null?r.capital:''}" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
     <input type="number" step="any" class="${prefix}-det-premio" placeholder="Prêmio mensal (R$)" value="${r.premio!=null?r.premio:''}" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
+    <input type="text" class="${prefix}-det-obs" placeholder="Observação (ex.: antes/depois, apontamento p/ proposta)" value="${escapeHtml(r.obs||'')}" style="flex:2;min-width:180px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
     <button type="button" class="${prefix}-det-del om-cancel icon-btn" title="Remover linha">✕</button>
   </div>`;
 }
@@ -4333,8 +4341,12 @@ function covDetCollect(box, prefix){
   return [...box.querySelectorAll('.'+prefix+'-det-row')].map(row=>({
     nome: row.querySelector('.'+prefix+'-det-nome').value.trim(),
     capital: row.querySelector('.'+prefix+'-det-capital').value===''?null:Number(row.querySelector('.'+prefix+'-det-capital').value),
-    premio: row.querySelector('.'+prefix+'-det-premio').value===''?null:Number(row.querySelector('.'+prefix+'-det-premio').value)
-  })).filter(r=>r.nome || r.capital!=null || r.premio!=null);
+    premio: row.querySelector('.'+prefix+'-det-premio').value===''?null:Number(row.querySelector('.'+prefix+'-det-premio').value),
+    obs: row.querySelector('.'+prefix+'-det-obs').value.trim()
+  })).filter(r=>r.nome || r.capital!=null || r.premio!=null || r.obs);
+}
+function covDetTotal(list){
+  return (list||[]).reduce((t,r)=>({capital:t.capital+(Number(r.capital)||0), premio:t.premio+(Number(r.premio)||0)}), {capital:0, premio:0});
 }
 function covDetBind(box, prefix){
   const wrap = box.querySelector('.'+prefix+'-det-wrap');
@@ -4378,15 +4390,16 @@ function estudoDialog(person){
 }
 const parseIdades = txt => (String(txt||'').match(/\d{1,2}/g)||[]).map(Number);
 async function estudoFromApolices(pessoaId){
-  const { data } = await sb.from('crm_apolices').select('seguradora,tipo_seguro,numero_apolice,data_emissao,data_vencimento,valor_premio,valor_cobertura,coberturas,coberturas_valores,status').eq('pessoa_id', pessoaId);
+  const { data } = await sb.from('crm_apolices').select('seguradora,tipo_seguro,numero_apolice,data_emissao,data_vencimento,valor_premio,valor_cobertura,coberturas,coberturas_valores,coberturas_detalhe,status').eq('pessoa_id', pessoaId);
   const ativas = (data||[]).filter(a=>caEfetivo(a)==='ativa'); if(!ativas.length) return null;
-  const covs = new Set(), vals = {};
-  ativas.forEach(a=>{ (a.coberturas||[]).forEach(c=>covs.add(c)); Object.entries(a.coberturas_valores||{}).forEach(([k,v])=>{ vals[k] = (vals[k]||0)+Number(v); }); });
+  const covs = new Set(), vals = {}, covDet = [];
+  ativas.forEach(a=>{ (a.coberturas||[]).forEach(c=>covs.add(c)); Object.entries(a.coberturas_valores||{}).forEach(([k,v])=>{ vals[k] = (vals[k]||0)+Number(v); });
+    (a.coberturas_detalhe||[]).forEach(c=> covDet.push({...c, apolice:a.tipo_seguro, seguradora:a.seguradora, numero_apolice:a.numero_apolice})); });
   if(!Object.keys(vals).length && covs.has('morte')){ const t = ativas.reduce((s,a)=>s+(Number(a.valor_cobertura)||0),0); if(t) vals.morte = t; }
   const venc = ativas.map(a=>a.data_vencimento).filter(Boolean).sort();
   return { seguradora_atual:[...new Set(ativas.map(a=>a.seguradora).filter(Boolean))].join(' + ')||null, tipo_seguro:[...new Set(ativas.map(a=>a.tipo_seguro).filter(Boolean))].join(' + ')||null,
     numero_apolice: ativas.length===1 ? (ativas[0].numero_apolice||null) : null, vigencia_inicio: ativas[0].data_emissao||null, vigencia_fim: venc[0]||null,
-    premio_anual: ativas.reduce((s,a)=>s+(Number(a.valor_premio)||0),0)||null, coberturas_atuais:[...covs], coberturas_valores:vals, capital_segurado:Object.values(vals).reduce((a,b)=>a+b,0)||null };
+    premio_anual: ativas.reduce((s,a)=>s+(Number(a.valor_premio)||0),0)||null, coberturas_atuais:[...covs], coberturas_valores:vals, coberturas_detalhe:covDet, capital_segurado:Object.values(vals).reduce((a,b)=>a+b,0)||null };
 }
 // ---- unifica campos em comum entre Diagnóstico de Proteção (cadastro) e ADN (Novo Estudo) ----
 const EC_ADN2PESSOA = {'Solteiro(a)':'solteiro','Casado(a)':'casado','União estável':'união estável','Divorciado(a)':'divorciado','Viúvo(a)':'viúvo'};
@@ -4966,6 +4979,13 @@ async function esAutoPrefill(e){
     const covVals = {...(e.coberturas_valores||{}), ...ap.coberturas_valores};
     if(JSON.stringify([...covSet].sort())!==JSON.stringify((e.coberturas_atuais||[]).slice().sort())) upd.coberturas_atuais = [...covSet];
     if(JSON.stringify(covVals)!==JSON.stringify(e.coberturas_valores||{})) upd.coberturas_valores = covVals;
+    if(ap.coberturas_detalhe && ap.coberturas_detalhe.length){
+      const existing = e.coberturas_detalhe||[];
+      const key = r=> (r.nome||'')+'|'+r.capital+'|'+r.premio+'|'+(r.numero_apolice||'');
+      const existingKeys = new Set(existing.map(key));
+      const novos = ap.coberturas_detalhe.filter(r=>!existingKeys.has(key(r)));
+      if(novos.length) upd.coberturas_detalhe = existing.concat(novos);
+    }
     if(ap.premio_anual && ap.premio_anual!==e.premio_anual) upd.premio_anual = ap.premio_anual;
     if(!e.seguradora_atual && ap.seguradora_atual) upd.seguradora_atual = ap.seguradora_atual;
     if(!e.tipo_seguro && ap.tipo_seguro) upd.tipo_seguro = ap.tipo_seguro;
@@ -5006,10 +5026,13 @@ function esShow(e){
       ${e.pessoa_id?'<div style="margin-bottom:8px"><button type="button" class="om-cancel" id="es-imp-apo">↧ Importar apólices ativas do cadastro (Proteção atual)</button></div>':''}<div class="fgrid">
       ${fld('es-seg','Seguradora atual',e.seguradora_atual)}${fld('es-cor','Corretor atual',e.corretor_atual)}${fld('es-tipo','Produto',e.tipo_seguro)}${fld('es-num','Nº da apólice',e.numero_apolice)}
       ${fld('es-ini','Início',e.vigencia_inicio,'date')}${fld('es-fim','Fim',e.vigencia_fim,'date')}${fld('es-prem','Prêmio anual (R$)',e.premio_anual===null?'':String(e.premio_anual),'number')}</div>
-      <div class="ql" style="margin-top:10px">Coberturas e o valor de cada uma (R$)</div><div class="cv-grid">${covValueRows('es', [...a.have], e.coberturas_valores||{})}</div></div>
+      <div class="ql" style="margin-top:10px">Coberturas — catálogo CallMed (R$) <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— usado nas comparações de lacuna</small></div><div class="cv-grid">${covValueRows('es', [...a.have], e.coberturas_valores||{})}</div>
+      <div class="ql" style="margin-top:10px">Coberturas conforme aparecem nas apólices <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— nome livre + capital + prêmio mensal, somando todas as apólices ativas do cliente</small></div>
+      ${covDetRows('es', e.coberturas_detalhe||[])}</div>
     <div class="es-box"><div class="ql">Lacunas × o que temos no catálogo</div>
       <table class="ca-table es-cov-t"><thead><tr><th>Cobertura</th><th>Hoje</th><th>O que a cobertura protege</th></tr></thead><tbody>${covRows}</tbody></table>
       ${e.premio_anual?`<div class="hint" style="margin-top:6px"><b>Total que o cliente já paga hoje (todas as apólices ativas): ${fmtMoney(e.premio_anual)}/ano</b></div>`:''}
+      ${(e.coberturas_detalhe||[]).length?(()=>{ const tot = covDetTotal(e.coberturas_detalhe); return `<div class="hint" style="margin-top:4px"><b>Coberturas detalhadas: capital total ${fmtMoney(tot.capital)} · prêmio mensal total ${fmtMoney(tot.premio)}</b></div>`; })():''}
       <div class="hint">Base: nomes/condições gerais catalogadas em Seguradoras\\catalogo-seguradoras.md. Confirme sempre a cobertura exata na condição geral antes de ofertar.</div></div>
     <div class="es-box"><div class="ql">Recomendação</div>
       ${a.combo.length?`<div class="reco"><b>Combinação mínima que fecha as lacunas:</b><br>${a.combo.map(p=>`• <b>${escapeHtml(p.seguradora)}</b> — ${escapeHtml(p.produto)} <small>(${(p.coberturas||[]).map(covLabel).join(', ')}; ${escapeHtml(p.modalidade||'')})</small>`).join('<br>')}${a.semProduto.length?`<br><span class="tagx warn">Sem produto catalogado para: ${a.semProduto.map(covLabel).join(', ')}</span>`:''}</div>`:'<div class="hint">A apólice atual já cobre tudo o que o catálogo oferece.</div>'}
@@ -5036,6 +5059,7 @@ function esShow(e){
   },250); }); }
   document.querySelectorAll('#es-detail .cot').forEach(i=>i.addEventListener('change', ()=> esRecalcCot()));
   covValueBind(document.getElementById('es-detail'), 'es');
+  covDetBind(document.getElementById('es-detail'), 'es');
   document.querySelectorAll('#es-detail .es-cov').forEach(i=>i.addEventListener('change', async ()=>{ await esSave(true); }));
   $('es-parecer').addEventListener('click', ()=>{ $('es-obs').value = esParecer(esCollect(), esAnalise(esCollect())); });
   if($('es-imp-apo')) $('es-imp-apo').addEventListener('click', async ()=>{
@@ -5067,17 +5091,18 @@ function esCollect(){
   const g = id=>document.getElementById(id).value.trim(); const n = id=> g(id)===''?null:Number(g(id));
   const cots = {}; document.querySelectorAll('#es-detail .cot').forEach(i=>{ if(i.value!=='') cots[i.dataset.seg] = Number(i.value); });
   const covVals = covValueCollect(document.getElementById('es-detail'), 'es');
+  const covDet = covDetCollect(document.getElementById('es-detail'), 'es');
   const capTotal = Object.values(covVals).reduce((a,b)=>a+b,0) || null;
   const adn = adnCollect(box);
   return { ...ES.cur, ...adn, seguradora_atual:g('es-seg')||null, corretor_atual:g('es-cor')||null, tipo_seguro:g('es-tipo')||null, numero_apolice:g('es-num')||null,
     vigencia_inicio:g('es-ini')||null, vigencia_fim:g('es-fim')||null, premio_anual:n('es-prem'), capital_segurado:capTotal,
-    coberturas_atuais:[...document.querySelectorAll('#es-detail .es-cov:checked')].map(c=>c.value), coberturas_valores:covVals, cotacoes:cots, status:document.getElementById('es-status').value, observacoes:g('es-obs')||null };
+    coberturas_atuais:[...document.querySelectorAll('#es-detail .es-cov:checked')].map(c=>c.value), coberturas_valores:covVals, coberturas_detalhe:covDet.length?covDet:null, cotacoes:cots, status:document.getElementById('es-status').value, observacoes:g('es-obs')||null };
 }
 function esRecalcCot(){ ES.cur = esCollect(); esShow(ES.cur); }
 async function esSave(silent){
   const e = esCollect();
   const { error } = await sb.from('crm_estudos').update({ seguradora_atual:e.seguradora_atual, corretor_atual:e.corretor_atual, tipo_seguro:e.tipo_seguro, numero_apolice:e.numero_apolice,
-    vigencia_inicio:e.vigencia_inicio, vigencia_fim:e.vigencia_fim, premio_anual:e.premio_anual, capital_segurado:e.capital_segurado, coberturas_atuais:e.coberturas_atuais, coberturas_valores:e.coberturas_valores,
+    vigencia_inicio:e.vigencia_inicio, vigencia_fim:e.vigencia_fim, premio_anual:e.premio_anual, capital_segurado:e.capital_segurado, coberturas_atuais:e.coberturas_atuais, coberturas_valores:e.coberturas_valores, coberturas_detalhe:e.coberturas_detalhe,
     estado_civil:e.estado_civil, sexo:e.sexo, data_nascimento:e.data_nascimento, profissao:e.profissao, dependentes_qtd:e.dependentes_qtd, dependentes:e.dependentes,
     renda_mensal:e.renda_mensal, gastos_mensais:e.gastos_mensais, patrimonio_bruto:e.patrimonio_bruto, patrimonio_financeiro:e.patrimonio_financeiro,
     altura_cm:e.altura_cm, peso_kg:e.peso_kg, fumante:e.fumante, comorbidade:e.comorbidade, comorbidade_obs:e.comorbidade_obs, modulos_visiveis:e.modulos_visiveis,
