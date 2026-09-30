@@ -451,17 +451,18 @@
   .op-filters-more select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 10px; font-size:13px; background:var(--surface); color:var(--ink); cursor:pointer;}
   #op-range{ font-family:'IBM Plex Mono',monospace; font-size:11px;}
   #op-scroll{ overflow:auto; position:relative; --oplw:290px;}
-  .op-inner{ min-width:calc(var(--oplw) + 1080px);}
-  .op-row{ display:flex; border-bottom:1px solid var(--border-soft); background:var(--surface);}
+  .op-inner{ position:relative; min-width:calc(var(--oplw) + 1080px);}
+  .op-gridbg{ position:absolute; top:0; left:var(--oplw); right:0; bottom:0; background-image:var(--opgrid); pointer-events:none; z-index:0;}
+  .op-row{ position:relative; z-index:1; display:flex; border-bottom:1px solid var(--border-soft);}
   .op-left{ position:sticky; left:0; z-index:2; width:var(--oplw); flex:0 0 var(--oplw); background:inherit; border-right:2px solid var(--border); padding:6px 12px; cursor:pointer; overflow:hidden; background:var(--surface);}
   .op-left:hover{ background:var(--brand-soft);}
   .op-left .n{ font-weight:600; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .op-left .m{ font-size:11px; color:var(--ink-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .op-left .cli{ display:inline-block; font-size:9.5px; background:var(--green-soft); color:var(--green); border-radius:4px; padding:0 5px; margin-left:6px; font-family:'IBM Plex Mono',monospace; font-weight:600; vertical-align:1px;}
-  .op-right{ position:relative; flex:1; background-image:var(--opgrid);}
+  .op-right{ position:relative; flex:1;}
   .op-head{ position:sticky; top:0; z-index:5; background:#f2f3f9; border-bottom:1px solid var(--border);}
   .op-head .op-left{ background:#f2f3f9; z-index:6; cursor:default; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; display:flex; align-items:center; gap:6px;}
-  .op-head .op-right{ height:38px; background-image:none;}
+  .op-head .op-right{ height:38px;}
   #op-sumtoggle{ cursor:pointer;}
   .op-countrow .op-left{ cursor:default; font-family:'IBM Plex Mono',monospace; font-size:10.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; display:flex; align-items:center;}
   .op-sort-wrap{ position:relative;}
@@ -484,7 +485,7 @@
   .op-resize-handle{ height:7px; margin-top:-2px; cursor:ns-resize; position:relative; z-index:8;}
   .op-resize-handle::after{ content:''; position:absolute; left:50%; top:2px; width:36px; height:3px; margin-left:-18px; border-radius:99px; background:var(--border);}
   .op-resize-handle:hover::after, .op-resize-handle.dragging::after{ background:var(--brand);}
-  .op-sumrow{ display:flex; border-top:1px solid var(--border-soft); background:var(--surface);}
+  .op-sumrow{ position:relative; z-index:1; display:flex; border-top:1px solid var(--border-soft);}
   .op-sumrow .op-left{ cursor:default; padding:3px 12px; font-size:12px; display:flex; align-items:center; gap:8px; font-weight:500;}
   .op-sumrow .op-left:hover{ background:var(--surface);}
   .op-sumrow .op-right{ height:26px;}
@@ -2379,6 +2380,7 @@ function opRenderAll(prevShown){
     return `<div class="op-mh${(now>=mo.s&&now<mo.e)?' cur':''}${mo.exp?' exp':''}" style="left:${mo.l}%;width:${mo.w}%"><div class="op-mt"><span>${mo.name}<small>${mo.yr}</small></span><button class="op-mtoggle" data-mkey="${mo.key}" title="${mo.exp?'Minimizar mês':'Abrir o mês inteiro (dias)'}">${mo.exp?'⤡':'⤢'}</button></div>${days}</div>`;
   }).join('');
   host.innerHTML = `<div class="op-inner" style="min-width:calc(var(--oplw) + ${OP.total*OP_UNIT_PX}px)">
+    <div class="op-gridbg"></div>
     <div class="op-row op-head"><div class="op-left" id="op-sumtoggle">${OP.sumOpen?'▾':'▸'} Resumo mensal <span class="info-ico" tabindex="0" title="Médicos por etapa do funil (situação ao fim de cada mês). Clique num número para filtrar.">ⓘ</span></div><div class="op-right" style="height:${anyExp?60:38}px">${heads}</div></div>
     <div class="op-sumbox">
       <div id="op-sumrows" style="display:${OP.sumOpen?'block':'none'};${OP.sumHeight?`height:${OP.sumHeight}px;overflow-y:auto;`:''}">${opSumRowsHtml()}</div>
