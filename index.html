@@ -4323,8 +4323,11 @@ function covValueCollect(box, prefix){
   return out;
 }
 // ---- Coberturas conforme aparecem literalmente na apólice: nome livre + capital + prêmio mensal (tabela solta na Amanda) ----
+// Checkbox por linha marca se aquela cobertura entra ou não ao salvar (igual à lista antiga do catálogo).
 function covDetRowHtml(prefix, r, i){
+  const checked = r.on !== false;
   return `<div class="cov-det-row ${prefix}-det-row" data-i="${i}" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:5px;align-items:center">
+    <input type="checkbox" class="${prefix}-det-on" ${checked?'checked':''} title="Incluir esta cobertura ao salvar">
     <input type="text" class="${prefix}-det-nome" placeholder="Nome da cobertura (como está na apólice)" value="${escapeHtml(r.nome||'')}" style="flex:2;min-width:180px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
     <input type="number" step="any" class="${prefix}-det-capital" placeholder="Capital (R$)" value="${r.capital!=null?r.capital:''}" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
     <input type="number" step="any" class="${prefix}-det-premio" placeholder="Prêmio mensal (R$)" value="${r.premio!=null?r.premio:''}" style="width:130px;border:1px solid var(--border);border-radius:6px;padding:6px 8px">
@@ -4337,13 +4340,20 @@ function covDetRows(prefix, list){
   return `<div class="${prefix}-det-wrap">${rows.map((r,i)=>covDetRowHtml(prefix,r,i)).join('')}</div>
     <button type="button" class="${prefix}-det-add om-cancel" style="margin-top:4px">+ Adicionar cobertura</button>`;
 }
-function covDetCollect(box, prefix){
+// versão "crua": pega todas as linhas como estão na tela (inclusive desmarcadas/vazias) — usada só para
+// re-renderizar ao adicionar/remover linha, sem perder o que já foi digitado em linhas desmarcadas.
+function covDetCollectAll(box, prefix){
   return [...box.querySelectorAll('.'+prefix+'-det-row')].map(row=>({
+    on: row.querySelector('.'+prefix+'-det-on').checked,
     nome: row.querySelector('.'+prefix+'-det-nome').value.trim(),
     capital: row.querySelector('.'+prefix+'-det-capital').value===''?null:Number(row.querySelector('.'+prefix+'-det-capital').value),
     premio: row.querySelector('.'+prefix+'-det-premio').value===''?null:Number(row.querySelector('.'+prefix+'-det-premio').value),
     obs: row.querySelector('.'+prefix+'-det-obs').value.trim()
-  })).filter(r=>r.nome || r.capital!=null || r.premio!=null || r.obs);
+  }));
+}
+// versão "pra salvar": só as linhas marcadas (checkbox) e com algo preenchido.
+function covDetCollect(box, prefix){
+  return covDetCollectAll(box, prefix).filter(r=>r.on && (r.nome || r.capital!=null || r.premio!=null || r.obs)).map(({on, ...rest})=>rest);
 }
 function covDetTotal(list){
   return (list||[]).reduce((t,r)=>({capital:t.capital+(Number(r.capital)||0), premio:t.premio+(Number(r.premio)||0)}), {capital:0, premio:0});
@@ -4351,12 +4361,12 @@ function covDetTotal(list){
 function covDetBind(box, prefix){
   const wrap = box.querySelector('.'+prefix+'-det-wrap');
   box.querySelectorAll('.'+prefix+'-det-add').forEach(btn=> btn.addEventListener('click', ()=>{
-    const list = covDetCollect(box, prefix); list.push({}); wrap.innerHTML = list.map((r,i)=>covDetRowHtml(prefix,r,i)).join('');
+    const list = covDetCollectAll(box, prefix); list.push({on:true}); wrap.innerHTML = list.map((r,i)=>covDetRowHtml(prefix,r,i)).join('');
   }));
   wrap.addEventListener('click', e=>{
     const del = e.target.closest('.'+prefix+'-det-del'); if(!del) return;
-    const list = covDetCollect(box, prefix); const idx = +del.closest('.cov-det-row').dataset.i;
-    list.splice(idx,1); wrap.innerHTML = (list.length?list:[{}]).map((r,i)=>covDetRowHtml(prefix,r,i)).join('');
+    const list = covDetCollectAll(box, prefix); const idx = +del.closest('.cov-det-row').dataset.i;
+    list.splice(idx,1); wrap.innerHTML = (list.length?list:[{on:true}]).map((r,i)=>covDetRowHtml(prefix,r,i)).join('');
   });
 }
 async function renderEstudos(){
