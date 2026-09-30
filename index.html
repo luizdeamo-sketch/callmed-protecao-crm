@@ -250,6 +250,7 @@
           <select id="op-f-etapa"><option value="">Qualquer etapa atual</option></select>
           <select id="op-f-plantao"><option value="">Plantão: qualquer</option><option value="7">Fez plantão nos últimos 7 dias</option><option value="30">Fez plantão nos últimos 30 dias</option><option value="90">Fez plantão nos últimos 90 dias</option><option value="nenhum">Sem plantão recente (+90 dias)</option></select>
           <select id="op-f-produto"><option value="">Qualquer produto</option></select>
+          <button class="om-cancel" id="op-fclear" style="display:none;color:var(--red)">✕ Limpar filtros</button>
           <select id="op-sort">
             <option value="nome">Ordenar: nome</option>
             <option value="classificacao">Ordenar: Call Hot primeiro</option>
@@ -2220,11 +2221,12 @@ function opApplyFilters(keep, scrollToList){
   opRenderFilterCount();
 }
 
+const OP_FILTER_IDS = ['op-f-perfil','op-f-class','op-f-tag','op-f-next','op-f-situacao','op-f-etapa','op-f-plantao','op-f-produto','op-f-acao'];
 function opRenderFilterCount(){
-  const ids = ['op-f-perfil','op-f-class','op-f-tag','op-f-next','op-f-situacao','op-f-etapa','op-f-plantao','op-f-produto','op-f-acao'];
-  const n = ids.reduce((t,id)=> t + (document.getElementById(id).value ? 1 : 0), 0);
+  const n = OP_FILTER_IDS.reduce((t,id)=> t + (document.getElementById(id).value ? 1 : 0), 0);
   const badge = document.getElementById('op-fcount');
   if(n){ badge.textContent = n; badge.style.display = 'inline-flex'; } else { badge.style.display = 'none'; }
+  document.getElementById('op-fclear').style.display = n ? '' : 'none';
 }
 
 function opRenderChip(){
@@ -2585,6 +2587,7 @@ document.getElementById('op-scroll').addEventListener('scroll', (e)=>{
 let opSearchTimer = null;
 document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeout(opSearchTimer); opSearchTimer = setTimeout(()=>opApplyFilters(false), 250); });
 ['op-f-perfil','op-f-next','op-f-class','op-f-tag','op-f-situacao','op-f-etapa','op-f-produto','op-f-plantao','op-f-acao','op-sort'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>opApplyFilters(false)));
+document.getElementById('op-fclear').addEventListener('click', ()=>{ OP_FILTER_IDS.forEach(id=> document.getElementById(id).value=''); opApplyFilters(false); });
 document.getElementById('op-ftoggle').addEventListener('click', ()=> document.getElementById('op-filters-more').classList.toggle('open'));
 const opShift = (n)=>{ OP.start = new Date(OP.start.getFullYear(), OP.start.getMonth()+n, 1); OP.sumFilter = null; opApplyFilters(true); };
 document.getElementById('op-prev').addEventListener('click', ()=>opShift(-1));
