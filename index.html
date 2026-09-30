@@ -506,6 +506,7 @@
   .op-mtoggle:hover{ background:var(--brand-soft); color:var(--brand);}
   .op-mh.exp{ background:#eef1ff;}
   .op-dh{ position:absolute; bottom:0; height:20px; text-align:center; font-size:9.5px; color:var(--ink-faint); font-weight:500; line-height:20px; border-left:1px solid #e3e6f0;}
+  .op-dh.off{ background:rgba(60,70,110,.07); color:#9fa4bb;}
   .op-sumcell.clk{ cursor:pointer; color:var(--brand);}
   .op-sumcell.clk:hover{ background:var(--brand-soft);}
   .op-sumcell.sel{ background:var(--brand); color:#fff !important; border-radius:6px;}
@@ -2256,16 +2257,44 @@ function opRenderKpis(){
     `<span class="op-kpi"><b>${med}</b> médicos</span>${nao?`<span class="op-kpi" style="background:var(--amber-soft)"><b style="color:var(--amber-ink)">${nao}</b> não médicos</span>`:''}<span class="op-kpi"><b>${fun}</b> em funil</span><span class="op-kpi"><b>${cli}</b> clientes</span><span class="op-kpi">exibindo <b>${OP.filtered.length}</b></span>${(()=>{ const h = opHojeCounts(); return (h.late||h.semAcao) ? `${h.late?`<button class="op-kpi" data-fnext="atrasada" style="border:none;cursor:pointer;background:var(--red-soft)">⏰ <b style="color:var(--red)">${h.late}</b> atrasadas</button>`:''}${h.semAcao?`<button class="op-kpi" data-fnext="sem" style="border:none;cursor:pointer;background:var(--amber-soft)">⚠ <b style="color:var(--amber-ink)">${h.semAcao}</b> sem próxima ação</button>`:''}` : ''; })()}${OP.pessoas.length && opDupGroups().length ? `<button class="op-kpi" id="op-dups" style="border:none;cursor:pointer;background:var(--amber-soft)">⚠ <b style="color:var(--amber-ink)">${opDupGroups().length}</b> possíveis duplicados</button>` : ''}`;
 }
 
+// Feriados nacionais fixos + móveis (calculados via Páscoa) — usados para sombrear fins de semana/feriados no grid.
+function opEaster(year){
+  const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;
+  return new Date(year,month-1,day);
+}
+const OP_HOLIDAYS_FIXED = ['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25'];
+const opHolidayCache = new Map();
+function opHolidaySet(year){
+  if(opHolidayCache.has(year)) return opHolidayCache.get(year);
+  const set = new Set(OP_HOLIDAYS_FIXED);
+  const easter = opEaster(year);
+  const add = off => { const d = new Date(easter); d.setDate(d.getDate()+off); set.add(String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')); };
+  add(-48); add(-47); add(-2); add(60); // carnaval (seg/ter), sexta-feira santa, corpus christi
+  opHolidayCache.set(year, set);
+  return set;
+}
+function opIsNonBusinessDay(date){
+  if(date.getDay()===0 || date.getDay()===6) return true;
+  const key = String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0');
+  return opHolidaySet(date.getFullYear()).has(key);
+}
 function opGridCss(){
-  const layers = [];
+  const layers = [], weekendBlocks = [];
   const line = (p,c)=> `linear-gradient(to right,transparent calc(${p}% - .5px),${c} calc(${p}% - .5px),${c} calc(${p}% + .5px),transparent calc(${p}% + .5px))`;
+  const block = (p0,p1,c)=> `linear-gradient(to right,transparent ${p0}%,${c} ${p0}%,${c} ${p1}%,transparent ${p1}%)`;
   OP.months.forEach((m,i)=>{
     if(i>0) layers.push(line(m.l.toFixed(3), '#dfe3ef'));
-    if(m.exp){ for(let d=1; d<m.days; d++) layers.push(line((m.l + d/m.days*m.w).toFixed(3), '#eef0f6')); }
+    if(m.exp){
+      for(let d=1; d<m.days; d++) layers.push(line((m.l + d/m.days*m.w).toFixed(3), '#eef0f6'));
+      for(let d=0; d<m.days; d++){
+        const dt = new Date(m.s.getFullYear(), m.s.getMonth(), d+1);
+        if(opIsNonBusinessDay(dt)) weekendBlocks.push(block((m.l + d/m.days*m.w).toFixed(3), (m.l + (d+1)/m.days*m.w).toFixed(3), 'rgba(60,70,110,.07)'));
+      }
+    }
   });
   const t = opPct(new Date());
   if(t>=0 && t<=100) layers.push(`linear-gradient(to right,transparent calc(${t.toFixed(3)}% - 1px),rgba(194,54,54,.55) calc(${t.toFixed(3)}% - 1px),rgba(194,54,54,.55) calc(${t.toFixed(3)}% + 1px),transparent calc(${t.toFixed(3)}% + 1px))`);
-  return layers.join(',');
+  return layers.concat(weekendBlocks).join(',');
 }
 
 // Resumo mensal: mês fechado mostra 1 número (o do último dia do mês, como referência de fechamento).
@@ -2309,7 +2338,7 @@ function opSumRowHtml(label, dotColor, countsPerMonth, dayListPerMonth, stKey){
       return `<div class="op-sumcell${v?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" data-d="${di+1}" style="left:${left}%;width:${width}%">${v||'·'}</div>`;
     }).join('');
   }).join('');
-  return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right" style="--opgrid:none">${cells}</div></div>`;
+  return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right">${cells}</div></div>`;
 }
 function opSumRowsHtml(){
   const sm = opSummary();
@@ -2325,7 +2354,7 @@ function opRenderAll(prevShown){
   document.getElementById('op-range').textContent = `${OP_MESES[OP.start.getMonth()]}/${String(OP.start.getFullYear()).slice(2)}–${OP_MESES[lastM.getMonth()]}/${String(lastM.getFullYear()).slice(2)}`;
   const anyExp = OP.months.some(m=>m.exp);
   const heads = OP.months.map(mo=>{
-    const days = mo.exp ? Array.from({length:mo.days},(_,d)=>`<span class="op-dh" style="left:${d/mo.days*100}%;width:${100/mo.days}%">${d+1}</span>`).join('') : '';
+    const days = mo.exp ? Array.from({length:mo.days},(_,d)=>{ const off = opIsNonBusinessDay(new Date(mo.s.getFullYear(), mo.s.getMonth(), d+1)); return `<span class="op-dh${off?' off':''}" style="left:${d/mo.days*100}%;width:${100/mo.days}%">${d+1}</span>`; }).join('') : '';
     return `<div class="op-mh${(now>=mo.s&&now<mo.e)?' cur':''}${mo.exp?' exp':''}" style="left:${mo.l}%;width:${mo.w}%"><div class="op-mt"><span>${mo.name}<small>${mo.yr}</small></span><button class="op-mtoggle" data-mkey="${mo.key}" title="${mo.exp?'Minimizar mês':'Abrir o mês inteiro (dias)'}">${mo.exp?'⤡':'⤢'}</button></div>${days}</div>`;
   }).join('');
   host.innerHTML = `<div class="op-inner" style="min-width:calc(var(--oplw) + ${OP.total*OP_UNIT_PX}px)">
