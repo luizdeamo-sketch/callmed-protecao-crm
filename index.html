@@ -1208,6 +1208,9 @@ document.getElementById('person-view').addEventListener('click', e=>{
   if(e.target.id==='pv-next-log') pvGoto('historico');
 });
 function pvRefreshNext(){ const el = document.getElementById('pv-next'); if(el) el.innerHTML = pvNextHtml(PV.person); }
+// a ficha da pessoa (PV.person) é buscada separada da lista da Aliança (OP.pessoas) — sem isto, mudar a
+// próxima ação na ficha não reflete na lista/contagem de "atrasadas" até recarregar a página inteira.
+function opSyncPessoa(id, upd){ const p = OP.pessoas.find(x=>x.id===id); if(p) Object.assign(p, upd); }
 
 // ---- próxima ação ----
 function pvNextDialog(){
@@ -1218,7 +1221,7 @@ function pvNextDialog(){
       ${fld('pn-data','Data',p.proxima_data||'','date')}${fld('pn-resp','Responsável',p.proximo_responsavel||curUserName())}
     </div><div class="om-err" id="pn-err"></div></div>
     <div class="om-foot"><button class="om-cancel" id="pn-clear" style="color:var(--red)">Limpar</button><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="pn-save">Salvar</button></div>`);
-  const save = async (upd)=>{ const { error } = await sb.from('crm_pessoas').update(upd).eq('id', p.id); if(error){ document.getElementById('pn-err').textContent = 'Erro: '+error.message; return; } Object.assign(p, upd); dlgClose(); pvRefreshNext(); showToast('Próxima ação atualizada'); };
+  const save = async (upd)=>{ const { error } = await sb.from('crm_pessoas').update(upd).eq('id', p.id); if(error){ document.getElementById('pn-err').textContent = 'Erro: '+error.message; return; } Object.assign(p, upd); opSyncPessoa(p.id, upd); dlgClose(); pvRefreshNext(); showToast('Próxima ação atualizada'); };
   box.querySelector('#pn-save').addEventListener('click', ()=>{ const a = document.getElementById('pn-acao').value, d = document.getElementById('pn-data').value, r = document.getElementById('pn-resp').value.trim();
     if(a && (!d || !r)){ document.getElementById('pn-err').textContent = 'Informe data e responsável.'; return; } save({proxima_acao:a||null, proxima_data:d||null, proximo_responsavel:a?r:null}); });
   box.querySelector('#pn-clear').addEventListener('click', ()=> save({proxima_acao:null, proxima_data:null, proximo_responsavel:null}));
@@ -1363,7 +1366,7 @@ async function pvSaveAtividade(p){
   const upd = { proxima_acao:pAcao, proxima_data:pData, proximo_responsavel:pResp };
   const { error: errPessoa } = await sb.from('crm_pessoas').update(upd).eq('id', p.id);
   if(errPessoa){ console.warn('pvSaveAtividade/crm_pessoas', errPessoa); showToast('Atividade registrada, mas a próxima ação do cadastro não foi atualizada: '+errPessoa.message); }
-  else Object.assign(p, upd);
+  else { Object.assign(p, upd); opSyncPessoa(p.id, upd); }
   if(encerrar && oppId){
     const { error: errOpp } = await sb.from('crm_oportunidades').update({ status: reat?'pausada':'perdida', motivo_perda:motivo, data_reativacao:reat, fechada_em: reat?null:new Date().toISOString(), updated_at:new Date().toISOString() }).eq('id', oppId);
     if(errOpp){ console.warn('pvSaveAtividade/crm_oportunidades', errOpp); showToast('Atividade registrada, mas a oportunidade não foi atualizada: '+errOpp.message); }
@@ -1412,7 +1415,7 @@ function pvEditAtividade(p, a){
     const upd = { tipo:g('ea-tipo'), data_hora:g('ea-data')?new Date(g('ea-data')).toISOString():a.data_hora, resultado:g('ea-res')||null, resumo:g('ea-resumo')||null, proxima_data:g('ea-pdata')||null };
     const { error } = await sb.from('crm_atividades').update(upd).eq('id', a.id); if(error){ document.getElementById('ea-err').textContent = 'Erro: '+error.message; return; }
     // se esta é a atividade que definiu a "próxima ação" atual do cadastro, mantém a data em sincronia
-    if(a.proxima_data && p.proxima_data===a.proxima_data && upd.proxima_data){ const r = await sb.from('crm_pessoas').update({proxima_data:upd.proxima_data}).eq('id',p.id); if(!r.error){ p.proxima_data = upd.proxima_data; pvRefreshNext(); } }
+    if(a.proxima_data && p.proxima_data===a.proxima_data && upd.proxima_data){ const r = await sb.from('crm_pessoas').update({proxima_data:upd.proxima_data}).eq('id',p.id); if(!r.error){ p.proxima_data = upd.proxima_data; opSyncPessoa(p.id, {proxima_data:upd.proxima_data}); pvRefreshNext(); } }
     dlgClose(); showToast('Atividade atualizada'); pvTimeline(p);
   });
 }
