@@ -3827,6 +3827,27 @@ document.querySelector('#view-central .pg').addEventListener('scroll', e=>{ cons
 ['ca-f-status','ca-f-seg','ca-f-prod','ca-f-venc','ca-f-vinc','ca-f-entrega'].forEach(id=> document.getElementById(id).addEventListener('change', caApply));
 document.getElementById('ca-kpis').addEventListener('click', e=>{ if(e.target.closest('#ca-pend-entrega')){ document.getElementById('ca-f-entrega').value = 'pendente'; caApply(); } });
 
+// ---- documento da apólice: anexar quando não tem (ex.: apólices importadas em lote sem o arquivo), ou substituir ----
+function caDocBoxHtml(r){
+  return r.arquivo_apolice
+    ? `<div class="hint">📎 <a href="#" id="ce-file">abrir arquivo da apólice</a> · <label class="om-cancel" style="cursor:pointer;display:inline-block;padding:4px 10px;font-size:12px;margin-left:6px">substituir<input type="file" id="ce-file-up" accept=".pdf,image/*" hidden></label></div>`
+    : `<div class="hint">Nenhum documento anexado ainda (comum em apólices importadas em lote). <label class="om-save" style="cursor:pointer;display:inline-block;padding:6px 12px;font-size:13px;margin-left:6px">📎 Anexar documento<input type="file" id="ce-file-up" accept=".pdf,image/*" hidden></label></div>`;
+}
+function caDocBoxBind(box, r){
+  const redraw = ()=>{ const el = box.querySelector('#ce-docbox'); el.innerHTML = caDocBoxHtml(r); caDocBoxBind(box, r); };
+  const fl = box.querySelector('#ce-file'); if(fl) fl.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(r.arquivo_apolice),'_blank'); }catch(x){ showToast('Erro: '+x.message); } });
+  const up = box.querySelector('#ce-file-up'); if(up) up.addEventListener('change', async ()=>{
+    const file = up.files[0]; if(!file) return;
+    try{
+      const path = await docsUpload(file, 'apolices');
+      const { error } = await sb.from('crm_apolices').update({arquivo_apolice:path}).eq('id', r.id);
+      if(error) throw error;
+      await sb.from('crm_documentos').insert({pessoa_id:r.pessoa_id, apolice_id:r.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+      r.arquivo_apolice = path; OP.dirty = true;
+      showToast('Documento anexado'); redraw();
+    }catch(x){ showToast('Erro ao anexar: '+x.message); }
+  });
+}
 async function caEdit(id, onSaved){
   let r = CA.data.find(x=>x.id===id);
   if(!r){ const { data, error } = await sb.from('crm_apolices').select('*, crm_pessoas(nome,cpf)').eq('id', id).maybeSingle(); if(error){ showToast('Erro: '+error.message); return; } r = data; }
@@ -3851,12 +3872,12 @@ async function caEdit(id, onSaved){
       <div class="ql" style="margin-top:10px">Coberturas e o valor de cada uma (R$) <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— catálogo CallMed, usado nas comparações de lacuna</small></div><div class="cv-grid">${covValueRows('ce', r.coberturas||[], r.coberturas_valores||{})}</div>
       <div class="ql" style="margin-top:10px">Coberturas conforme aparecem na apólice <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— nome livre + capital + prêmio mensal, igual ao documento</small></div>
       ${covDetRows('ce', r.coberturas_detalhe||[])}
-      ${r.arquivo_apolice?`<div class="hint" style="margin-top:10px">📎 <a href="#" id="ce-file" style="color:var(--brand);font-weight:600">abrir arquivo da apólice</a></div>`:''}
+      <div class="ql" style="margin-top:10px">Documento da apólice</div><div id="ce-docbox">${caDocBoxHtml(r)}</div>
       <div class="om-err" id="ce-err"></div></div>
     <div class="om-foot"><button class="om-cancel" id="ce-del" style="color:var(--red)">Excluir apólice</button><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ce-save">Salvar</button></div>`, true);
   const g = i=>document.getElementById(i).value.trim(), n = i=> g(i)===''?null:Number(g(i));
   box.querySelector('#ce-openp').addEventListener('click', ev=>{ ev.preventDefault(); dlgClose(); goToPersonView(r.pessoa_id); });
-  const fl = box.querySelector('#ce-file'); if(fl) fl.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(r.arquivo_apolice),'_blank'); }catch(x){ showToast('Erro: '+x.message); } });
+  caDocBoxBind(box, r);
   covValueBind(box, 'ce');
   covDetBind(box, 'ce');
   box.querySelector('#ce-entregue').addEventListener('change', e=>{ document.getElementById('ce-entrega-data-wrap').style.display = e.target.checked ? 'block' : 'none'; });
