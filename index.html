@@ -3863,11 +3863,13 @@ async function docsPdfSplitter(file){
 }
 async function caLoteDialog(){
   const box = dlgOpen(`<div class="om-title"><div><h3>Anexar certificados em lote</h3><div class="om-sub">Suba um PDF com vários certificados. O sistema corta por pessoa (pelo CPF) e anexa cada pedaço na apólice certa — só nas apólices que ainda estão sem documento.</div></div><button data-close>✕</button></div>
-    <div class="dlg-body"><div class="dz" id="cl-dz">📄 Escolha o PDF com os certificados<input type="file" id="cl-file" accept=".pdf" hidden></div><div id="cl-out" style="margin-top:10px"></div></div>`, true);
+    <div class="dlg-body"><div class="dz" id="cl-dz">📄 Escolha <b>1 PDF</b> com vários certificados (corto por CPF) ou <b>vários PDFs individuais</b> nomeados "Apolice - NOME.pdf" / "Carteirinha - NOME.pdf" (casa pelo nome)<input type="file" id="cl-file" accept=".pdf" multiple hidden></div><div id="cl-out" style="margin-top:10px"></div></div>`, true);
   const dz = box.querySelector('#cl-dz'), inp = box.querySelector('#cl-file'), out = box.querySelector('#cl-out');
   dz.addEventListener('click', ()=>inp.click());
   inp.addEventListener('change', async ()=>{
-    const file = inp.files[0]; if(!file) return;
+    const files = [...inp.files]; if(!files.length) return;
+    if(files.length>1) return caLoteIndividuais(files, out);
+    const file = files[0];
     out.innerHTML = '<div class="hint">⏳ Lendo o PDF…</div>';
     try{
       const groups = await docsPdfGroupsByCpf(file, (p,n)=>{ out.innerHTML = `<div class="hint">⏳ Lendo o PDF… página ${p} de ${n}</div>`; });
@@ -3906,6 +3908,59 @@ async function caLoteDialog(){
       draw();
     }catch(e){ out.innerHTML = `<div class="om-err">Erro: ${escapeHtml(e.message||String(e))}</div>`; }
   });
+}
+// ---- vários PDFs individuais ("Apolice - NOME.pdf" / "Carteirinha - NOME.pdf"): casa pelo nome do cadastro ----
+async function caLoteIndividuais(files, out){
+  out.innerHTML = '<div class="hint">⏳ Casando os arquivos com os cadastros…</div>';
+  try{
+    const rx = /^\s*(apolice|apólice|carteirinha)\s*-\s*(.+?)(?:\s*\(cert[^)]*\))?\s*\.pdf\s*$/i;
+    const parsed = [];
+    files.forEach(f=>{ const m = f.name.match(rx); if(m) parsed.push({f, tipo:/cart/i.test(m[1])?'carteirinha':'apolice', nome:m[2].trim(), key:normNome(m[2]).join(' ')}); });
+    const porNome = new Map(); OP.pessoas.forEach(p=>{ const k = normNome(p.nome).join(' '); if(k){ if(!porNome.has(k)) porNome.set(k, []); porNome.get(k).push(p); } });
+    const all = await opFetchAll('crm_apolices','id,pessoa_id,seguradora,tipo_seguro,arquivo_apolice',['id']);
+    const sem = all.filter(a=>!a.arquivo_apolice);
+    const combo = a=>(a.seguradora||'—')+' · '+(a.tipo_seguro||'—');
+    const combos = [...new Set(sem.map(combo))];
+    const semNome = [...new Set(parsed.filter(x=>!(porNome.get(x.key)||[]).length || porNome.get(x.key).length>1).map(x=>x.nome))];
+    const plan = c=>{
+      const res = []; const byKey = new Map(); parsed.forEach(x=>{ if(!byKey.has(x.key)) byKey.set(x.key, []); byKey.get(x.key).push(x); });
+      byKey.forEach((arr,k)=>{ const ps = porNome.get(k); if(!ps || ps.length!==1) return;
+        const aps = sem.filter(a=>a.pessoa_id===ps[0].id && combo(a)===c).sort((x,y)=>String(x.id).localeCompare(String(y.id)));
+        if(!aps.length) return;
+        const apf = arr.filter(x=>x.tipo==='apolice').sort((x,y)=>x.f.name.localeCompare(y.f.name)), car = arr.filter(x=>x.tipo==='carteirinha');
+        res.push({pessoa:ps[0], aps, apf, car}); });
+      return res;
+    };
+    const best = combos.slice().sort((a,b)=>plan(b).length-plan(a).length)[0];
+    if(!parsed.length || !best){ out.innerHTML = `<div class="hint">Nenhum arquivo no formato "Apolice - NOME.pdf" casou com apólices sem documento.</div>`; return; }
+    const draw = ()=>{
+      const c = out.querySelector('#cl-combo') ? out.querySelector('#cl-combo').value : best;
+      const pl = plan(c); const nAp = pl.reduce((t,x)=>t+Math.min(x.aps.length,x.apf.length),0), nCar = pl.reduce((t,x)=>t+x.car.length,0);
+      out.innerHTML = `<div class="hint">Recebi <b>${files.length}</b> arquivo(s).</div>
+        <label class="fl"><span>Anexar às apólices sem documento de</span><select id="cl-combo">${combos.map(x=>`<option ${x===c?'selected':''}>${escapeHtml(x)}</option>`).join('')}</select></label>
+        <div class="hint" style="margin-top:8px"><b>${nAp}</b> apólice(s) e <b>${nCar}</b> carteirinha(s) serão anexadas, de <b>${pl.length}</b> pessoa(s).</div>
+        ${semNome.length?`<div class="hint">Sem cadastro único com esse nome (${semNome.length}): ${semNome.slice(0,8).map(escapeHtml).join(', ')}${semNome.length>8?'…':''}</div>`:''}
+        <div style="margin-top:12px"><button class="om-save" id="cl-go" ${nAp+nCar?'':'disabled'}>Anexar ${nAp+nCar} arquivo(s)</button></div>`;
+      out.querySelector('#cl-combo').addEventListener('change', draw);
+      out.querySelector('#cl-go').addEventListener('click', async ()=>{
+        const btn = out.querySelector('#cl-go'); btn.disabled = true; let ok = 0, falhas = 0, i = 0;
+        for(const x of pl){
+          const jobs = x.apf.slice(0,x.aps.length).map((y,idx)=>({y, ap:x.aps[idx], cat:'apolice'})).concat(x.car.map(y=>({y, ap:x.aps[0], cat:'carteirinha'})));
+          for(const j of jobs){
+            btn.textContent = `Anexando… ${++i}/${nAp+nCar}`;
+            try{
+              const path = await docsUpload(j.y.f, 'apolices');
+              if(j.cat==='apolice'){ const { error } = await sb.from('crm_apolices').update({arquivo_apolice:path}).eq('id', j.ap.id); if(error) throw error; }
+              await sb.from('crm_documentos').insert({pessoa_id:x.pessoa.id, apolice_id:j.ap.id, categoria:j.cat, nome_arquivo:j.y.f.name, path, mime:'application/pdf', tamanho:j.y.f.size});
+              ok++;
+            }catch(e){ console.warn('lote ind', j.y.f.name, e); falhas++; }
+          }
+        }
+        OP.dirty = true; CA.loaded = false; dlgClose(); showToast(`${ok} arquivo(s) anexado(s)${falhas?` · ${falhas} com erro`:''}`); renderCentral(true);
+      });
+    };
+    draw();
+  }catch(e){ out.innerHTML = `<div class="om-err">Erro: ${escapeHtml(e.message||String(e))}</div>`; }
 }
 // ---- documento da apólice: anexar quando não tem (ex.: apólices importadas em lote sem o arquivo), ou substituir ----
 function caDocBoxHtml(r){
