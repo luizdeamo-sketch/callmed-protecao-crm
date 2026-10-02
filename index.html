@@ -350,7 +350,7 @@
     <div id="view-central" class="view">
       <div class="pg">
         <div class="pg-head"><h2>Central de Apólices</h2><span class="sub" id="ca-count"></span><a href="#" id="ca-allest" style="font-size:12px;color:var(--brand);font-weight:600">ver todos os estudos</a>
-          <span style="margin-left:auto;display:flex;gap:8px"><button class="om-cancel" id="ca-import">⬆ Importar planilha</button><button class="om-cancel" id="ca-export">⬇ Exportar CSV</button></span></div>
+          <span style="margin-left:auto;display:flex;gap:8px"><button class="om-cancel" id="ca-lote" title="Suba um PDF com vários certificados: o sistema corta por pessoa e anexa em cada apólice sem documento">📎 Anexar certificados em lote</button><button class="om-cancel" id="ca-import">⬆ Importar planilha</button><button class="om-cancel" id="ca-export">⬇ Exportar CSV</button></span></div>
         <div class="op-kpis" id="ca-kpis" style="margin:0 0 12px"></div>
         <div class="op-filters" style="margin-bottom:12px">
           <input id="ca-search" placeholder="Buscar cliente, CPF, seguradora, produto ou nº..." style="width:280px">
@@ -3827,6 +3827,86 @@ document.querySelector('#view-central .pg').addEventListener('scroll', e=>{ cons
 ['ca-f-status','ca-f-seg','ca-f-prod','ca-f-venc','ca-f-vinc','ca-f-entrega'].forEach(id=> document.getElementById(id).addEventListener('change', caApply));
 document.getElementById('ca-kpis').addEventListener('click', e=>{ if(e.target.closest('#ca-pend-entrega')){ document.getElementById('ca-f-entrega').value = 'pendente'; caApply(); } });
 
+// ---- certificados em lote: lê o PDF inteiro, descobre em quais páginas está cada CPF e corta um PDF por pessoa ----
+async function docsPdfGroupsByCpf(file, onProgress){
+  await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({data: await file.arrayBuffer()}).promise;
+  const cpfRe = /\b(\d{3})[.,]?(\d{3})[.,]?(\d{3})-?(\d{2})\b/g;
+  const labelRe = /nome\s*completo|nome\s*do\s*segurado|segurado\s*\(a\)?\s*:|segurado\s*:/i;
+  const owners = [];
+  for(let p=1; p<=pdf.numPages; p++){
+    const tc = await (await pdf.getPage(p)).getTextContent();
+    const text = tc.items.map(i=>i.str).join(' ');
+    let owner = null, m; cpfRe.lastIndex = 0;
+    while((m = cpfRe.exec(text))){ const c = m[1]+m[2]+m[3]+m[4]; if(validCPF(c)){ owner = {cpf:c, labeled:labelRe.test(text.slice(Math.max(0,m.index-500), m.index))}; break; } }
+    owners.push(owner);
+    if(onProgress && p%10===0) onProgress(p, pdf.numPages);
+  }
+  const anyLabeled = owners.some(o=>o && o.labeled);
+  const groups = new Map(); let cur = null;
+  owners.forEach((o,i)=>{
+    const starts = o && (!cur || o.cpf!==cur) && (o.labeled || !anyLabeled);
+    if(starts) cur = o.cpf;
+    if(cur){ if(!groups.has(cur)) groups.set(cur, []); groups.get(cur).push(i); }
+  });
+  return groups;
+}
+async function docsPdfSplitter(file){
+  await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
+  const src = await PDFLib.PDFDocument.load(await file.arrayBuffer(), {ignoreEncryption:true});
+  return async (pageIdxs, name)=>{
+    const out = await PDFLib.PDFDocument.create();
+    (await out.copyPages(src, pageIdxs)).forEach(pg=>out.addPage(pg));
+    return new File([await out.save()], name, {type:'application/pdf'});
+  };
+}
+async function caLoteDialog(){
+  const box = dlgOpen(`<div class="om-title"><div><h3>Anexar certificados em lote</h3><div class="om-sub">Suba um PDF com vários certificados. O sistema corta por pessoa (pelo CPF) e anexa cada pedaço na apólice certa — só nas apólices que ainda estão sem documento.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="dz" id="cl-dz">📄 Escolha o PDF com os certificados<input type="file" id="cl-file" accept=".pdf" hidden></div><div id="cl-out" style="margin-top:10px"></div></div>`, true);
+  const dz = box.querySelector('#cl-dz'), inp = box.querySelector('#cl-file'), out = box.querySelector('#cl-out');
+  dz.addEventListener('click', ()=>inp.click());
+  inp.addEventListener('change', async ()=>{
+    const file = inp.files[0]; if(!file) return;
+    out.innerHTML = '<div class="hint">⏳ Lendo o PDF…</div>';
+    try{
+      const groups = await docsPdfGroupsByCpf(file, (p,n)=>{ out.innerHTML = `<div class="hint">⏳ Lendo o PDF… página ${p} de ${n}</div>`; });
+      const all = await opFetchAll('crm_apolices','id,pessoa_id,seguradora,tipo_seguro,arquivo_apolice,crm_pessoas(nome,cpf)',['id']);
+      const sem = all.filter(a=>!a.arquivo_apolice);
+      const combos = [...new Set(sem.map(a=>(a.seguradora||'—')+' · '+(a.tipo_seguro||'—')))];
+      const matchFor = combo=> sem.filter(a=>(a.seguradora||'—')+' · '+(a.tipo_seguro||'—')===combo && groups.has(dOnly(a.crm_pessoas&&a.crm_pessoas.cpf)));
+      const best = combos.slice().sort((a,b)=>matchFor(b).length-matchFor(a).length)[0];
+      if(!groups.size || !best){ out.innerHTML = `<div class="hint">Achei ${groups.size} pessoa(s) com CPF no PDF e ${sem.length} apólice(s) sem documento no sistema — nada para anexar.</div>`; return; }
+      const draw = ()=>{
+        const combo = out.querySelector('#cl-combo') ? out.querySelector('#cl-combo').value : best;
+        const ms = matchFor(combo);
+        out.innerHTML = `<div class="hint">O PDF tem <b>${groups.size}</b> pessoa(s) identificada(s) por CPF.</div>
+          <label class="fl"><span>Anexar às apólices sem documento de</span><select id="cl-combo">${combos.map(c=>`<option ${c===combo?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></label>
+          <div class="hint" style="margin-top:8px"><b>${ms.length}</b> apólice(s) serão anexadas · ${sem.filter(a=>(a.seguradora||'—')+' · '+(a.tipo_seguro||'—')===combo).length-ms.length} apólice(s) desse grupo continuam sem documento (CPF não está neste PDF).</div>
+          <div style="margin-top:12px"><button class="om-save" id="cl-go" ${ms.length?'':'disabled'}>Anexar ${ms.length} certificado(s)</button></div>`;
+        out.querySelector('#cl-combo').addEventListener('change', draw);
+        out.querySelector('#cl-go').addEventListener('click', async ()=>{
+          const btn = out.querySelector('#cl-go'); btn.disabled = true; let ok = 0, falhas = 0;
+          try{
+            const split = await docsPdfSplitter(file);
+            for(const a of ms){
+              btn.textContent = `Anexando… ${ok+falhas+1}/${ms.length}`;
+              try{
+                const part = await split(groups.get(dOnly(a.crm_pessoas.cpf)), `Certificado ${a.crm_pessoas.nome} - ${a.seguradora||''}.pdf`);
+                const path = await docsUpload(part, 'apolices');
+                const { error } = await sb.from('crm_apolices').update({arquivo_apolice:path}).eq('id', a.id); if(error) throw error;
+                await sb.from('crm_documentos').insert({pessoa_id:a.pessoa_id, apolice_id:a.id, categoria:'apolice', nome_arquivo:part.name, path, mime:'application/pdf', tamanho:part.size});
+                ok++;
+              }catch(e){ console.warn('lote', a.id, e); falhas++; }
+            }
+          }catch(e){ showToast('Erro: '+(e.message||e)); }
+          OP.dirty = true; CA.loaded = false; dlgClose(); showToast(`${ok} certificado(s) anexado(s)${falhas?` · ${falhas} com erro`:''}`); renderCentral(true);
+        });
+      };
+      draw();
+    }catch(e){ out.innerHTML = `<div class="om-err">Erro: ${escapeHtml(e.message||String(e))}</div>`; }
+  });
+}
 // ---- documento da apólice: anexar quando não tem (ex.: apólices importadas em lote sem o arquivo), ou substituir ----
 function caDocBoxHtml(r){
   return r.arquivo_apolice
@@ -3848,6 +3928,7 @@ function caDocBoxBind(box, r){
     }catch(x){ showToast('Erro ao anexar: '+x.message); }
   });
 }
+document.getElementById('ca-lote').addEventListener('click', caLoteDialog);
 async function caEdit(id, onSaved){
   let r = CA.data.find(x=>x.id===id);
   if(!r){ const { data, error } = await sb.from('crm_apolices').select('*, crm_pessoas(nome,cpf)').eq('id', id).maybeSingle(); if(error){ showToast('Erro: '+error.message); return; } r = data; }
@@ -4082,7 +4163,10 @@ async function caFormMulti(file, f){
     const btn = document.getElementById('cm-save'); btn.disabled = true; btn.textContent = 'Processando...';
     let ok = 0, falhas = 0;
     try{
-      const path = await docsUpload(file, 'apolices');
+      // PDF com várias pessoas: corta um arquivo por pessoa (cada apólice só enxerga o próprio certificado); se não der, anexa o PDF inteiro
+      let groups = null, split = null;
+      if(/pdf$/i.test(file.type) || /\.pdf$/i.test(file.name)){ try{ groups = await docsPdfGroupsByCpf(file); split = await docsPdfSplitter(file); }catch(e){ console.warn('split', e); } }
+      const pathAll = (groups && split) ? null : await docsUpload(file, 'apolices');
       for(let i=0;i<rows.length;i++){
         const chk = box.querySelector(`.cm-row[data-i="${i}"]`); if(!chk.checked) continue;
         const nomeInput = box.querySelector(`.cm-nome[data-i="${i}"]`).value.trim();
@@ -4094,6 +4178,8 @@ async function caFormMulti(file, f){
             const { data, error } = await sb.from('crm_pessoas').insert({nome:nomeInput, cpf:r.cpf, tipo:g('cm-tipo')||'medico'}).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single();
             if(error) throw error; pessoaId = data.id; OP.pessoas.push(data);
           }
+          let path = pathAll;
+          if(!path){ const pg = groups.get(dOnly(r.cpf)); path = pg ? await docsUpload(await split(pg, `Certificado ${nomeInput||r.nome||r.cpf}.pdf`), 'apolices') : await docsUpload(file, 'apolices'); }
           const { error: e2 } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, seguradora:g('cm-seg'), tipo_seguro:g('cm-prod'), data_emissao:g('cm-ini')||null, data_vencimento:g('cm-fim')||null,
             valor_cobertura:capTotal, status:g('cm-status'), origem_apolice:g('cm-origem'), vinculo_comercial:g('cm-vinc'), tipo_movimento:'nova', coberturas:covsSel, coberturas_valores:covVals,
             arquivo_apolice:path, observacoes:`Importado em lote de "${file.name}" (documento com múltiplas pessoas).` });
