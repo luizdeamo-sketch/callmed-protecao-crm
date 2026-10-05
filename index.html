@@ -361,7 +361,8 @@
           <select id="ca-f-venc"><option value="">Qualquer vencimento</option><option value="vencidas">Já vencidas</option><option value="30">Vencem em 30 dias</option><option value="60">Vencem em 60 dias</option><option value="90">Vencem em 90 dias</option></select>
           <select id="ca-f-entrega"><option value="">Entrega: qualquer</option><option value="pendente">Certificado pendente de entrega</option><option value="feita">Já entregue</option></select>
         </div>
-        <div class="dz" id="ca-dz">📄 Arraste apólices (PDF ou foto) aqui ou clique — o sistema lê, identifica o cliente e pergunta o que for preciso<input type="file" id="ca-file" multiple accept=".pdf,image/*" hidden></div>
+        <div class="dz" id="ca-dz">📄 Arraste os documentos (PDF, Excel ou foto) aqui ou clique — o sistema lê nome e CPF, acha ou cria o cadastro e anexa os arquivos<input type="file" id="ca-file" multiple accept=".pdf,.xlsx,.xls,image/*" hidden></div>
+        <div class="hint" style="margin:4px 0 0"><a href="#" id="ca-old" style="color:var(--brand)">Usar o leitor antigo de apólice</a> (cria a apólice e tenta ler as coberturas — será refeito na próxima fase)<input type="file" id="ca-file-old" multiple accept=".pdf,image/*" hidden></div>
         <div id="ca-list"></div>
       </div>
     </div>
@@ -2866,8 +2867,9 @@ function extractMultiPessoas(text){
 }
 async function docsRead(file){
   const isPdf = /pdf$/i.test(file.type) || /\.pdf$/i.test(file.name);
-  const text = await docsText(file); let f = docsExtract(text);
-  if(isPdf && !f.cpf && !f.nome){ try{ const t2 = await docsPdfText(file, true); f = docsExtract(text + '\n' + t2); }catch(e){ console.warn('ocr', e); } }
+  let text = await docsText(file); let f = docsExtract(text);
+  if(isPdf && !f.cpf && !f.nome){ try{ const t2 = await docsPdfText(file, true); text = text + '\n' + t2; f = docsExtract(text); }catch(e){ console.warn('ocr', e); } }
+  Object.defineProperty(f, '_texto', {value:text, enumerable:false});
   return f;
 }
 
@@ -4148,6 +4150,127 @@ async function impRun(){
     OP.dirty = true; CA.loaded = false; dlgClose(); showToast(`${feitos} apólices importadas`); renderCentral(true);
   }catch(e){ err.textContent = 'Erro durante a importação: '+(e.message||e)+' (parte dos dados pode já ter sido gravada — reabra a Central e confira).'; btn.disabled = false; btn.textContent = 'Tentar novamente'; }
 }
+// ============ UPLOAD DE DOCUMENTOS — FASE 1 (fluxo da Amanda, 01/10/2026) ============
+// Arrasta documentos → lê cada um (nome, CPF, telefone, nascimento, tipo do documento) → resumo na tela →
+// acha o cadastro pelo CPF (ou cria) → anexa os arquivos. Não lê coberturas (isso é a Fase 2).
+// Campo não lido fica vazio; o sistema nunca inventa e nunca trava o salvamento. "Quem indicou" não é obrigatório.
+function fase1Tipo(name, text){
+  const t = text||'';
+  if(/\.xlsx?$/i.test(name)) return {l:'Planilha (Excel)', cat:'planilha'};
+  if(/carteira\s*nacional\s*de\s*habilita|\bCNH\b|permiss[aã]o\s*para\s*dirigir/i.test(t)) return {l:'CNH', cat:'cnh'};
+  if(/registro\s*geral|carteira\s*de\s*identidade|secretaria\s*de\s*seguran[cç]a/i.test(t)) return {l:'RG', cat:'rg'};
+  if(/^carteirinha/i.test(name) || /cart[aã]o\s*do\s*segurado|carteirinha/i.test(t)) return {l:'Carteirinha', cat:'carteirinha'};
+  if(/ap[óo]lice|certificado\s*(individual|de\s*seguro)|proposta\s*de\s*seguro|susep/i.test(t) || /ap[óo]lice|certificado/i.test(name)) return {l:'Apólice / certificado', cat:'apolice'};
+  if(/comprovante\s*de\s*resid|conta\s*de\s*(luz|energia|[áa]gua)/i.test(t)) return {l:'Comprovante de endereço', cat:'comprovante'};
+  return {l:'Documento', cat:'documento'};
+}
+async function fase1Read(file){
+  const isXls = /\.xlsx?$/i.test(file.name);
+  let f = {}, text = '', erro = null;
+  try{
+    if(isXls){
+      await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const wb = XLSX.read(await file.arrayBuffer(), {type:'array'});
+      text = wb.SheetNames.map(n=>XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n'); f = docsExtract(text); f.multiplas = extractMultiPessoas(text);
+    } else { f = await docsRead(file); text = f._texto||''; }
+  }catch(e){ erro = e.message||String(e); }
+  const tipo = fase1Tipo(file.name, text);
+  const pessoas = (f.multiplas && f.multiplas.length>1) ? f.multiplas.map(c=>({nome:c.nome||'', cpf:c.cpf||''})) : [{nome:f.nome||'', cpf:f.cpf||'', telefone:f.telefone||'', nasc:f.data_nascimento||''}];
+  return {file, tipo, pessoas, erro, multi:pessoas.length>1};
+}
+async function caFase1(files){
+  files = files.filter(f=>f && f.name); if(!files.length) return;
+  const box = dlgOpen(`<div class="om-title"><div><h3>Lendo ${files.length} documento(s)…</h3><div class="om-sub" id="f1-prog">Extraindo nome, CPF e o tipo de cada documento.</div></div></div><div class="dlg-body"><div class="op-more">⏳ Aguarde…</div></div>`, true);
+  await ensurePessoas();
+  const docs = [];
+  for(let i=0;i<files.length;i++){ document.getElementById('f1-prog') && (document.getElementById('f1-prog').textContent = `Documento ${i+1} de ${files.length}: ${files[i].name}`); docs.push(await fase1Read(files[i])); }
+  // agrupa por pessoa: CPF quando há; senão nome; senão fica sozinho
+  const groups = new Map();
+  docs.forEach((d,di)=> d.pessoas.forEach((p,pi)=>{
+    const cpf = dOnly(p.cpf), nk = normNome(p.nome).join(' ');
+    const key = cpf.length===11 ? 'c'+cpf : (nk ? 'n'+nk : 'x'+di+'_'+pi);
+    if(!groups.has(key)) groups.set(key, {nome:p.nome||'', cpf:p.cpf||'', telefone:p.telefone||'', nasc:p.nasc||'', docs:[]});
+    const g = groups.get(key); if(!g.nome && p.nome) g.nome = p.nome; if(!g.cpf && p.cpf) g.cpf = p.cpf; if(!g.telefone && p.telefone) g.telefone = p.telefone; if(!g.nasc && p.nasc) g.nasc = p.nasc;
+    g.docs.push(di);
+  }));
+  const G = [...groups.values()];
+  const radio = (gi,v,label,checked)=>`<label class="rd"><input type="radio" name="f1-d-${gi}" value="${v}" ${checked?'checked':''}> ${label}</label>`;
+  const cardHtml = async (g,gi)=>{
+    const found = await findPessoas({cpf:g.cpf, nome:g.nome, telefone:g.telefone});
+    const exact = dOnly(g.cpf).length===11 ? found.find(r=>r.why==='CPF idêntico') : null;
+    const nameM = !exact && dOnly(g.cpf).length!==11 ? found.find(r=>r.why==='nome idêntico'||r.why==='nome semelhante') : null;
+    g._match = exact || nameM || null; g._status = exact ? 'existe' : (nameM ? 'dup' : (g.nome||dOnly(g.cpf).length===11 ? 'novo' : 'semid'));
+    let status = '', opts = '';
+    if(g._status==='existe'){ status = `<div class="hint"><b>Cadastro existente</b> com esse CPF: <b>${escapeHtml(exact.nome)}</b></div>`;
+      opts = radio(gi,'attach',`Sim — inserir estes documentos no cadastro de ${escapeHtml(exact.nome)}`,true)+radio(gi,'novo','Não — criar um novo cadastro e anexar lá <small>(sem CPF, pois o sistema não aceita o mesmo CPF em dois cadastros)</small>')+radio(gi,'cancel','Cancelar — não salvar nada para esta pessoa'); }
+    else if(g._status==='dup'){ status = `<div class="hint" style="color:var(--amber-ink)">⚠ Sem CPF no documento. <b>Possível duplicidade:</b> já existe <b>${escapeHtml(nameM.nome)}</b> (${escapeHtml(nameM.why)}${nameM.cpf?' · CPF '+escapeHtml(nameM.cpf):''}).</div>`;
+      opts = radio(gi,'attach',`É a mesma pessoa — inserir no cadastro de ${escapeHtml(nameM.nome)}`)+radio(gi,'novo','É outra pessoa — criar novo cadastro só com o nome e anexar')+radio(gi,'cancel','Cancelar — não salvar nada para esta pessoa'); }
+    else if(g._status==='novo'){ status = `<div class="hint">Não existe cadastro ${dOnly(g.cpf).length===11?'com esse CPF':'com esse nome'}. Será criado um <b>novo cadastro</b> com o que foi lido${dOnly(g.cpf).length===11?' (nome + CPF)':' (só o nome)'}; o resto fica em branco para editar depois.</div>`;
+      opts = radio(gi,'novo','Criar o cadastro e anexar os documentos',true)+radio(gi,'cancel','Cancelar — não salvar nada para esta pessoa'); }
+    else { status = `<div class="hint" style="color:var(--amber-ink)">⚠ Não consegui ler nome nem CPF nestes documentos. Digite o nome acima para criar o cadastro, ou cancele.</div>`;
+      opts = radio(gi,'novo','Criar o cadastro com o nome digitado e anexar')+radio(gi,'cancel','Cancelar — não salvar nada para esta pessoa',true); }
+    return {status, opts};
+  };
+  const cards = await Promise.all(G.map(cardHtml));
+  const html = G.map((g,gi)=>`<div class="q" style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px" data-gi="${gi}">
+      <div class="ql">Pessoa ${gi+1}</div>
+      <div class="fgrid">${fld('f1-nome-'+gi,'Nome completo',g.nome)}${fld('f1-cpf-'+gi,'CPF',g.cpf)}</div>
+      <div style="margin:6px 0">${g.docs.map(di=>`<div class="rec">📄 <b>Documento ${di+1}</b> — ${escapeHtml(docs[di].tipo.l)} <small style="color:var(--ink-faint)">· ${escapeHtml(docs[di].file.name)}${docs[di].erro?' · ⚠ não consegui ler ('+escapeHtml(docs[di].erro)+')':''}</small></div>`).join('')}</div>
+      <div id="f1-st-${gi}">${cards[gi].status}${cards[gi].opts}</div>
+      <div><button type="button" class="om-cancel" data-rebusca="${gi}" style="font-size:12px;padding:3px 10px">↻ Buscar de novo com o nome/CPF acima</button></div></div>`).join('');
+  box.innerHTML = `<div class="om-title"><div><h3>Resumo da leitura — ${docs.length} documento(s), ${G.length} pessoa(s)</h3><div class="om-sub">Confira. Campo que não foi lido fica vazio — o sistema não inventa nem trava o salvamento. Cada pessoa tem o CPF buscado no cadastro antes de anexar.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body">
+      <div class="hint" style="margin-bottom:8px">Resumo: ${docs.map((d,i)=>`Documento ${i+1} é ${/^[AEIOU]/i.test(d.tipo.l)?'uma':'um'} <b>${escapeHtml(d.tipo.l)}</b>${d.pessoas[0].nome||d.pessoas[0].cpf?` — ${escapeHtml(d.multi?d.pessoas.length+' pessoas':[d.pessoas[0].nome,d.pessoas[0].cpf].filter(Boolean).join(' · '))}`:''}`).join(' · ')}</div>
+      <label class="fl" style="max-width:320px"><span>Perfil padrão para cadastros novos</span><select id="f1-tipo">${tipoOptions('medico')}</select></label>
+      <div style="margin-top:10px">${html}</div>
+      <div class="hint">Leitura das coberturas da apólice (cobertura, capital segurado, prêmio) fica para a próxima fase. "Quem indicou" não é obrigatório.</div>
+      <div class="om-err" id="f1-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar tudo</button><button class="om-save" id="f1-save">Salvar e anexar</button></div>`;
+  box.querySelectorAll('[data-rebusca]').forEach(b=>b.addEventListener('click', async ()=>{
+    const gi = +b.dataset.rebusca; const g = G[gi];
+    g.nome = document.getElementById('f1-nome-'+gi).value.trim(); g.cpf = document.getElementById('f1-cpf-'+gi).value.trim();
+    const c = await cardHtml(g, gi); document.getElementById('f1-st-'+gi).innerHTML = c.status + c.opts;
+  }));
+  box.querySelector('#f1-save').addEventListener('click', async ()=>{
+    const err = document.getElementById('f1-err'); err.textContent = '';
+    const plan = G.map((g,gi)=>{ g.nome = document.getElementById('f1-nome-'+gi).value.trim(); g.cpf = document.getElementById('f1-cpf-'+gi).value.trim();
+      const sel = box.querySelector(`input[name="f1-d-${gi}"]:checked`); return {g, gi, dec: sel?sel.value:null}; });
+    const faltaEscolha = plan.find(p=>!p.dec); if(faltaEscolha){ err.textContent = `Escolha uma opção para a Pessoa ${faltaEscolha.gi+1}.`; return; }
+    const semNome = plan.find(p=>p.dec==='novo' && !p.g.nome); if(semNome){ err.textContent = `Digite o nome da Pessoa ${semNome.gi+1} para criar o cadastro (ou escolha Cancelar).`; return; }
+    const ativos = plan.filter(p=>p.dec!=='cancel'); if(!ativos.length){ dlgClose(); showToast('Nada foi salvo.'); return; }
+    const btn = box.querySelector('#f1-save'); btn.disabled = true; let nDocs = 0, nCad = 0, falhas = 0, ultimo = null, split = null, groupsPdf = {};
+    try{
+      for(let k=0;k<ativos.length;k++){
+        const {g, dec} = ativos[k]; btn.textContent = `Salvando… ${k+1}/${ativos.length}`;
+        let pessoaId;
+        if(dec==='attach'){ pessoaId = g._match.id; }
+        else {
+          const row = {nome:g.nome, tipo:document.getElementById('f1-tipo').value||'medico'};
+          if(g._status!=='existe' && dOnly(g.cpf).length===11) row.cpf = fmtCPF(g.cpf);
+          if(g.telefone) row.telefone = g.telefone; if(g.nasc) row.data_nascimento = g.nasc;
+          const { data, error } = await sb.from('crm_pessoas').insert(row).select('id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026').single();
+          if(error) throw error; pessoaId = data.id; OP.pessoas.push(data); nCad++;
+        }
+        for(const di of g.docs){
+          const d = docs[di]; let up = d.file;
+          if(d.multi && /\.pdf$/i.test(d.file.name) && dOnly(g.cpf).length===11){
+            try{ if(!groupsPdf[di]){ groupsPdf[di] = {groups: await docsPdfGroupsByCpf(d.file), split: await docsPdfSplitter(d.file)}; }
+              const pg = groupsPdf[di].groups.get(dOnly(g.cpf)); if(pg) up = await groupsPdf[di].split(pg, d.file.name.replace(/\.pdf$/i,'')+' - '+g.nome+'.pdf'); }catch(e){ console.warn('split fase1', e); }
+          }
+          try{
+            const path = await docsUpload(up, 'documentos');
+            const { error } = await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:d.tipo.cat, nome_arquivo:up.name, path, mime:up.type||null, tamanho:up.size, dados_extraidos:{tipo:d.tipo.l, nome:g.nome||null, cpf:g.cpf||null, origem:'upload_fase1'}});
+            if(error) throw error; nDocs++;
+          }catch(e){ console.warn('fase1 doc', e); falhas++; }
+        }
+        ultimo = pessoaId;
+      }
+      OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR')); OP.dirty = true; CA.loaded = false;
+      dlgClose(); showToast(`${nDocs} documento(s) anexado(s) · ${nCad} cadastro(s) novo(s)${falhas?` · ${falhas} com erro`:''}`);
+      if(ativos.length===1 && ultimo) goToPersonView(ultimo, 'protecao'); else renderCentral(true);
+    }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e)+' (parte pode já ter sido gravada — confira o cadastro).'; btn.disabled = false; btn.textContent = 'Salvar e anexar'; }
+  });
+}
 let caQueue = [];
 function caEnqueue(files){ caQueue = caQueue.concat(files); if(!document.getElementById('dlg') || document.getElementById('dlg').style.display!=='flex') caNext(); }
 async function caNext(){
@@ -4457,8 +4580,11 @@ async function caSaveApolices(file, f, rows, box){
   dz.addEventListener('click', ()=>inp.click());
   dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
   dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
-  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); caEnqueue([...e.dataTransfer.files]); });
-  inp.addEventListener('change', ()=>{ caEnqueue([...inp.files]); inp.value=''; });
+  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); caFase1([...e.dataTransfer.files]); });
+  inp.addEventListener('change', ()=>{ const fs = [...inp.files]; inp.value=''; caFase1(fs); });
+  const old = document.getElementById('ca-file-old');
+  document.getElementById('ca-old').addEventListener('click', e=>{ e.preventDefault(); old.click(); });
+  old.addEventListener('change', ()=>{ caEnqueue([...old.files]); old.value=''; });
   let t; document.getElementById('ca-search').addEventListener('input', ()=>{ clearTimeout(t); t = setTimeout(caApply, 250); });
 })();
 
