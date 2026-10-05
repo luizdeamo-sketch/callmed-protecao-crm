@@ -323,7 +323,9 @@
     <div id="view-comercial" class="view">
       <div class="pg">
         <div class="pg-head"><h2>💼 Módulo Comercial</h2><span class="sub">Meta de vendas por mês, produto e ticket médio — contra o que já foi vendido.</span></div>
+        <div class="pv-tabs" id="com-tabs" style="margin:6px 0 10px"><button class="pv-tab on" data-ct="metas">Metas e vendas</button><button class="pv-tab" data-ct="carlas">📣 Mais Carlas (pontes e indicações)</button></div>
         <div id="com-body"><div class="op-more">Carregando...</div></div>
+        <div id="mc2-body" style="display:none"></div>
       </div>
     </div>
 
@@ -967,6 +969,12 @@ function opSetHeaderTitle(btn){
   document.getElementById('hdr-title').textContent = label;
   document.getElementById('hdr-info').style.display = (btn.dataset.view === 'operacao') ? '' : 'none';
 }
+document.querySelectorAll('#com-tabs [data-ct]').forEach(t=>t.addEventListener('click', ()=>{
+  document.querySelectorAll('#com-tabs [data-ct]').forEach(x=>x.classList.toggle('on', x===t));
+  const carlas = t.dataset.ct==='carlas';
+  document.getElementById('com-body').style.display = carlas?'none':''; document.getElementById('mc2-body').style.display = carlas?'':'none';
+  if(carlas) renderMaisCarlas(); else renderComercial();
+}));
 document.querySelectorAll('.nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
     document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
@@ -977,7 +985,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'operacao') renderOperacao();
     if(btn.dataset.view === 'central') renderCentral();
     if(btn.dataset.view === 'indicadores') renderIndicadores();
-    if(btn.dataset.view === 'comercial') renderComercial();
+    if(btn.dataset.view === 'comercial'){ const t0 = document.querySelector('#com-tabs [data-ct="metas"]'); if(t0) t0.click(); else renderComercial(); }
     if(btn.dataset.view === 'reunioes') renderReunioes();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'agenda') renderCalendar();
@@ -3924,6 +3932,35 @@ function mc2Draw(host){
   host.querySelector('#mc2-novo-reg').addEventListener('click', ()=> mc2RegDialog(null));
   host.querySelectorAll('[data-editind]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); mc2IndDialog(ind.find(i=>i.id===a.dataset.editind)); }));
   host.querySelectorAll('[data-editreg]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); mc2RegDialog(regs.find(r=>r.id===a.dataset.editreg)); }));
+  mc2Extras(host);
+}
+// "Pontes da semana": médicos quentes com plantão recente (últimos 7 dias ou plantão neste mês) e sem ponte nos últimos 30 dias.
+// Não há escala futura no banco: o plantão recente é o que indica que o médico está em contato com o escalista agora.
+// "Apólices por origem": apólice nova cujo cliente veio de ponte/indicação (tabela de registros) × base própria.
+async function mc2Extras(host){
+  const box = document.createElement('div');
+  box.innerHTML = '<div class="es-box"><div class="op-more">Carregando pontes da semana…</div></div>';
+  const first = host.firstElementChild; host.insertBefore(box, first ? first.nextSibling : null);
+  try{
+    const [{data:pes}, {data:pl}, apo] = await Promise.all([ sb.from('crm_pessoas').select('id,nome,telefone,classificacao').eq('classificacao','quente'),
+      sb.from('crm_plantoes_resumo').select('pessoa_id,ultimo_plantao,qtde_mes_atual'), opFetchAll('crm_apolices','id,pessoa_id,origem_apolice,valor_premio',['id']) ]);
+    const plMap = new Map((pl||[]).map(r=>[r.pessoa_id,r])); const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const dias = d => d ? Math.round((hoje-new Date(d+'T00:00:00'))/86400000) : null;
+    const comPonte = new Set(MC2.regs.filter(r=>r.frente==='ponte_escalista' && r.pessoa_id && dias(r.data_registro)<=30).map(r=>r.pessoa_id));
+    const lista = (pes||[]).map(p=>({p, pl:plMap.get(p.id)})).filter(x=>x.pl && ((dias(x.pl.ultimo_plantao)!==null && dias(x.pl.ultimo_plantao)<=7) || Number(x.pl.qtde_mes_atual)>0) && !comPonte.has(x.p.id))
+      .sort((a,b)=>(b.pl.ultimo_plantao||'').localeCompare(a.pl.ultimo_plantao||''));
+    const viaCarlas = new Map(); MC2.regs.forEach(r=>{ if(r.pessoa_id && !viaCarlas.has(r.pessoa_id)) viaCarlas.set(r.pessoa_id, r.frente); });
+    const novas = (apo||[]).filter(a=>a.origem_apolice==='nova');
+    const cnt = {ponte_escalista:0, indicacao_medico:0, base:0}; novas.forEach(a=>{ const f = viaCarlas.get(a.pessoa_id); cnt[f||'base']++; });
+    box.innerHTML = `<div class="es-box"><div class="ql">Pontes da semana <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— médicos quentes com plantão recente e sem ponte nos últimos 30 dias</small></div>
+      ${lista.length?`<table class="ca-table"><thead><tr><th>Médico</th><th>Telefone</th><th>Último plantão</th><th></th></tr></thead><tbody>${lista.slice(0,30).map(x=>`<tr><td><b>${escapeHtml(x.p.nome)}</b></td><td>${escapeHtml(x.p.telefone||'—')}</td><td>${x.pl.ultimo_plantao?fmtDate(x.pl.ultimo_plantao)+' ('+dias(x.pl.ultimo_plantao)+'d)':'—'}</td><td><a href="#" data-ponte="${x.p.id}">registrar ponte</a></td></tr>`).join('')}</tbody></table>${lista.length>30?`<div class="hint">+${lista.length-30} além dos 30 primeiros.</div>`:''}`:'<div class="hint">Nenhum médico quente com plantão recente sem ponte. A lista usa a classificação "quente" e os plantões carregados no CRM.</div>'}</div>
+      <div class="es-box"><div class="ql">Apólices novas por origem</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">${mc2Card(String(cnt.ponte_escalista),'Vindas de ponte de escalista','')}${mc2Card(String(cnt.indicacao_medico),'Vindas de indicação de médico','')}${mc2Card(String(cnt.base),'Base própria','sem ponte/indicação registrada')}</div>
+      <div class="hint" style="margin-top:6px">Conta as ${novas.length} apólices "nova CallMed"; apólice de cortesia/sorteio e existente não entram.</div></div>`;
+    box.querySelectorAll('[data-ponte]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); const x = lista.find(y=>y.p.id===a.dataset.ponte);
+      if(!MC2.indicadores.length){ showToast('Cadastre primeiro um indicador (escalista) em "＋ Novo indicador".'); return; }
+      mc2RegDialog({indicador_id:MC2.indicadores[0].id, frente:'ponte_escalista', pessoa_id:x.p.id, crm_pessoas:{nome:x.p.nome}, nome_indicado:'', telefone_indicado:'', crm_indicado:'', aceita_contato:null, status:'registrada', canal:'', data_registro:ymdToday(), observacao:'', agradecimento_feito:false, comissao_devida:null, comissao_paga:false, data_pagamento:null}); }));
+  }catch(e){ box.innerHTML = '<div class="es-box"><div class="hint">Não consegui montar pontes da semana: '+escapeHtml(e.message||String(e))+'</div></div>'; }
 }
 function mc2IndDialog(i){
   i = i || {nome:'',tipo:'escalista',telefone:'',modelo_remuneracao:'',data_entrada:ymdToday(),ativo:true};
