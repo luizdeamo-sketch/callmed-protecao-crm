@@ -1423,8 +1423,69 @@ function pvEditAtividade(p, a){
 
 // ---- PROTEÇÃO (oportunidades, apólices, estudos, diagnóstico) ----
 async function pvProtecao(body, p){
-  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="es-box" id="pp-docs"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
-  pvOportunidades(p); pvApolices(p); pvDocumentos(p); renderPessoaEstudos(p); pvDiagnostico(p);
+  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="es-box" id="pp-docs"></div><div class="es-box" id="pp-analise"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
+  pvOportunidades(p); pvApolices(p); pvDocumentos(p); pvAnalise(p); renderPessoaEstudos(p); pvDiagnostico(p);
+}
+// ============ FASE 2 · ANALISAR DOCUMENTOS (modelo do protótipo da Amanda, 05/10/2026) ============
+// Tabela editável por cobertura lida da apólice: nome técnico, categoria, capital, prêmio mensal (com IOF), prazo, vigência e observação.
+// Leitura MANUAL por enquanto (a leitura por IA entra quando a chave for liberada). Campo não preenchido fica em laranja; nada é inventado.
+const ANL_CATS = ['Morte','Invalidez','Doenças Graves','Diária de internação hospitalar','DIT','Cirurgias','Fratura óssea','Assistência funeral'];
+const ANL_OUTRO = 'Outro (não entra na análise)';
+const ANL_SINON = [['DIT',['dit ','incapacidade','afastamento']],['Diária de internação hospitalar',['diaria','internacao','dih','renda hospitalar']],['Cirurgias',['cirurgi','amparo','procedimento cirurgico']],['Fratura óssea',['fratur','quebra de osso','ossos','ruptura']],['Assistência funeral',['funeral','saf ','auxilio funeral']],['Invalidez',['invalid','ipa ','ipta','perda de autonomia','ifpd']],['Doenças Graves',['doenca grave','doencas graves','dg30','doenca critica','diagnostico de cancer','cancer']],['Morte',['morte','vida inteira','seguro de vida','vida individual','falecimento','obito','sucessao','iea']]];
+const ANL_KEYS = {'Morte':['morte'],'Invalidez':['ipa','invalidez_doenca','renda'],'Doenças Graves':['doencas_graves'],'Diária de internação hospitalar':['dih'],'DIT':['dit'],'Cirurgias':['cirurgias'],'Fratura óssea':['fratura_ossea'],'Assistência funeral':['funeral_individual','funeral_familiar']};
+const anlSemAc = t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase()+' ';
+function anlCatFromCob(nome){ const t = anlSemAc(nome); for(const [cat,ws] of ANL_SINON){ if(ws.some(w=>t.includes(w))) return cat; } return ''; }
+function anlBlank(){ return {cob:'', cat:'Morte', cap:'', prem:'', tipo:'Vitalícia', vig:'', obs:''}; }
+function anlHave(linhas){ const s = new Set(); (linhas||[]).forEach(r=>{ (ANL_KEYS[r.cat]||[]).forEach(k=>s.add(k)); if(r.cat==='Morte' && r.tipo==='Vitalícia') s.add('sucessao'); }); return s; }
+function anlCapVida(linhas){ return (linhas||[]).filter(r=>r.cat==='Morte').reduce((t,r)=>t+(Number(r.cap)||0),0); }
+async function pvAnalise(p){
+  const host = document.getElementById('pp-analise'); if(!host) return;
+  const [{ data: an }, { data: aps }] = await Promise.all([
+    sb.from('crm_analise_apolices').select('*').eq('pessoa_id', p.id).maybeSingle(),
+    sb.from('crm_apolices').select('id,seguradora,tipo_seguro,data_vencimento,coberturas_detalhe,status').eq('pessoa_id', p.id)]);
+  let rows = an ? (an.linhas||[]) : null; let confirmada = !!(an && an.confirmada), iniciada = !!an;
+  if(rows===null){ rows = []; (aps||[]).filter(a=>a.status!=='cancelada').forEach(a=>(a.coberturas_detalhe||[]).forEach(c=> rows.push({cob:c.nome||'', cat:anlCatFromCob(c.nome)||'Morte', cap:c.capital==null?'':c.capital, prem:c.premio==null?'':c.premio, tipo:'Vitalícia', vig:a.data_vencimento||'', obs:c.obs||''}))); iniciada = rows.length>0; }
+  const fmt = v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  let t = null;
+  const persist = async (conf)=>{
+    const upd = {pessoa_id:p.id, linhas:rows, confirmada:!!conf, atualizado_por:curUserName(), atualizado_em:new Date().toISOString()};
+    if(conf){ upd.confirmada_em = new Date().toISOString(); upd.confirmada_por = curUserName(); }
+    const { error } = await sb.from('crm_analise_apolices').upsert(upd, {onConflict:'pessoa_id'}); if(error){ showToast('Erro ao salvar a análise: '+error.message); return false; }
+    confirmada = !!conf; iniciada = true; return true;
+  };
+  const totals = ()=>{ const c = rows.reduce((s,r)=>s+(Number(r.cap)||0),0), pr = rows.reduce((s,r)=>s+(Number(r.prem)||0),0);
+    const a = document.getElementById('an-tc'), b = document.getElementById('an-tp'); if(a) a.textContent = fmt(c); if(b) b.textContent = fmt(pr); };
+  const msg = ()=>{ const el = document.getElementById('an-msg'); if(!el) return;
+    el.innerHTML = confirmada ? `<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px"><b>Análise confirmada e salva no cadastro.</b> Siga para a Fase 3 · Diagnóstico. <button class="om-save" id="an-prox" style="margin-left:8px;padding:4px 10px;font-size:12px">Ir para a Fase 3 · Diagnóstico</button></div>` : (iniciada?'<div class="hint">Edições salvas automaticamente — falta <b>Confirmar análise</b>.</div>':'');
+    const b = document.getElementById('an-prox'); if(b) b.addEventListener('click', ()=>{ const d = document.getElementById('pp-diag'); if(d) d.scrollIntoView({behavior:'smooth'}); }); };
+  const draw = ()=>{
+    host.innerHTML = `<style>.an-t input,.an-t select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font:inherit}.an-t input.unread{background:#fff3e0;border-color:#f0a24b}.an-t td{padding:3px 4px}</style>
+      <div class="ql">Fase 2 · Analisar documentos <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— preencha o que está escrito na apólice, cobertura por cobertura</small></div>
+      <div class="hint" style="margin-bottom:8px">Preenchimento manual. O que ainda não foi preenchido fica em <b style="color:#c06a00">laranja</b>. Cliente sem apólice? Não há o que analisar nesta etapa — <a href="#" id="an-pular">pular para o diagnóstico (Fase 3)</a>.</div>
+      ${rows.length?`<div style="overflow-x:auto"><table class="an-t" style="min-width:1050px;border-collapse:collapse"><thead><tr><th style="width:34px">#</th><th style="min-width:200px;text-align:left">Cobertura (nome técnico)</th><th style="min-width:190px;text-align:left">Categoria</th><th style="width:130px">Capital segurado</th><th style="width:130px">Prêmio mensal (com IOF)</th><th style="width:110px">Prazo</th><th style="width:140px">Vigência até</th><th style="min-width:180px;text-align:left">Observação</th><th style="width:34px"></th></tr></thead><tbody>
+        ${rows.map((r,i)=>`<tr data-i="${i}"><td>${i+1}</td><td><input data-f="cob" value="${escapeHtml(r.cob||'')}"></td><td><select data-f="cat">${ANL_CATS.concat([ANL_OUTRO]).map(c=>`<option ${c===r.cat?'selected':''}>${c}</option>`).join('')}</select></td>
+          <td><input type="number" step="0.01" data-f="cap" class="${r.cap===''?'unread':''}" value="${r.cap}"></td><td><input type="number" step="0.01" data-f="prem" class="${r.prem===''?'unread':''}" value="${r.prem}"></td>
+          <td><select data-f="tipo"><option ${r.tipo==='Vitalícia'?'selected':''}>Vitalícia</option><option ${r.tipo==='Temporária'?'selected':''}>Temporária</option></select></td><td><input type="date" data-f="vig" class="${r.vig?'':'unread'}" value="${r.vig||''}"></td>
+          <td><input data-f="obs" value="${escapeHtml(r.obs||'')}"></td><td><button type="button" class="om-cancel icon-btn" data-del="${i}" title="Remover linha">×</button></td></tr>`).join('')}
+        </tbody><tfoot><tr style="font-weight:700;background:#f6f7fc"><td colspan="3">Soma das apólices</td><td id="an-tc"></td><td id="an-tp"></td><td colspan="4"></td></tr></tfoot></table></div>`:'<div class="hint">Nenhuma cobertura lançada ainda. Use "Adicionar cobertura" para preencher a tabela manualmente.</div>'}
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="an-add">＋ Adicionar cobertura</button>${rows.length?'<button class="om-save" id="an-conf">Confirmar análise</button>':''}</div>
+      <div id="an-msg" style="margin-top:8px"></div>
+      <div class="hint" style="margin-top:6px">Categoria "Outro (não entra na análise)" serve para RC Profissional, Vida em Grupo e outros ramos. O "Proteção atual" e o "Capital de vida já segurado" acima passam a vir desta tabela.</div>`;
+    totals(); msg();
+    const sv = ()=>{ clearTimeout(t); t = setTimeout(async ()=>{ if(await persist(false)){ msg(); pvApolices(p); } }, 700); };
+    host.querySelectorAll('tbody tr').forEach(tr=>{ const i = +tr.dataset.i;
+      tr.querySelectorAll('[data-f]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{
+        const f = el.dataset.f; let v = el.value; if(f==='cap'||f==='prem') v = v===''?'':Number(v);
+        rows[i][f] = v; confirmada = false;
+        if(f==='cob' && !rows[i].catManual){ const c = anlCatFromCob(v); if(c && c!==rows[i].cat){ rows[i].cat = c; tr.querySelector('[data-f="cat"]').value = c; } }
+        if(f==='cat') rows[i].catManual = true;
+        if(f==='cap'||f==='prem'||f==='vig') el.classList.toggle('unread', v===''); totals(); msg(); sv(); })); });
+    host.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{ rows.splice(+b.dataset.del,1); confirmada = false; draw(); persist(false).then(()=>pvApolices(p)); }));
+    host.querySelector('#an-add').addEventListener('click', ()=>{ rows.push(anlBlank()); confirmada = false; draw(); });
+    const cf = host.querySelector('#an-conf'); if(cf) cf.addEventListener('click', async ()=>{ clearTimeout(t); if(await persist(true)){ msg(); pvApolices(p); showToast('Análise confirmada'); } });
+    const pl = host.querySelector('#an-pular'); if(pl) pl.addEventListener('click', e=>{ e.preventDefault(); const d = document.getElementById('pp-diag'); if(d) d.scrollIntoView({behavior:'smooth'}); });
+  };
+  draw();
 }
 function pvIdade(p){
   if(!p.data_nascimento) return null;
@@ -1500,7 +1561,10 @@ async function pvApolices(p){
   const host = document.getElementById('pp-apo'); if(!host) return;
   const { data } = await sb.from('crm_apolices').select('*').eq('pessoa_id',p.id).order('data_vencimento',{ascending:true});
   const rows = data||[]; const have = new Set(); rows.forEach(a=>(a.coberturas||[]).forEach(c=>have.add(c)));
-  const cap = rows.filter(a=>a.status!=='cancelada' && /vida/i.test(a.tipo_seguro||'')).reduce((t,a)=>t+(Number(a.valor_cobertura)||0),0);
+  let cap = rows.filter(a=>a.status!=='cancelada' && /vida/i.test(a.tipo_seguro||'')).reduce((t,a)=>t+(Number(a.valor_cobertura)||0),0);
+  // a tabela da Fase 2 (Analisar documentos) passa a alimentar "Proteção atual" e "Capital de vida já segurado"
+  const { data: anl } = await sb.from('crm_analise_apolices').select('linhas').eq('pessoa_id',p.id).maybeSingle();
+  if(anl && (anl.linhas||[]).length){ anlHave(anl.linhas).forEach(k=>have.add(k)); const cv = anlCapVida(anl.linhas); if(cv>0) cap = cv; }
   const covDetRowsAll = [];
   rows.forEach(a=>(a.coberturas_detalhe||[]).forEach(c=> covDetRowsAll.push({...c, apolice:a.tipo_seguro, seguradora:a.seguradora})));
   host.innerHTML = `<div class="ql">Apólices do cliente (${rows.length})</div>
