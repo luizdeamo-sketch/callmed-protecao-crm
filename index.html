@@ -1423,8 +1423,56 @@ function pvEditAtividade(p, a){
 
 // ---- PROTEÇÃO (oportunidades, apólices, estudos, diagnóstico) ----
 async function pvProtecao(body, p){
-  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="es-box" id="pp-docs"></div><div class="es-box" id="pp-analise"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
-  pvOportunidades(p); pvApolices(p); pvDocumentos(p); pvAnalise(p); renderPessoaEstudos(p); pvDiagnostico(p);
+  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="es-box" id="pp-docs"></div><div class="es-box" id="pp-analise"></div><div class="es-box" id="pp-fase3"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
+  pvOportunidades(p); pvApolices(p); pvDocumentos(p); pvAnalise(p); pvFase3(p); renderPessoaEstudos(p); pvDiagnostico(p);
+}
+// ============ FASE 3 · DIAGNÓSTICO: o que você tem × o que você precisa ============
+// Necessidade vem da régua oficial (calcAnaliseCompleta, com os dados do cliente/ADN); "o que tem" vem da tabela da Fase 2.
+// Sem apólice analisada: mostra só o que o cliente precisa, sem comparativo.
+const F3_ORD = ['Morte','Invalidez','Doenças Graves','Diária de internação hospitalar','Assistência funeral','Cirurgias','Fratura óssea','DIT'];
+const F3_KEYS = {'Morte':['morte','sucessao'],'Invalidez':['ipa','invalidez_doenca'],'Doenças Graves':['doencas_graves'],'Diária de internação hospitalar':['dih'],'DIT':['dit'],'Cirurgias':['cirurgias'],'Fratura óssea':['fratura_ossea'],'Assistência funeral':['funeral_individual','funeral_familiar']};
+const F3_DIARIA = ['Diária de internação hospitalar','DIT'], F3_PRAZO = {'Morte':'vitalícia','Invalidez':'vitalícia','Assistência funeral':'vitalícia','Doenças Graves':'até 80 anos','Diária de internação hospitalar':'até 80 anos'};
+async function pvFase3(p){
+  const host = document.getElementById('pp-fase3'); if(!host) return;
+  host.innerHTML = '<div class="ql">Fase 3 · Diagnóstico: o que você tem × o que você precisa</div><div class="op-more">Calculando…</div>';
+  const [P, { data: e }, { data: an }] = await Promise.all([ensureCalcParams(),
+    sb.from('crm_estudos').select('*').eq('pessoa_id', p.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+    sb.from('crm_analise_apolices').select('*').eq('pessoa_id', p.id).maybeSingle()]);
+  const head = '<div class="ql">Fase 3 · Diagnóstico: o que você tem × o que você precisa</div>';
+  if(!e || !(Number(e.renda_mensal)>0 || Number(e.gastos_mensais)>0 || Number(e.renda_desejada_familia)>0)){
+    host.innerHTML = head + '<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px">Para calcular a necessidade, preencha os <b>dados do cliente</b> (renda, gastos, dependentes, patrimônio…) no <b>Diagnóstico de Proteção</b> abaixo e clique em salvar. O diagnóstico aparece aqui em seguida.</div>'; return; }
+  const ec = {...e, cliente_nome:e.cliente_nome||p.nome, coberturas_valores:{}, coberturas_atuais:[]};
+  const calc = calcAnaliseCompleta(ec, P);
+  const linhas = ((an&&an.linhas)||[]).filter(r=>ANL_CATS.includes(r.cat)); const temApolice = linhas.length>0;
+  const needOf = cat => { const rs = calc.rows.filter(r=>F3_KEYS[cat].includes(r.key)); return rs.length ? rs.reduce((t,r)=>t+(Number(r.necessidade)||0),0) : null; };
+  const hoje = cat => linhas.filter(r=>r.cat===cat);
+  const sit = (need,cap)=> cap<=0 ? ['sem','Sem cobertura','#c23636'] : cap<need*0.9 ? ['ins','Insuficiente','#b07a00'] : ['ok','Adequada','#0b7a4f'];
+  const hojeDt = new Date();
+  const rows = F3_ORD.map(cat=>{ const need = needOf(cat); if(need===null) return null;
+    const hr = hoje(cat), cap = hr.reduce((t,r)=>t+(Number(r.cap)||0),0), prem = hr.reduce((t,r)=>t+(Number(r.prem)||0),0);
+    const vigs = hr.filter(r=>r.tipo==='Temporária' && r.vig).map(r=>r.vig).sort(); const vencendo = vigs.length && ((new Date(vigs[0])-hojeDt)/86400000) < 5*365;
+    const dy = F3_DIARIA.includes(cat)?' por dia':''; const ideal = Math.round(need/(need>5000?1000:1))*(need>5000?1000:1);
+    return {cat, need, cap, prem, s:sit(need,cap), gap:Math.max(need-cap,0), alerta:vencendo?('Temporária até '+fmtDate(vigs[0])):'', ponto:hr.map(r=>r.obs).filter(Boolean).join('; '), sug:(F3_PRAZO[cat]?F3_PRAZO[cat]+', ':'')+'ideal '+fmtMoney(ideal)+dy, dy}; }).filter(Boolean);
+  const T = rows.reduce((t,r)=>({need:t.need+(F3_DIARIA.includes(r.cat)?0:r.need), cap:t.cap+(F3_DIARIA.includes(r.cat)?0:r.cap), gap:t.gap+(F3_DIARIA.includes(r.cat)?0:r.gap), prem:t.prem+r.prem, sem:t.sem+(r.s[0]==='sem'?1:0), ins:t.ins+(r.s[0]==='ins'?1:0)}), {need:0,cap:0,gap:0,prem:0,sem:0,ins:0});
+  const padrao = Number(e.renda_desejada_familia)||Number(e.gastos_mensais)||Number(e.renda_mensal)||0;
+  const deps = e.dependentes||[]; const reaj = e.reajuste_educacao_pct_override!=null?Number(e.reajuste_educacao_pct_override):(P.reajuste_educacao_pct||6);
+  const liq = calcLiquidezSucessoria(Number(e.patrimonio_bruto)||0, P, e), educ = calcEducacao(deps, reaj);
+  const card = (v,l)=>`<div style="flex:1;min-width:150px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px"><b style="display:block;font-size:17px">${v}</b><span style="font-size:11.5px;color:var(--ink-soft)">${l}</span></div>`;
+  host.innerHTML = head + `
+    <div class="hint" style="margin-bottom:8px">Representatividade financeira de <b>${escapeHtml(p.nome)}</b> — necessidade calculada com os dados do cliente (régua oficial). Padrão de vida usado: <b>${fmtMoney(padrao)}/mês</b>.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">${card(fmtMoney(padrao),'Padrão de vida (mensal)')}${card(deps.length+' dependente(s)','Dependentes')}${card(fmtMoney(educ),'Educação até a idade-limite')}${card(fmtMoney(liq.valor),'Custos de inventário')}${card(fmtMoney(Number(e.patrimonio_bruto)||0),'Patrimônio bruto')}</div>
+    ${!temApolice?'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-bottom:8px">Cliente sem apólice analisada: mostrando <b>só o que ele precisa</b>, sem comparativo. Para comparar, preencha e confirme a Fase 2 acima.</div>':(an&&an.confirmada?'':'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-bottom:8px">A tabela da Fase 2 ainda <b>não foi confirmada</b>: confira os valores antes de apresentar.</div>')}
+    <div style="overflow-x:auto"><table class="ca-table" style="min-width:${temApolice?980:560}px"><thead><tr><th>Cobertura</th><th>Necessidade</th>${temApolice?'<th>Hoje (apólices)</th><th>Situação</th><th>Falta cobrir</th><th>Prêmio hoje (mês)</th><th>Alerta</th><th>Ponto de atenção</th>':''}<th>Sugestão</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr><td><b>${escapeHtml(r.cat)}</b></td><td>${fmtMoney(r.need)}${r.dy}</td>${temApolice?`<td>${r.cap?fmtMoney(r.cap)+r.dy:'—'}</td><td><b style="color:${r.s[2]}">${r.s[1]}</b></td><td>${r.gap?fmtMoney(r.gap)+r.dy:'—'}</td><td>${r.prem?fmtMoney(r.prem):'—'}</td><td>${r.alerta?'<span class="tagx warn">'+escapeHtml(r.alerta)+'</span>':''}</td><td><small>${escapeHtml(r.ponto)}</small></td>`:''}<td><small>${escapeHtml(r.sug)}</small></td></tr>`).join('')}
+      <tr style="font-weight:700;background:#f6f7fc"><td>Total (sem as diárias)</td><td>${fmtMoney(T.need)}</td>${temApolice?`<td>${fmtMoney(T.cap)}</td><td>${T.sem} sem · ${T.ins} insuf.</td><td>${fmtMoney(T.gap)}</td><td>${fmtMoney(T.prem)}</td><td></td><td></td>`:''}<td></td></tr></tbody></table></div>
+    <div class="hint" style="margin-top:6px">Situação: <b>Sem cobertura</b> = nada lançado na Fase 2; <b>Insuficiente</b> = tem menos de 90% da necessidade; <b>Adequada</b> = 90% ou mais. Diárias (internação e DIT) são valores por dia e não entram no total.</div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-save" id="f3-pdf">⬇ Baixar PDF · Diagnóstico (2 páginas)</button></div>`;
+  const pdfBtn = host.querySelector('#f3-pdf'); pdfBtn.addEventListener('click', ()=>{
+    const cv = {}; const atu = new Set();
+    linhas.forEach(r=>{ const ks = r.cat==='Invalidez' ? ['ipa','invalidez_doenca'] : r.cat==='Assistência funeral' ? ['funeral_individual'] : (F3_KEYS[r.cat]||[]).slice(0,1);
+      const v = Number(r.cap)||0; ks.forEach(k=>{ cv[k] = (cv[k]||0) + (r.cat==='Invalidez'? v/2 : v); atu.add(k); }); });
+    const ep = {...ec, coberturas_valores:cv, coberturas_atuais:[...atu], premio_anual: T.prem*12 || ec.premio_anual};
+    exportDiagnostico2pPDF(ep, calcAnaliseCompleta(ep, P)); });
 }
 // ============ FASE 2 · ANALISAR DOCUMENTOS (modelo do protótipo da Amanda, 05/10/2026) ============
 // Tabela editável por cobertura lida da apólice: nome técnico, categoria, capital, prêmio mensal (com IOF), prazo, vigência e observação.
@@ -1472,7 +1520,7 @@ async function pvAnalise(p){
       <div id="an-msg" style="margin-top:8px"></div>
       <div class="hint" style="margin-top:6px">Categoria "Outro (não entra na análise)" serve para RC Profissional, Vida em Grupo e outros ramos. O "Proteção atual" e o "Capital de vida já segurado" acima passam a vir desta tabela.</div>`;
     totals(); msg();
-    const sv = ()=>{ clearTimeout(t); t = setTimeout(async ()=>{ if(await persist(false)){ msg(); pvApolices(p); } }, 700); };
+    const sv = ()=>{ clearTimeout(t); t = setTimeout(async ()=>{ if(await persist(false)){ msg(); pvApolices(p); pvFase3(p); } }, 700); };
     host.querySelectorAll('tbody tr').forEach(tr=>{ const i = +tr.dataset.i;
       tr.querySelectorAll('[data-f]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{
         const f = el.dataset.f; let v = el.value; if(f==='cap'||f==='prem') v = v===''?'':Number(v);
@@ -1480,9 +1528,9 @@ async function pvAnalise(p){
         if(f==='cob' && !rows[i].catManual){ const c = anlCatFromCob(v); if(c && c!==rows[i].cat){ rows[i].cat = c; tr.querySelector('[data-f="cat"]').value = c; } }
         if(f==='cat') rows[i].catManual = true;
         if(f==='cap'||f==='prem'||f==='vig') el.classList.toggle('unread', v===''); totals(); msg(); sv(); })); });
-    host.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{ rows.splice(+b.dataset.del,1); confirmada = false; draw(); persist(false).then(()=>pvApolices(p)); }));
+    host.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{ rows.splice(+b.dataset.del,1); confirmada = false; draw(); persist(false).then(()=>{ pvApolices(p); pvFase3(p); }); }));
     host.querySelector('#an-add').addEventListener('click', ()=>{ rows.push(anlBlank()); confirmada = false; draw(); });
-    const cf = host.querySelector('#an-conf'); if(cf) cf.addEventListener('click', async ()=>{ clearTimeout(t); if(await persist(true)){ msg(); pvApolices(p); showToast('Análise confirmada'); } });
+    const cf = host.querySelector('#an-conf'); if(cf) cf.addEventListener('click', async ()=>{ clearTimeout(t); if(await persist(true)){ msg(); pvApolices(p); pvFase3(p); showToast('Análise confirmada'); } });
     const pl = host.querySelector('#an-pular'); if(pl) pl.addEventListener('click', e=>{ e.preventDefault(); const d = document.getElementById('pp-diag'); if(d) d.scrollIntoView({behavior:'smooth'}); });
   };
   draw();
