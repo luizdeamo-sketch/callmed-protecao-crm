@@ -382,7 +382,7 @@
           <textarea id="sg-text" rows="4" placeholder="Escreva livremente, ou clique em 🎤 e narre a sua ideia. Dá para colar um print (Ctrl+V) ou arrastar arquivos para cá."></textarea>
           <div id="sg-files" class="sg-files"></div>
           <div class="sg-row" style="margin-top:8px">
-            <button id="sg-mic" class="om-cancel">🎤 Gravar / ditar</button><button id="sg-attach" class="om-cancel">📎 Anexar print / PDF / arquivo</button><input type="file" id="sg-file" multiple hidden><span id="sg-mic-st" style="font-size:12px;color:var(--red)"></span>
+            <button id="sg-mic" class="om-cancel">🎤 Gravar / ditar</button><button id="sg-attach" class="om-cancel">📎 Anexar print / PDF / áudio / vídeo</button><input type="file" id="sg-file" multiple accept="image/*,.pdf,audio/*,video/*,.doc,.docx,.xls,.xlsx,.txt" hidden><span id="sg-mic-st" style="font-size:12px;color:var(--red)"></span>
             <select id="sg-tipo"></select><select id="sg-tela"></select>
             <select id="sg-prio"><option value="normal">Prioridade normal</option><option value="alta">Prioridade alta</option><option value="baixa">Prioridade baixa</option></select>
             <span style="flex:1"></span><button id="sg-send" class="om-save">Enviar sugestão</button>
@@ -5987,7 +5987,7 @@ function sgDraw(){
     return `<div class="sg-card" data-id="${r.id}">
       <div class="sg-top"><b>${escapeHtml(r.autor||'—')}</b><span class="sg-meta">${fmtDateTime(r.created_at)}</span><span class="tagx">${escapeHtml(SG_TIPOS[r.tipo]||r.tipo||'')}</span>${r.tela?`<span class="tagx">${escapeHtml(r.tela)}</span>`:''}${r.prioridade==='alta'?'<span class="tagx bad">Prioridade alta</span>':''}${(r.resposta||'').startsWith('🔴')?'<span class="tagx bad">💬 Aguardando o retorno da Amanda</span>':''}${r.origem==='voz'?'<span class="tagx">🎤 por voz</span>':''}<span style="flex:1"></span><span class="sg-status" style="background:${st[2]}">${st[1]}</span></div>
       <div class="sg-text">${escapeHtml(r.texto).replace(/\n/g,'<br>')}</div>
-      ${(r.anexos&&r.anexos.length)?`<div class="sg-atts">${r.anexos.map(a=>/^image\//.test(a.mime||'')?`<a href="#" data-att="${escapeHtml(a.path)}" title="${escapeHtml(a.nome||'')}"><img class="sg-thumb" data-thumb="${escapeHtml(a.path)}" alt="${escapeHtml(a.nome||'print')}"></a>`:`<a href="#" class="sg-file" data-att="${escapeHtml(a.path)}">📄 ${escapeHtml(a.nome||'arquivo')}</a>`).join('')}</div>`:''}
+      ${(r.anexos&&r.anexos.length)?`<div class="sg-atts">${r.anexos.map(a=>/^image\//.test(a.mime||'')?`<a href="#" data-att="${escapeHtml(a.path)}" title="${escapeHtml(a.nome||'')}"><img class="sg-thumb" data-thumb="${escapeHtml(a.path)}" alt="${escapeHtml(a.nome||'print')}"></a>`:`<a href="#" class="sg-file" data-att="${escapeHtml(a.path)}">${sgIco(a.mime)} ${escapeHtml(a.nome||'arquivo')}</a>`).join('')}</div>`:''}
       ${r.audio_path?`<div class="sg-audio"><a href="#" data-act="audio">▶ ouvir o áudio original</a></div>`:''}
       ${r.resposta?`<div class="sg-resp"${(r.resposta||'').startsWith('🔴')?' style="background:#fde8e8;border:2px solid #c23636"':''}><b>Resposta:</b> ${escapeHtml(r.resposta).replace(/\n/g,'<br>')}</div>`:''}
       <div class="sg-actions"><button class="om-cancel" data-act="status">Alterar status / responder</button><button class="btn-ghost" data-act="hist">Histórico (${hist.length})</button></div>
@@ -6009,14 +6009,14 @@ function sgStatusDialog(r){
   const box = dlgOpen(`<div class="om-title"><div><h3>Alterar status</h3><div class="om-sub">${escapeHtml((r.texto||'').slice(0,140))}${(r.texto||'').length>140?'…':''}</div></div><button data-close>✕</button></div>
     <div class="dlg-body"><label class="fl"><span>Novo status</span><select id="sg-new-status">${SG_STATUS.map(s=>`<option value="${s[0]}" ${r.status===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></label>
       <label class="fl" style="margin-top:10px"><span>Resposta / nota (visível para quem sugeriu)</span><textarea id="sg-note" rows="4" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
-      <label class="fl" style="margin-top:10px"><span>Anexar print(s) ou arquivo(s) — opcional</span>
-        <div class="dz" id="sg-resp-dz" style="padding:14px">📎 Arraste, cole (Ctrl+V) ou clique para anexar<input type="file" id="sg-resp-file" multiple accept=".pdf,image/*" hidden></div>
+      <label class="fl" style="margin-top:10px"><span>Anexar print(s), PDF, áudio ou vídeo — opcional</span>
+        <div class="dz" id="sg-resp-dz" style="padding:14px">📎 Arraste, cole (Ctrl+V) ou clique para anexar<input type="file" id="sg-resp-file" multiple accept="image/*,.pdf,audio/*,video/*" hidden></div>
         <div id="sg-resp-files" class="sg-files"></div>
       </label>
       <div class="om-err" id="sg-err"></div></div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="sg-save-status">Salvar</button></div>`);
   const dz = box.querySelector('#sg-resp-dz'), inp = box.querySelector('#sg-resp-file'), filesHost = box.querySelector('#sg-resp-files');
-  const drawRespFiles = ()=>{ filesHost.innerHTML = window._sgRespFiles.map((f,i)=>`<div class="sg-fchip">${/^image\//.test(f.type)?`<img src="${URL.createObjectURL(f)}">`:'<span class="ico">📄</span>'}<span class="nm">${escapeHtml(f.name)}</span><button data-rm="${i}" title="Remover">✕</button></div>`).join(''); };
+  const drawRespFiles = ()=>{ filesHost.innerHTML = window._sgRespFiles.map((f,i)=>`<div class="sg-fchip">${/^image\//.test(f.type)?`<img src="${URL.createObjectURL(f)}">`:`<span class="ico">${sgIco(f.type)}</span>`}<span class="nm">${escapeHtml(f.name)}</span><button data-rm="${i}" title="Remover">✕</button></div>`).join(''); };
   const addRespFiles = (list)=>{ window._sgRespFiles.push(...[...list]); drawRespFiles(); };
   dz.addEventListener('click', ()=>inp.click());
   dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
@@ -6100,11 +6100,12 @@ document.getElementById('sg-list').addEventListener('click', async e=>{
   const a = e.target.closest('[data-att]'); if(!a) return; e.preventDefault();
   try{ window.open(await docsSignedUrl(a.dataset.att), '_blank'); }catch(x){ showToast('Erro: '+x.message); }
 });
+function sgIco(t){ return /^video\//.test(t||'')?'🎬':/^audio\//.test(t||'')?'🎧':'📄'; }
 function sgRenderFiles(){
-  document.getElementById('sg-files').innerHTML = SG.files.map((f,i)=>`<div class="sg-fchip">${/^image\//.test(f.type)?`<img src="${URL.createObjectURL(f)}">`:'<span class="ico">📄</span>'}<span class="nm">${escapeHtml(f.name)}</span><button data-rm="${i}" title="Remover">✕</button></div>`).join('');
+  document.getElementById('sg-files').innerHTML = SG.files.map((f,i)=>`<div class="sg-fchip">${/^image\//.test(f.type)?`<img src="${URL.createObjectURL(f)}">`:`<span class="ico">${sgIco(f.type)}</span>`}<span class="nm">${escapeHtml(f.name)}</span><button data-rm="${i}" title="Remover">✕</button></div>`).join('');
 }
 function sgAddFiles(list){
-  [...list].forEach(f=>{ if(f.size > 25*1024*1024){ showToast(f.name+' passa de 25 MB e não foi anexado.'); return; } SG.files.push(f); });
+  [...list].forEach(f=>{ if(f.size > 50*1024*1024){ showToast(f.name+' passa de 50 MB e não foi anexado. Para vídeo maior, salve no Drive e cole o link no texto.'); return; } SG.files.push(f); });
   sgRenderFiles();
 }
 document.getElementById('sg-attach').addEventListener('click', ()=>document.getElementById('sg-file').click());
