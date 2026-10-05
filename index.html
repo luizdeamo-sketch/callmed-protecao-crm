@@ -1847,7 +1847,8 @@ async function pvAnalise(p){
   const draw = ()=>{
     host.innerHTML = `<style>.an-t input,.an-t select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font:inherit}.an-t input.unread{background:#fff3e0;border-color:#f0a24b}.an-t td{padding:3px 4px}</style>
       <div class="ql">Fase 2 · Analisar documentos <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— preencha o que está escrito na apólice, cobertura por cobertura</small></div>
-      <div class="hint" style="margin-bottom:8px">Preenchimento manual. O que ainda não foi preenchido fica em <b style="color:#c06a00">laranja</b>. Cliente sem apólice? Não há o que analisar nesta etapa — <a href="#" id="an-pular">pular para o diagnóstico (Fase 3)</a>.</div>
+      <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="om-save" style="cursor:pointer;display:inline-block;padding:6px 12px;font-size:13px">🤖 Ler apólice com IA<input type="file" id="an-ia-file" accept=".pdf,image/*" hidden></label><span id="an-ia-st" class="hint" style="margin:0">Escolha o PDF (ou foto) da apólice: o sistema preenche a tabela abaixo. Confira antes de confirmar.</span></div>
+      <div class="hint" style="margin-bottom:8px">Você também pode preencher à mão. O que ainda não foi preenchido fica em <b style="color:#c06a00">laranja</b>. Cliente sem apólice? Não há o que analisar nesta etapa — <a href="#" id="an-pular">pular para o diagnóstico (Fase 3)</a>.</div>
       ${rows.length?`<div style="overflow-x:auto"><table class="an-t" style="min-width:1050px;border-collapse:collapse"><thead><tr><th style="width:34px">#</th><th style="min-width:200px;text-align:left">Cobertura (nome técnico)</th><th style="min-width:190px;text-align:left">Categoria</th><th style="width:130px">Capital segurado</th><th style="width:130px">Prêmio mensal (com IOF)</th><th style="width:110px">Prazo</th><th style="width:140px">Vigência até</th><th style="min-width:180px;text-align:left">Observação</th><th style="width:34px"></th></tr></thead><tbody>
         ${rows.map((r,i)=>`<tr data-i="${i}"><td>${i+1}</td><td><input data-f="cob" value="${escapeHtml(r.cob||'')}"></td><td><select data-f="cat">${ANL_CATS.concat([ANL_OUTRO]).map(c=>`<option ${c===r.cat?'selected':''}>${c}</option>`).join('')}</select></td>
           <td><input type="number" step="0.01" data-f="cap" class="${r.cap===''?'unread':''}" value="${r.cap}"></td><td><input type="number" step="0.01" data-f="prem" class="${r.prem===''?'unread':''}" value="${r.prem}"></td>
@@ -1868,6 +1869,21 @@ async function pvAnalise(p){
         if(f==='cap'||f==='prem'||f==='vig') el.classList.toggle('unread', v===''); totals(); msg(); sv(); })); });
     host.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{ rows.splice(+b.dataset.del,1); confirmada = false; draw(); persist(false).then(()=>{ pvApolices(p); pvFase3(p); }); }));
     host.querySelector('#an-add').addEventListener('click', ()=>{ rows.push(anlBlank()); confirmada = false; draw(); });
+    const iaIn = host.querySelector('#an-ia-file'); if(iaIn) iaIn.addEventListener('change', async ()=>{
+      const file = iaIn.files[0]; iaIn.value = ''; const st = host.querySelector('#an-ia-st'); if(!file) return;
+      const mt = aiMedia(file); if(!mt){ st.textContent = 'Formato não suportado para leitura (use PDF, JPG, PNG ou WEBP).'; return; }
+      st.textContent = '⏳ Lendo '+file.name+'…';
+      try{
+        const { data, error } = await sb.functions.invoke('extrair-apolice', { body: { file_base64: await proFileB64(file), media_type: mt, filename: file.name } });
+        if(error || (data&&data.error)) throw new Error(data&&data.error ? data.error : await ruErr(error));
+        const a = data.apolice||{}, itens = (a.itens||[]).filter(i=>i.cobertura);
+        if(!itens.length) throw new Error('Não encontrei cobertura neste documento'+(a.observacoes?(': '+a.observacoes):'')+'. Preencha a tabela à mão.');
+        const novas = itens.map(i=>({cob:i.cobertura, cat:anlCatFromCob(i.cobertura)||ANL_OUTRO, cap:i.capital==null?'':Number(i.capital), prem:i.premio_mensal==null?'':Number(i.premio_mensal), tipo:/^tempor/i.test(i.prazo||'')?'Temporária':'Vitalícia', vig:i.vigencia_fim||a.vigencia_fim||'', obs:[a.seguradora?('['+a.seguradora+']'):'', i.obs||''].filter(Boolean).join(' ')}));
+        const soTotal = a.total_mensal && !novas.some(r=>r.prem!=='');
+        rows = rows.concat(novas); confirmada = false; await persist(false); draw(); pvApolices(p); pvFase3(p);
+        const st2 = host.querySelector('#an-ia-st'); if(st2) st2.innerHTML = '✅ Li '+novas.length+' cobertura(s) de <b>'+escapeHtml(a.seguradora||file.name)+'</b>'+(a.numero_apolice?' (apólice '+escapeHtml(a.numero_apolice)+')':'')+'. '+(soTotal?'O documento traz só o prêmio total de <b>'+fmt(a.total_mensal)+'/mês</b> (sem quebra por cobertura): distribua nos campos em laranja. ':'')+'Confira os campos em laranja e clique em Confirmar análise.';
+      }catch(err){ st.textContent = '❌ '+(err.message||err); }
+    });
     const cf = host.querySelector('#an-conf'); if(cf) cf.addEventListener('click', async ()=>{ clearTimeout(t); if(await persist(true)){ msg(); pvApolices(p); pvFase3(p); pvFase4(p); showToast('Análise confirmada'); } });
     const pl = host.querySelector('#an-pular'); if(pl) pl.addEventListener('click', e=>{ e.preventDefault(); const d = document.getElementById('pp-diag'); if(d) d.scrollIntoView({behavior:'smooth'}); });
   };
@@ -4663,6 +4679,16 @@ function fase1Tipo(name, text){
   if(/comprovante\s*de\s*resid|conta\s*de\s*(luz|energia|[áa]gua)/i.test(t)) return {l:'Comprovante de endereço', cat:'comprovante'};
   return {l:'Documento', cat:'documento'};
 }
+// Leitura por IA (função extrair-documento): só é chamada quando a leitura local não achou nome/CPF ou não reconheceu o tipo (ex.: CNH em foto),
+// para não gastar com lote de documentos que já foram lidos direto do texto. Se a IA falhar, vale a leitura local.
+function aiMedia(file){ const t = (file.type||'').toLowerCase(); if(t==='application/pdf'||/\.pdf$/i.test(file.name)) return 'application/pdf'; return ['image/jpeg','image/png','image/webp','image/gif'].includes(t)?t:null; }
+async function fase1AI(file){
+  const mt = aiMedia(file); if(!mt) return null;
+  const { data, error } = await sb.functions.invoke('extrair-documento', { body: { file_base64: await proFileB64(file), media_type: mt, filename: file.name } });
+  if(error || (data&&data.error)) throw new Error(data&&data.error ? data.error : await ruErr(error));
+  return data.documento||null;
+}
+const F1_TIPO_IA = {'CNH':{l:'CNH',cat:'cnh'},'RG':{l:'RG',cat:'rg'},'Apólice':{l:'Apólice / certificado',cat:'apolice'},'Certificado':{l:'Apólice / certificado',cat:'apolice'},'Cotação':{l:'Cotação',cat:'cotacao'},'Comprovante':{l:'Comprovante de endereço',cat:'comprovante'}};
 async function fase1Read(file){
   const isXls = /\.xlsx?$/i.test(file.name);
   let f = {}, text = '', erro = null;
@@ -4673,9 +4699,14 @@ async function fase1Read(file){
       text = wb.SheetNames.map(n=>XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n'); f = docsExtract(text); f.multiplas = extractMultiPessoas(text);
     } else { f = await docsRead(file); text = f._texto||''; }
   }catch(e){ erro = e.message||String(e); }
-  const tipo = fase1Tipo(file.name, text);
+  let tipo = fase1Tipo(file.name, text), viaIA = false;
+  if(!isXls && !(f.multiplas && f.multiplas.length>1) && (!f.nome || !f.cpf || tipo.cat==='documento')){
+    try{ const ai = await fase1AI(file);
+      if(ai){ viaIA = true; if(ai.nome) f.nome = ai.nome; if(ai.cpf && validCPF(ai.cpf)) f.cpf = fmtCPF(ai.cpf); if(ai.data_nascimento) f.data_nascimento = ai.data_nascimento; if(ai.telefone) f.telefone = ai.telefone; if(F1_TIPO_IA[ai.tipo]) tipo = F1_TIPO_IA[ai.tipo]; }
+    }catch(e){ if(!erro) erro = null; console.warn('IA documento:', e.message||e); }
+  }
   const pessoas = (f.multiplas && f.multiplas.length>1) ? f.multiplas.map(c=>({nome:c.nome||'', cpf:c.cpf||''})) : [{nome:f.nome||'', cpf:f.cpf||'', telefone:f.telefone||'', nasc:f.data_nascimento||''}];
-  return {file, tipo, pessoas, erro, multi:pessoas.length>1};
+  return {file, tipo, pessoas, erro, multi:pessoas.length>1, viaIA};
 }
 async function caFase1(files){
   files = files.filter(f=>f && f.name); if(!files.length) return;
