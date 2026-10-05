@@ -1504,7 +1504,7 @@ async function pvApolices(p){
   const covDetRowsAll = [];
   rows.forEach(a=>(a.coberturas_detalhe||[]).forEach(c=> covDetRowsAll.push({...c, apolice:a.tipo_seguro, seguradora:a.seguradora})));
   host.innerHTML = `<div class="ql">Apólices do cliente (${rows.length})</div>
-    ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Seguradora</th><th>Vigência</th><th>Prêmio</th><th>Origem / vínculo</th><th>Status</th><th>Documento</th><th></th></tr></thead><tbody>${rows.map(a=>{ const d = daysTo(a.data_vencimento); return `<tr><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${escapeHtml(a.seguradora||'—')}</td><td>${fmtDate(a.data_emissao)||'—'} → <b>${fmtDate(a.data_vencimento)||'—'}</b>${d!==null&&d>=0&&d<=60?` <span class="tagx warn">${d}d</span>`:''}</td><td>${fmtMoney(a.valor_premio)}</td><td>${escapeHtml(CA_ORIGENS[a.origem_apolice]||a.origem_apolice||'—')} · ${escapeHtml(a.vinculo_comercial||'—')}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td>${a.arquivo_apolice?`<a href="#" data-viewdoc="${escapeHtml(a.arquivo_apolice)}">📎 abrir</a>`:'—'}</td><td><a href="#" data-editapo="${a.id}">✏️ editar</a></td></tr>`; }).join('')}</tbody></table>`:'<div class="hint">Nenhuma apólice vinculada. Use “Anexar apólice” no topo ou a Central de Apólices.</div>'}
+    ${rows.length?`<table class="ca-table"><thead><tr><th>Produto</th><th>Seguradora</th><th>Vigência</th><th>Prêmio</th><th>Origem / vínculo</th><th>Status</th><th>Documento</th><th></th></tr></thead><tbody>${rows.map(a=>{ const d = daysTo(a.data_vencimento); return `<tr><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${escapeHtml(a.seguradora||'—')}</td><td>${fmtDate(a.data_emissao)||'—'} → <b>${fmtDate(a.data_vencimento)||'—'}</b>${d!==null&&d>=0&&d<=60?` <span class="tagx warn">${d}d</span>`:''}</td><td>${fmtMoney(a.valor_premio)}</td><td>${escapeHtml(CA_ORIGENS[a.origem_apolice]||a.origem_apolice||'—')} · ${escapeHtml(a.vinculo_comercial||'—')}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td>${a.arquivo_apolice?`<a href="#" data-viewdoc="${escapeHtml(a.arquivo_apolice)}">📎 Ver documento</a>`:`<a href="#" data-attachapo="${a.id}">＋ Anexar documento</a>`}</td><td><a href="#" data-editapo="${a.id}">✏️ editar</a></td></tr>`; }).join('')}</tbody></table>`:'<div class="hint">Nenhuma apólice vinculada. Use “Anexar apólice” no topo ou a Central de Apólices.</div>'}
     ${covDetRowsAll.length?(()=>{ const tot = covDetTotal(covDetRowsAll); return `<div class="ql" style="margin-top:12px">Coberturas conforme os documentos</div>
     <table class="ca-table"><thead><tr><th>Cobertura</th><th>Capital Segurado (R$)</th><th>Prêmio Mensal (R$)</th><th>Apólice</th><th>Observação</th></tr></thead><tbody>${covDetRowsAll.map(c=>`<tr><td>${escapeHtml(c.nome||'—')}</td><td>${fmtMoney(c.capital)}</td><td>${fmtMoney(c.premio)}</td><td>${escapeHtml(c.apolice||'—')}${c.seguradora?' · '+escapeHtml(c.seguradora):''}</td><td>${escapeHtml(c.obs||'')}</td></tr>`).join('')}
     <tr style="font-weight:700;background:#f6f7fc"><td>Total</td><td>${fmtMoney(tot.capital)}</td><td>${fmtMoney(tot.premio)}</td><td></td><td></td></tr></tbody></table>`; })():''}
@@ -1513,14 +1513,34 @@ async function pvApolices(p){
     ${cap?`<div class="hint">Capital de vida já segurado: <b>${fmtMoney(cap)}</b></div>`:''}`;
   host.querySelectorAll('[data-viewdoc]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(a.dataset.viewdoc),'_blank'); }catch(x){ showToast('Erro ao abrir documento: '+x.message); } }));
   host.querySelectorAll('[data-editapo]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault(); caEdit(a.dataset.editapo, ()=>pvApolices(p)); }));
+  host.querySelectorAll('[data-attachapo]').forEach(a=>a.addEventListener('click', ev=>{ ev.preventDefault();
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.pdf,image/*';
+    inp.addEventListener('change', async ()=>{ const file = inp.files[0]; if(!file) return;
+      try{ const path = await docsUpload(file, 'apolices');
+        const { error } = await sb.from('crm_apolices').update({arquivo_apolice:path}).eq('id', a.dataset.attachapo); if(error) throw error;
+        await sb.from('crm_documentos').insert({pessoa_id:p.id, apolice_id:a.dataset.attachapo, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size, enviado_por:curUserName()});
+        OP.dirty = true; showToast('Documento anexado'); pvApolices(p); pvDocumentos(p);
+      }catch(x){ showToast('Erro ao anexar: '+x.message); } });
+    inp.click(); }));
 }
 async function pvDocumentos(p){
   const host = document.getElementById('pp-docs'); if(!host) return;
   const { data } = await sb.from('crm_documentos').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false});
   const rows = data||[];
   host.innerHTML = `<div class="ql">Documentos anexados (${rows.length})</div>
-    ${rows.length?`<table class="ca-table"><thead><tr><th>Documento</th><th>Categoria</th><th>Incluído em</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td>${escapeHtml(d.nome_arquivo||'—')}</td><td>${escapeHtml(d.categoria||'—')}</td><td>${fmtDate(d.created_at)}</td><td>${d.path?`<a href="#" data-viewdoc="${escapeHtml(d.path)}">📎 abrir</a>`:'—'}</td></tr>`).join('')}</tbody></table>`:'<div class="hint">Nenhum documento anexado ainda.</div>'}`;
+    ${rows.length?`<table class="ca-table"><thead><tr><th>Documento</th><th>Tipo</th><th>Data</th><th>Enviado por</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td>${escapeHtml(d.nome_arquivo||'—')}</td><td>${escapeHtml((d.dados_extraidos&&d.dados_extraidos.tipo)||d.categoria||'—')}</td><td>${fmtDate(d.created_at)}</td><td>${escapeHtml(d.enviado_por||'—')}</td><td style="white-space:nowrap">${d.path?`<a href="#" data-viewdoc="${escapeHtml(d.path)}">Visualizar</a> · <a href="#" data-dldoc="${d.id}">Baixar</a> · `:''}<a href="#" data-deldoc="${d.id}" style="color:var(--red)">Excluir</a></td></tr>`).join('')}</tbody></table>`:'<div class="hint">Nenhum documento anexado ainda.</div>'}`;
+  const byId = new Map(rows.map(d=>[d.id,d]));
   host.querySelectorAll('[data-viewdoc]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault(); try{ window.open(await docsSignedUrl(a.dataset.viewdoc),'_blank'); }catch(x){ showToast('Erro ao abrir documento: '+x.message); } }));
+  host.querySelectorAll('[data-dldoc]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault(); const d = byId.get(a.dataset.dldoc);
+    try{ const { data: s, error } = await sb.storage.from('crm-docs').createSignedUrl(d.path, 3600, {download: d.nome_arquivo||true}); if(error) throw error; const l = document.createElement('a'); l.href = s.signedUrl; l.click(); }catch(x){ showToast('Erro ao baixar: '+x.message); } }));
+  host.querySelectorAll('[data-deldoc]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault(); const d = byId.get(a.dataset.deldoc);
+    if(!confirm(`Excluir o documento "${d.nome_arquivo||''}"? Esta ação não pode ser desfeita.`)) return;
+    try{
+      if(d.apolice_id && d.path){ await sb.from('crm_apolices').update({arquivo_apolice:null}).eq('id', d.apolice_id).eq('arquivo_apolice', d.path); }
+      const { error } = await sb.from('crm_documentos').delete().eq('id', d.id); if(error) throw error;
+      if(d.path) await sb.storage.from('crm-docs').remove([d.path]);
+      OP.dirty = true; showToast('Documento excluído'); pvDocumentos(p); pvApolices(p);
+    }catch(x){ showToast('Erro ao excluir: '+x.message); } }));
 }
 
 // ---- ditado por voz em qualquer campo de texto ----
@@ -3694,7 +3714,7 @@ async function ncRegisterDocs(pessoaId){
     try{
       let path = it.path; const novo = 'clientes/'+pessoaId+'/'+path.split('/').pop();
       if(path!==novo){ const mv = await sb.storage.from('crm-docs').move(path, novo); if(!mv.error) path = novo; }
-      await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:'cadastro', nome_arquivo:it.file.name, path, mime:it.file.type, tamanho:it.file.size, dados_extraidos:it.dados||null});
+      await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:pessoaId, categoria:'cadastro', nome_arquivo:it.file.name, path, mime:it.file.type, tamanho:it.file.size, dados_extraidos:it.dados||null});
       it.path = path; it.registered = true;
     }catch(e){ console.warn(e); }
   }
@@ -3899,7 +3919,7 @@ async function caLoteDialog(){
                 const part = await split(groups.get(dOnly(a.crm_pessoas.cpf)), `Certificado ${a.crm_pessoas.nome} - ${a.seguradora||''}.pdf`);
                 const path = await docsUpload(part, 'apolices');
                 const { error } = await sb.from('crm_apolices').update({arquivo_apolice:path}).eq('id', a.id); if(error) throw error;
-                await sb.from('crm_documentos').insert({pessoa_id:a.pessoa_id, apolice_id:a.id, categoria:'apolice', nome_arquivo:part.name, path, mime:'application/pdf', tamanho:part.size});
+                await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:a.pessoa_id, apolice_id:a.id, categoria:'apolice', nome_arquivo:part.name, path, mime:'application/pdf', tamanho:part.size});
                 ok++;
               }catch(e){ console.warn('lote', a.id, e); falhas++; }
             }
@@ -3953,7 +3973,7 @@ async function caLoteIndividuais(files, out){
             try{
               const path = await docsUpload(j.y.f, 'apolices');
               if(j.cat==='apolice'){ const { error } = await sb.from('crm_apolices').update({arquivo_apolice:path}).eq('id', j.ap.id); if(error) throw error; }
-              await sb.from('crm_documentos').insert({pessoa_id:x.pessoa.id, apolice_id:j.ap.id, categoria:j.cat, nome_arquivo:j.y.f.name, path, mime:'application/pdf', tamanho:j.y.f.size});
+              await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:x.pessoa.id, apolice_id:j.ap.id, categoria:j.cat, nome_arquivo:j.y.f.name, path, mime:'application/pdf', tamanho:j.y.f.size});
               ok++;
             }catch(e){ console.warn('lote ind', j.y.f.name, e); falhas++; }
           }
@@ -3979,7 +3999,7 @@ function caDocBoxBind(box, r){
       const path = await docsUpload(file, 'apolices');
       const { error } = await sb.from('crm_apolices').update({arquivo_apolice:path}).eq('id', r.id);
       if(error) throw error;
-      await sb.from('crm_documentos').insert({pessoa_id:r.pessoa_id, apolice_id:r.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+      await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:r.pessoa_id, apolice_id:r.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
       r.arquivo_apolice = path; OP.dirty = true;
       showToast('Documento anexado'); redraw();
     }catch(x){ showToast('Erro ao anexar: '+x.message); }
@@ -4259,7 +4279,7 @@ async function caFase1(files){
           }
           try{
             const path = await docsUpload(up, 'documentos');
-            const { error } = await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:d.tipo.cat, nome_arquivo:up.name, path, mime:up.type||null, tamanho:up.size, dados_extraidos:{tipo:d.tipo.l, nome:g.nome||null, cpf:g.cpf||null, origem:'upload_fase1'}});
+            const { error } = await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:pessoaId, categoria:d.tipo.cat, nome_arquivo:up.name, path, mime:up.type||null, tamanho:up.size, dados_extraidos:{tipo:d.tipo.l, nome:g.nome||null, cpf:g.cpf||null, origem:'upload_fase1'}});
             if(error) throw error; nDocs++;
           }catch(e){ console.warn('fase1 doc', e); falhas++; }
         }
@@ -4472,14 +4492,14 @@ async function caSave(file, f){
         renda_mensal:adnPre.renda_mensal??null, gastos_mensais:adnPre.gastos_mensais??null, patrimonio_bruto:adnPre.patrimonio_bruto??null, patrimonio_financeiro:adnPre.patrimonio_financeiro??null,
         altura_cm:adnPre.altura_cm??null, peso_kg:adnPre.peso_kg??null, dependentes_qtd:adnPre.dependentes_qtd??null, fumante:adnPre.fumante??null }).select('id').single();
       if(error) throw error;
-      await sb.from('crm_documentos').insert({pessoa_id:pessoaId, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+      await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:pessoaId, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
       // também registra como apólice do cliente (proteção atual), pra aparecer em "Apólices do cliente"
       // e entrar automaticamente na soma do Novo Estudo — sem contar como venda (vínculo ≠ CallMed).
       if(pessoaId){
         const { data: ap2 } = await sb.from('crm_apolices').insert({ pessoa_id:pessoaId, numero_apolice:g('ca-num')||null, seguradora:g('ca-seg'), tipo_seguro:g('ca-prod'),
           data_emissao:g('ca-ini')||null, data_vencimento:g('ca-fim')||null, valor_premio:num('ca-prem'), valor_cobertura:capTotal, status:'ativa',
           arquivo_apolice:path, origem_apolice:tipo, coberturas:covs, coberturas_valores:covVals, dados_extraidos:f, vinculo_comercial:g('ca-vinc')||'Outra corretora', observacoes:g('ca-obs')||null }).select('id').single();
-        if(ap2) await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap2.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+        if(ap2) await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:pessoaId, apolice_id:ap2.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
       }
       window._dlgOnClose = null; dlgClose(); showToast('Apólice registrada e enviada para o Estudo');
       caQueue = [];
@@ -4491,7 +4511,7 @@ async function caSave(file, f){
       observacoes:g('ca-obs')||null, arquivo_apolice:path, origem_apolice:tipo, tipo_contratacao:g('ca-contr'), comissao_pct:num('ca-com'), forma_pagamento:g('ca-pag')||null,
       corretor_origem:g('ca-vend')||null, coberturas:covs, coberturas_valores:covVals, dados_extraidos:f, vinculo_comercial:g('ca-vinc'), tipo_movimento:g('ca-mov'), tomador:g('ca-tom')||null, beneficiarios:g('ca-benef')||null }).select('id').single();
     if(error) throw error;
-    await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+    await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
     OP.dirty = true; CA.loaded = false;
     window._dlgOnClose = null; dlgClose(); showToast(sel==='novo' ? 'Apólice salva e novo cliente cadastrado' : 'Apólice associada ao cliente');
     if(caQueue.length) caNext(); else { const fx = window._caFixed; window._caFixed = null; if(fx) goToPersonView(fx.id); else renderCentral(true); }
@@ -4567,7 +4587,7 @@ async function caSaveApolices(file, f, rows, box){
         arquivo_apolice:path, origem_apolice:tipo, coberturas:covs, coberturas_valores:covVals, coberturas_detalhe:covDet.length?covDet:null, dados_extraidos:rows[i], vinculo_comercial:vinc,
         observacoes:`Lido junto com outra(s) apólice(s) no mesmo documento "${file.name}".` }).select('id').single();
       if(error) throw error;
-      await sb.from('crm_documentos').insert({pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+      await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:pessoaId, apolice_id:ap.id, categoria:'apolice', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
       ok++;
     }
     OP.dirty = true; CA.loaded = false;
@@ -4853,7 +4873,7 @@ async function esCreate(file, person){
       renda_mensal:adnPre.renda_mensal??null, gastos_mensais:adnPre.gastos_mensais??null, patrimonio_bruto:adnPre.patrimonio_bruto??null, patrimonio_financeiro:adnPre.patrimonio_financeiro??null,
       altura_cm:adnPre.altura_cm??null, peso_kg:adnPre.peso_kg??null, dependentes_qtd:adnPre.dependentes_qtd??null, fumante:adnPre.fumante??null }).select('id').single();
     if(error) throw error;
-    if(path) await sb.from('crm_documentos').insert({pessoa_id: strong?strong.id:null, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
+    if(path) await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id: strong?strong.id:null, categoria:'estudo', nome_arquivo:file.name, path, mime:file.type, tamanho:file.size});
     dlgClose(); showEstudoView(strong?strong.id:null, data.id);
     showToast(strong ? 'Estudo criado e vinculado a '+strong.nome : 'Estudo criado — vincule ou cadastre o cliente');
   }catch(e){ box.querySelector('.dlg-body').innerHTML = '<div class="om-err">Erro: '+escapeHtml(e.message||e)+'</div>'; }
