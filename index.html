@@ -1674,7 +1674,14 @@ async function pvFase4(p){
   const ordIx = c=>{ const i = F3_ORD.indexOf(c); return i<0?99:i; };
   const sel = n=> rows.filter(r=>r['s'+n]).slice().sort((a,b)=>ordIx(a.cat)-ordIx(b.cat));
   const sumCap = l=>l.reduce((t,r)=>t+(Number(r.cap)||0),0), sumPrem = l=>l.reduce((t,r)=>t+(Number(r.prem)||0),0);
-  const autoMarcar = ()=>{ ANL_CATS.forEach(cat=>{ const rs = rows.filter(r=>r.cat===cat); if(rs.length!==1) return; const r = rs[0]; if(r.s1||r.s2) return; r.s1 = true; if(F4_MIN.includes(cat)) r.s2 = true; }); };
+  const autoMarcar = ()=>{ ANL_CATS.forEach(cat=>{ const rs = rows.filter(r=>r.cat===cat); if(!rs.length || rs.some(r=>r.s1||r.s2)) return;
+    let r = null, nota = '';
+    if(rs.length===1) r = rs[0];
+    else { // várias cotações da mesma cobertura: sugere a de menor prêmio por R$ 1.000 de capital (melhor custo-benefício); a usuária confere e ajusta
+      const ok = rs.filter(x=>Number(x.cap)>0 && Number(x.prem)>0).map(x=>({x, c:Number(x.prem)/Number(x.cap)*1000})).sort((p,q)=>p.c-q.c);
+      if(ok.length<2) return; if(ok[1].c-ok[0].c < 1e-9) return; // empate: não decide sozinho
+      r = ok[0].x; if(!r.motivo) r.motivo = 'Melhor custo-benefício entre '+ok.length+' cotações (R$ '+ok[0].c.toFixed(2).replace('.',',')+' de prêmio por R$ 1.000 de capital)'; }
+    r.s1 = true; if(F4_MIN.includes(cat)) r.s2 = true; }); };
   const autoSubst = ()=>{ if(!apol.length) return; rows.forEach(r=>{ if(r.subst) return; const ix = apol.map((a,i)=>a.cat===r.cat?i+1:0).filter(Boolean); if(ix.length) r.subst = ix.join(','); }); };
   let tmr = null;
   const persist = async ()=>{ const { error } = await sb.from('crm_cotacoes_estudo').upsert({pessoa_id:p.id, linhas:rows, sol_sub:solSub, atualizado_por:curUserName(), atualizado_em:new Date().toISOString()}, {onConflict:'pessoa_id'}); if(error) showToast('Erro ao salvar cotações: '+error.message); };
@@ -1734,7 +1741,7 @@ async function pvFase4(p){
       let nomeArq = file ? file.name : '';
       if(file){ try{ const path = await docsUpload(file, 'cotacoes'); await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:p.id, categoria:'cotacao', nome_arquivo:file.name, path, mime:file.type||null, tamanho:file.size, dados_extraidos:{tipo:'Cotação', seguradora:draft.seg||null, validade:draft.validade||null, origem:'fase4'}}); pvDocumentos(p); }catch(x){ av.push('Não consegui salvar o arquivo: '+x.message); } }
       const novas = ls.map(l=>{ const prem = l.prem===''?'':(draft.period==='Anual'?Math.round(Number(l.prem)/12*100)/100:Number(l.prem)); return {...f4Blank(), cat:l.cat, seg:draft.seg, cob:l.cob, cap:l.cap, prem, prazo:l.prazo, nota:l.nota, arq:nomeArq}; });
-      rows = rows.concat(novas); autoMarcar(); autoSubst(); avisos = av; resumo = `${novas.length} linha(s) adicionadas à tabela. Os produtos únicos de cada cobertura já vieram marcados (Solução 1 e, nos mínimos, Solução 2): confira e ajuste.`;
+      rows = rows.concat(novas); autoMarcar(); autoSubst(); avisos = av; resumo = `${novas.length} linha(s) adicionadas à tabela. Cada cobertura já veio marcada (Solução 1 e, nos mínimos, Solução 2): produto único, ou o de melhor custo-benefício quando há várias cotações. Confira e ajuste.`;
       await persist(); draw(); });
   };
   autoSubst(); draw();
