@@ -1431,7 +1431,7 @@ function pvEditAtividade(p, a){
 
 // ---- PROTEÇÃO (oportunidades, apólices, estudos, diagnóstico) ----
 async function pvProtecao(body, p){
-  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="es-box" id="pp-docs"></div><div class="es-box" id="pp-analise"></div><div class="es-box" id="pp-fase3"></div><div class="es-box" id="pp-fase4"></div><div class="es-box" id="pp-fase5"></div><div class="block" id="estudos-block"></div><div class="es-box" id="pp-diag"></div>`;
+  body.innerHTML = `<div class="es-box" id="pp-opps"></div><div class="es-box" id="pp-apo"></div><div class="es-box" id="pp-docs"></div><div class="es-box" id="pp-analise"></div><div class="es-box" id="pp-diag"></div><div class="es-box" id="pp-fase3"></div><div class="es-box" id="pp-fase4"></div><div class="es-box" id="pp-fase5"></div><div class="block" id="estudos-block"></div>`;
   pvOportunidades(p); pvApolices(p); pvDocumentos(p); pvAnalise(p); pvFase3(p); pvFase4(p); pvFase5(p); renderPessoaEstudos(p); pvDiagnostico(p);
 }
 // ============ FASE 4 · COTAÇÕES E PLANO NOVO (leitura manual por enquanto) ============
@@ -1515,9 +1515,9 @@ function f5Faltas(m, X){
   const f = [], c = X.cli, sel = n=>X.cot.filter(r=>r['s'+n]);
   if(!c.nome) f.push({t:'Nome do cliente', go:'pp-diag'});
   if(m==='luiz'){ if(!c.nasc) f.push({t:'Data de nascimento', go:'pp-diag'}); if(!(c.padrao>0)) f.push({t:'Padrão de vida mensal (renda, gastos ou renda desejada)', go:'pp-diag', core:true}); if(!(c.pat>0)) f.push({t:'Patrimônio bruto', go:'pp-diag'});
-    if(!sel(1).length) f.push({t:'Cotações marcadas na Solução 1 (Fase 4)', go:'pp-fase4', core:true}); if(!sel(2).length) f.push({t:'Cotações marcadas na Solução 2 (Fase 4)', go:'pp-fase4', core:true}); }
+    if(!sel(1).length) f.push({t:'Cotações marcadas na Solução 1 (Fase 5)', go:'pp-fase4', core:true}); if(!sel(2).length) f.push({t:'Cotações marcadas na Solução 2 (Fase 5)', go:'pp-fase4', core:true}); }
   else { if(!c.nasc) f.push({t:'Data de nascimento', go:'pp-diag'}); if(!c.prof) f.push({t:'Profissão', go:'pp-diag'}); if(!c.segAtual) f.push({t:'Proteção atual (seguradora)', go:'pp-analise'});
-    if(!X.hasPol) f.push({t:'Apólices lançadas e confirmadas (Fase 2)', go:'pp-analise', core:true}); if(!sel(X.solSub).length) f.push({t:'Cotações marcadas na Solução '+X.solSub+' (Fase 4)', go:'pp-fase4', core:true}); }
+    if(!X.hasPol) f.push({t:'Apólices lançadas e confirmadas (Fase 2)', go:'pp-analise', core:true}); if(!sel(X.solSub).length) f.push({t:'Cotações marcadas na Solução '+X.solSub+' (Fase 5)', go:'pp-fase4', core:true}); }
   return f;
 }
 // ---- cálculos e blocos do modelo "não possui proteção" ----
@@ -1574,7 +1574,7 @@ function f5Deck(m, X, opt){
       </div></div>`);
     // 2 · sugestões
     const descSug = (r,n)=> r.cat==='Morte' ? (n===1?(c.deps.length?'Garante a escola dos filhos até a idade-limite e o custo de inventário.':'Garante o custo de inventário e o padrão de vida da família.'):'O mínimo para a família: custo de inventário mais 1 a 2 anos do seu padrão de vida.') : r.cat==='Invalidez' ? ((r.prazo?r.prazo+'. ':'')+'Se aplicado a '+p.taxaInv+'%, vira renda fixa que mantém o padrão de vida.') : (r.nota||'Cobertura incluída nesta solução.');
-    const side = (n,title,sub,cls)=>{ const l = sel(n); return `<div><div class="dk-ch ${cls}"><b>${title}</b><small>${sub}</small></div>${l.length?l.map(r=>{ const tag = r.cat===c.pref?'p':(F5_GR[r.cat]==='c'?'c':''); return `<div class="dk-it ${tag==='p'?'pr':tag==='c'?'cp':''}"><div class="t">${tag?`<em>${tag==='p'?'SUA PRIORIDADE':'COMPLEMENTAR'}</em>`:''}<b>${nomeCat(r)}</b><span>${esc(descSug(r,n))}</span></div><div class="c"><small>CAPITAL SEGURADO</small><b>${capTxt(r)}</b>${capSub(r)?`<small>${esc(capSub(r))}</small>`:''}</div></div>`; }).join(''):'<div class="dk-it"><div class="t"><span>Nenhuma cobertura marcada nesta solução (Fase 4).</span></div></div>'}</div>`; };
+    const side = (n,title,sub,cls)=>{ const l = sel(n); return `<div><div class="dk-ch ${cls}"><b>${title}</b><small>${sub}</small></div>${l.length?l.map(r=>{ const tag = r.cat===c.pref?'p':(F5_GR[r.cat]==='c'?'c':''); return `<div class="dk-it ${tag==='p'?'pr':tag==='c'?'cp':''}"><div class="t">${tag?`<em>${tag==='p'?'SUA PRIORIDADE':'COMPLEMENTAR'}</em>`:''}<b>${nomeCat(r)}</b><span>${esc(descSug(r,n))}</span></div><div class="c"><small>CAPITAL SEGURADO</small><b>${capTxt(r)}</b>${capSub(r)?`<small>${esc(capSub(r))}</small>`:''}</div></div>`; }).join(''):'<div class="dk-it"><div class="t"><span>Nenhuma cobertura marcada nesta solução (Fase 5).</span></div></div>'}</div>`; };
     const c1 = new Set(sel(1).map(r=>r.cat)), c2 = new Set(sel(2).map(r=>r.cat)), fora = [...c1].filter(k=>!c2.has(k)).map(k=>F5_NOME[k].replace(/ \(.*/,'').replace(/ ·.*/,''));
     const foraT = fora.length>1 ? fora.slice(0,-1).join(', ')+' e '+fora[fora.length-1] : (fora[0]||'');
     page('Sugestões de proteção','Duas soluções · uma mais completa e uma com o mínimo que você precisa ter',
@@ -1589,10 +1589,10 @@ function f5Deck(m, X, opt){
       `<div class="dk-an"><div><div class="chip">UM BEM MATERIAL</div><h3>Carro popular</h3><p>Valor do bem: ${f0(carro)}</p>${carSvg}${bx('#f7f1ea','#667453','SEGURO DO CARRO · '+taxa+'% AO ANO',f0(carro)+' × '+taxa+'%',carro*tx,'#4f5940')}</div>
         <div><div class="chip">UMA VIDA</div><h3>Você e a sua família</h3><p>Valor protegido: a soma dos capitais segurados de cada solução</p>${famSvg}<div style="display:flex;gap:3mm">${[['SOLUÇÃO 1 · MAIS COMPLETA',s1],['SOLUÇÃO 2 · A NECESSÁRIA',s2]].map(a=>`<div style="flex:1">${bx('#fbeee7','#b45630',a[0],fm(a[1])+' × '+taxa+'%',a[1]*tx,'#b45630')}</div>`).join('')}</div></div></div>`);
     // 4 · proposta
-    const col4 = (l,title,cls)=>`<div><div class="dk-ch ${cls}"><b>${title}</b></div>${l.length?l.map(r=>`<div class="dk-it"><div class="t"><b>${nomeCat(r)}</b></div><div class="c"><b>${capTxt(r)}</b>${capSub(r)?`<small>${esc(capSub(r))}</small>`:''}</div></div>`).join(''):'<div class="dk-it"><div class="t"><span>Nenhuma cobertura marcada (Fase 4).</span></div></div>'}<div class="dk-sum ${cls}"><div><small>SOMA DOS CAPITAIS SEGURADOS</small></div><b>${fm(sumCap(l))}</b></div><div class="dk-inv"><small>INVESTIMENTO MENSAL</small><b>${fm(sumPrem(l))}</b><span> /mês</span></div></div>`;
+    const col4 = (l,title,cls)=>`<div><div class="dk-ch ${cls}"><b>${title}</b></div>${l.length?l.map(r=>`<div class="dk-it"><div class="t"><b>${nomeCat(r)}</b></div><div class="c"><b>${capTxt(r)}</b>${capSub(r)?`<small>${esc(capSub(r))}</small>`:''}</div></div>`).join(''):'<div class="dk-it"><div class="t"><span>Nenhuma cobertura marcada (Fase 5).</span></div></div>'}<div class="dk-sum ${cls}"><div><small>SOMA DOS CAPITAIS SEGURADOS</small></div><b>${fm(sumCap(l))}</b></div><div class="dk-inv"><small>INVESTIMENTO MENSAL</small><b>${fm(sumPrem(l))}</b><span> /mês</span></div></div>`;
     page('Proposta','As duas soluções e o investimento mensal de cada uma',`<div class="dk-g2">${col4(sel(1),'SOLUÇÃO 1 · MAIS COMPLETA','dk-gd')}${col4(sel(2),'SOLUÇÃO 2 · A NECESSÁRIA','dk-gp')}</div>`);
     // 5 · detalhamento
-    const det = (n,title,cls)=>{ const l = sel(n); return `<div><div class="dk-ch ${cls}"><b>${title}</b></div><table class="dk-t"><thead><tr><th>COBERTURA</th><th class="r">CAPITAL SEGURADO</th><th class="r">PRÊMIO MENSAL</th><th>SEGURADORA</th></tr></thead><tbody>${l.length?l.map(r=>`<tr><td><b>${nomeCat(r)}</b>${r.sub?`<div style="font-size:6pt;color:#6b6b66">${esc(r.sub)}</div>`:''}</td><td class="r"><b>${capTxt(r)}</b>${capSub(r)?`<div style="font-size:5.8pt;color:#6b6b66">${esc(capSub(r))}</div>`:''}</td><td class="r"><b style="color:#6f4f12">${fm(r.prem)}</b></td><td>${esc(r.seg||'')}</td></tr>`).join(''):'<tr><td colspan="4">Nenhuma cobertura marcada (Fase 4).</td></tr>'}<tr class="tot"><td>TOTAL</td><td class="r">${fm(sumCap(l))}</td><td class="r">${fm(sumPrem(l))}</td><td></td></tr></tbody></table></div>`; };
+    const det = (n,title,cls)=>{ const l = sel(n); return `<div><div class="dk-ch ${cls}"><b>${title}</b></div><table class="dk-t"><thead><tr><th>COBERTURA</th><th class="r">CAPITAL SEGURADO</th><th class="r">PRÊMIO MENSAL</th><th>SEGURADORA</th></tr></thead><tbody>${l.length?l.map(r=>`<tr><td><b>${nomeCat(r)}</b>${r.sub?`<div style="font-size:6pt;color:#6b6b66">${esc(r.sub)}</div>`:''}</td><td class="r"><b>${capTxt(r)}</b>${capSub(r)?`<div style="font-size:5.8pt;color:#6b6b66">${esc(capSub(r))}</div>`:''}</td><td class="r"><b style="color:#6f4f12">${fm(r.prem)}</b></td><td>${esc(r.seg||'')}</td></tr>`).join(''):'<tr><td colspan="4">Nenhuma cobertura marcada (Fase 5).</td></tr>'}<tr class="tot"><td>TOTAL</td><td class="r">${fm(sumCap(l))}</td><td class="r">${fm(sumPrem(l))}</td><td></td></tr></tbody></table></div>`; };
     page('Detalhamento das soluções','Página de apoio: coberturas, capital segurado, prêmio mensal e seguradora',`<div class="dk-g2">${det(1,'SOLUÇÃO 1 · MAIS COMPLETA','dk-gd')}${det(2,'SOLUÇÃO 2 · A NECESSÁRIA','dk-gp')}</div><p style="font-size:6.6pt;color:#6b6b66;margin-top:4mm">Prêmios mensais estimados conforme as cotações das seguradoras, sujeitos à análise de risco e à atualização anual. Os totais somam todas as coberturas, incluindo os valores por dia da diária e do DIT.</p>`);
   } else {
     const idade = f5Idade(c.nasc), hoje = new Date();
@@ -1622,7 +1622,7 @@ function f5Deck(m, X, opt){
       `<div class="dk-sec"><span>A nova proteção sugerida</span><small style="color:#6b6b66">Cada linha mostra o valor novo e, em cinza, o que você possui hoje</small></div>
        <table class="dk-t"><thead><tr><th>COBERTURA</th><th>SEGURADORA</th><th class="r">CAPITAL SEGURADO</th><th class="r">PRÊMIO MENSAL</th><th class="r">VIGÊNCIA</th><th>MELHORIAS</th></tr></thead><tbody>
        ${l.map(r=>{ const a = antes(r); if(a && a.rows.length>1) anyMulti = true; const mel = (r.motivo||melAuto(r,a)||'').trim(); const d = a?(Number(r.prem)||0)-a.prem:0;
-         return `<tr><td>${nomeCat(r)}</td><td><b>${esc(r.seg||'')}</b></td><td class="r"><b>${fm(r.cap)}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${fm(a.cap)}</div>`:''}</td><td class="r"><b>${fm(r.prem)}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${fm(a.prem)}</div><div style="font-size:6.4pt;font-weight:700;color:${d<0?'#4f5940':'#b45630'}">${d<0?'–':'+'}${fm(Math.abs(d))}/mês</div>`:''}</td><td class="r"><b>${esc(r.prazo||'')}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${esc(a.vig)}</div>`:''}</td><td style="background:#eaefe3;font-size:7.2pt">${esc(mel)}</td></tr>`; }).join('')||'<tr><td colspan="6">Nenhuma cobertura marcada para a proposta (Fase 4).</td></tr>'}
+         return `<tr><td>${nomeCat(r)}</td><td><b>${esc(r.seg||'')}</b></td><td class="r"><b>${fm(r.cap)}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${fm(a.cap)}</div>`:''}</td><td class="r"><b>${fm(r.prem)}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${fm(a.prem)}</div><div style="font-size:6.4pt;font-weight:700;color:${d<0?'#4f5940':'#b45630'}">${d<0?'–':'+'}${fm(Math.abs(d))}/mês</div>`:''}</td><td class="r"><b>${esc(r.prazo||'')}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${esc(a.vig)}</div>`:''}</td><td style="background:#eaefe3;font-size:7.2pt">${esc(mel)}</td></tr>`; }).join('')||'<tr><td colspan="6">Nenhuma cobertura marcada para a proposta (Fase 5).</td></tr>'}
        <tr class="tot"><td colspan="2">Total</td><td class="r">${fm(capN)}<div style="font-size:6.2pt;color:#6b6b66;font-weight:400">antes: ${fm(capH)}</div></td><td class="r">${fm(premN)}<div style="font-size:6.2pt;color:#6b6b66;font-weight:400">antes: ${fm(premH)}</div></td><td colspan="2" style="font-weight:400;font-size:7.4pt">Capital segurado ${sg(dc)}${fm(Math.abs(dc))} (${sg(pc)}${Math.abs(pc).toFixed(0)}%) · prêmio mensal ${sg(dp)}${fm(Math.abs(dp))} (${sg(pp)}${Math.abs(pp).toFixed(1)}%)</td></tr></tbody></table>
        ${anyMulti?'<p style="font-size:6.4pt;color:#6b6b66;margin:1mm 0">Nas coberturas unificadas, o valor "antes" é a soma das apólices atuais que passam a ser uma só. Os totais somam todas as coberturas, incluindo a diária hospitalar.</p>':''}
        <div class="dk-fin"><div><small>CAPITAL SEGURADO TOTAL</small><b>${fm(capN)}</b><i>hoje ${fm(capH)} · ${sg(pc)}${Math.abs(pc).toFixed(0)}%</i></div><div><small>PRÊMIO MENSAL TOTAL</small><b>${fm(premN)}</b><i>hoje ${fm(premH)} · ${sg(pp)}${Math.abs(pp).toFixed(1)}%</i></div>${msgs.map(x=>`<div class="g"><b>${esc(x[0])}</b><i>${esc(x[1])}</i></div>`).join('')}</div>`);
@@ -1634,29 +1634,51 @@ function f5Deck(m, X, opt){
   }
   return F5_CSS + `<div class="dk">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="dk-f"><b>AS Careful Corretora de Seguros</b><span>${i+1} / ${pages.length}</span></div>`)).join('')}</div>`;
 }
+// Baixa o PDF direto (sem janela de impressão): renderiza cada página do deck fora da tela, fotografa com html2canvas e monta o PDF A4 paisagem com jsPDF.
+async function f5DownloadPdf(html, nome){
+  await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-20000px;top:0;width:1123px;background:#fff'; box.innerHTML = html; document.body.appendChild(box);
+  try{
+    const pages = [...box.querySelectorAll('.dk-p')]; if(!pages.length) throw new Error('sem páginas');
+    const { jsPDF } = window.jspdf; const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
+    for(let i=0;i<pages.length;i++){
+      const c = await html2canvas(pages[i], {scale:2, useCORS:true, backgroundColor:'#ffffff'});
+      const k = Math.min(297/c.width, 210/c.height), w = c.width*k, hh = c.height*k;
+      if(i) pdf.addPage(); pdf.addImage(c.toDataURL('image/jpeg',0.92), 'JPEG', (297-w)/2, 0, w, hh);
+    }
+    pdf.save(nome);
+  } finally { box.remove(); }
+}
 async function pvFase5(p){
   const host = document.getElementById('pp-fase5'); if(!host) return;
   const opt = {carro:100000, taxaCarro:4}; let modeloEsc = 'auto';
   const draw = async ()=>{
-    host.innerHTML = '<div class="ql">Fase 5 · Gerar apresentação</div><div class="op-more">Verificando os dados…</div>';
+    host.innerHTML = '<div class="ql">Fase 6 · Gerar apresentação</div><div class="op-more">Verificando os dados…</div>';
     const X = await f5Context(p); const auto = X.hasPol?'fern':'luiz'; const m = modeloEsc==='auto'?auto:modeloEsc; const f = f5Faltas(m, X);
     const card = (k,t,s)=>`<button type="button" class="om-cancel" data-modelo="${k}" style="text-align:left;padding:10px 12px;flex:1;min-width:260px;${m===k?'border:2px solid var(--brand);background:var(--brand-soft)':''}"><b>${t}</b><br><small style="font-weight:400">${s}</small>${auto===k?'<br><small style="color:var(--brand)">Sugerido pelo sistema</small>':''}${m===k?'<br><small style="color:var(--green)"><b>Selecionado</b></small>':''}</button>`;
-    host.innerHTML = `<div class="ql">Fase 5 · Gerar apresentação <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— PDF no modelo do exemplo; o sistema sugere o modelo e você escolhe</small></div>
+    host.innerHTML = `<div class="ql">Fase 6 · Gerar apresentação <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— PDF no modelo do exemplo; o sistema sugere o modelo e você escolhe</small></div>
       <div class="hint" style="margin-bottom:8px">Cliente <b>sem apólice</b>: <b>Modelo não possui proteção (proposta)</b>, 5 páginas. Cliente <b>com apólice</b>: <b>Modelo já possui proteção (comparativo/melhoria)</b>, 3 páginas. Saúde, CPF e telefone não saem na apresentação.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">${card('luiz','Modelo não possui proteção (proposta)','Cliente sem apólice · proposta do zero · 5 páginas')}${card('fern','Modelo já possui proteção (comparativo/melhoria)','Cliente com apólice · comparativo e melhorias · 3 páginas')}</div>
       <div class="hint" style="margin-top:6px">${modeloEsc==='auto'?(X.hasPol?'Motivo da sugestão: há apólice lançada na Fase 2.':'Motivo da sugestão: nenhuma apólice lançada na Fase 2.'):'Escolhido por você. <a href="#" id="f5-auto">Voltar ao sugerido</a>'}</div>
       ${m==='luiz'?`<div class="fgrid" style="margin-top:8px;max-width:520px"><label class="fl"><span>Página "Proteger um bem ou uma vida?": valor do carro (R$)</span><input type="number" id="f5-carro" value="${opt.carro}"></label><label class="fl"><span>Taxa anual do seguro do carro (%)</span><input type="number" step="0.1" id="f5-taxa" value="${opt.taxaCarro}"></label></div>`:''}
       <div style="margin-top:10px">${f.length?`<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px"><b>Faltam dados para esta apresentação ficar completa:</b><ul style="margin:4px 0 0 18px">${f.map((x,i)=>`<li>${escapeHtml(x.t)} <a href="#" data-goto="${x.go}">ir para a tela certa</a></li>`).join('')}</ul></div>`:'<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px">Todos os dados necessários estão preenchidos.</div>'}</div>
-      <div style="margin-top:10px"><button class="om-save" id="f5-gerar">⬇ Baixar apresentação (PDF)</button> <small style="color:var(--ink-faint)">Abre a janela de impressão: escolha "Salvar como PDF" (papel A4, paisagem, sem margens).</small></div>`;
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="om-save" id="f5-baixar">⬇ Baixar PDF</button><button class="om-cancel" id="f5-gerar">🖨️ Imprimir ou salvar como PDF</button><span id="f5-st" style="font-size:12px;color:var(--ink-faint)">"Baixar PDF" gera o arquivo direto. "Imprimir" abre a janela do navegador (A4 paisagem, sem margens).</span></div>`;
     host.querySelectorAll('[data-modelo]').forEach(b=>b.addEventListener('click', ()=>{ modeloEsc = b.dataset.modelo; draw(); }));
     const au = host.querySelector('#f5-auto'); if(au) au.addEventListener('click', e=>{ e.preventDefault(); modeloEsc = 'auto'; draw(); });
     host.querySelectorAll('[data-goto]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); const el = document.getElementById(a.dataset.goto); if(el) el.scrollIntoView({behavior:'smooth'}); }));
     const ca = host.querySelector('#f5-carro'), ta = host.querySelector('#f5-taxa'); if(ca) ca.addEventListener('input', ()=>{ opt.carro = Number(ca.value)||0; }); if(ta) ta.addEventListener('input', ()=>{ opt.taxaCarro = Number(ta.value)||0; });
-    host.querySelector('#f5-gerar').addEventListener('click', ()=>{
+    const preparar = ()=>{
       const core = f.find(x=>x.core);
-      if(core){ showToast('Não dá para gerar ainda: '+core.t+'.'); const el = document.getElementById(core.go); if(el) el.scrollIntoView({behavior:'smooth'}); return; }
-      if(f.length && !confirm('Faltam alguns dados (ex.: '+f[0].t+'). Gerar a apresentação mesmo assim?')) return;
-      document.getElementById('print-report').innerHTML = f5Deck(m, X, opt); setTimeout(()=>window.print(), 150); });
+      if(core){ showToast('Não dá para gerar ainda: '+core.t+'.'); const el = document.getElementById(core.go); if(el) el.scrollIntoView({behavior:'smooth'}); return null; }
+      if(f.length && !confirm('Faltam alguns dados (ex.: '+f[0].t+'). Gerar a apresentação mesmo assim?')) return null;
+      return f5Deck(m, X, opt); };
+    host.querySelector('#f5-gerar').addEventListener('click', ()=>{ const html = preparar(); if(!html) return; document.getElementById('print-report').innerHTML = html; setTimeout(()=>window.print(), 150); });
+    host.querySelector('#f5-baixar').addEventListener('click', async ()=>{
+      const html = preparar(); if(!html) return; const st = host.querySelector('#f5-st'), btn = host.querySelector('#f5-baixar'); btn.disabled = true; st.textContent = '⏳ Gerando o PDF…';
+      try{ await f5DownloadPdf(html, 'Apresentacao_'+(X.cli.nome||'cliente').trim().replace(/[^\w]+/g,'_')+(m==='luiz'?'_Proposta':'_Comparativo')+'.pdf'); st.textContent = '✅ PDF baixado.'; }
+      catch(e){ st.textContent = '❌ Não consegui gerar o arquivo ('+(e.message||e)+'). Use "Imprimir ou salvar como PDF".'; }
+      btn.disabled = false; });
   };
   draw();
 }
@@ -1694,7 +1716,7 @@ async function pvFase4(p){
     e.innerHTML = col('Solução 1 · mais completa',a)+col('Solução 2 · a necessária',b)+(hp?`<div style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px"><b>Hoje (apólices atuais)</b><div class="hint">Soma dos capitais segurados</div><div style="font-size:18px;font-weight:700">${f0(hc)}</div><div style="margin-top:6px;font-size:12px;color:var(--ink-soft)">Prêmio mensal atual</div><div style="font-size:18px;font-weight:700">${fm(h)}</div></div>`:''); };
   const draw = ()=>{
     host.innerHTML = `<style>.f4-t input[type=text],.f4-t input[type=number],.f4-t input[type=date],.f4-t select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font:inherit}.f4-t input.unread{background:#fff3e0;border-color:#f0a24b}.f4-t td{padding:3px 4px}</style>
-      <div class="ql">Fase 4 · Cotações e plano novo <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— lance as cotações das seguradoras, marque em quais soluções entram e veja os totais</small></div>
+      <div class="ql">Fase 5 · Cotações e plano novo <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— lance as cotações das seguradoras, marque em quais soluções entram e veja os totais</small></div>
       <div class="hint" style="margin-bottom:8px">Escolha o PDF ou a foto e use <b>Ler a cotação com IA</b> (ou preencha as linhas à mão). Marque em <b>Sol. 1</b> (mais completa) e <b>Sol. 2</b> (a necessária). Se o cliente tem apólice, diga qual linha da Fase 2 cada cotação substitui.</div>
       <details ${rows.length?'':'open'} style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:600">＋ Nova cotação</summary>
         <div class="fgrid" style="margin-top:8px"><label class="fl"><span>Seguradora</span><input id="f4-seg" value="${escapeHtml(draft.seg)}"></label><label class="fl"><span>Prêmios do documento são</span><select id="f4-per"><option>Mensal</option><option>Anual</option></select></label><label class="fl"><span>Válida até</span><input type="date" id="f4-val"></label>
@@ -1772,13 +1794,13 @@ const F3_KEYS = {'Morte':['morte','sucessao'],'Invalidez':['ipa','invalidez_doen
 const F3_DIARIA = ['Diária de internação hospitalar','DIT'], F3_PRAZO = {'Morte':'vitalícia','Invalidez':'vitalícia','Assistência funeral':'vitalícia','Doenças Graves':'até 80 anos','Diária de internação hospitalar':'até 80 anos'};
 async function pvFase3(p){
   const host = document.getElementById('pp-fase3'); if(!host) return;
-  host.innerHTML = '<div class="ql">Fase 3 · Diagnóstico: o que você tem × o que você precisa</div><div class="op-more">Calculando…</div>';
+  host.innerHTML = '<div class="ql">Fase 4 · O que você tem × o que você precisa</div><div class="op-more">Calculando…</div>';
   const [P, { data: e }, { data: an }] = await Promise.all([ensureCalcParams(),
     sb.from('crm_estudos').select('*').eq('pessoa_id', p.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
     sb.from('crm_analise_apolices').select('*').eq('pessoa_id', p.id).maybeSingle()]);
-  const head = '<div class="ql">Fase 3 · Diagnóstico: o que você tem × o que você precisa</div>';
+  const head = '<div class="ql">Fase 4 · O que você tem × o que você precisa</div>';
   if(!e || !(Number(e.renda_mensal)>0 || Number(e.gastos_mensais)>0 || Number(e.renda_desejada_familia)>0)){
-    host.innerHTML = head + '<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px">Para calcular a necessidade, preencha os <b>dados do cliente</b> (renda, gastos, dependentes, patrimônio…) no <b>Diagnóstico de Proteção</b> abaixo e clique em salvar. O diagnóstico aparece aqui em seguida.</div>'; return; }
+    host.innerHTML = head + '<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px">Para calcular a necessidade, preencha os <b>dados do cliente</b> (renda, gastos, dependentes, patrimônio…) no <b>Diagnóstico de proteção</b> (Fase 3, logo acima) e clique em salvar. O diagnóstico aparece aqui em seguida.</div>'; return; }
   const ec = {...e, cliente_nome:e.cliente_nome||p.nome, coberturas_valores:{}, coberturas_atuais:[]};
   const calc = calcAnaliseCompleta(ec, P);
   const linhas = ((an&&an.linhas)||[]).filter(r=>ANL_CATS.includes(r.cat)); const temApolice = linhas.length>0;
@@ -1842,7 +1864,7 @@ async function pvAnalise(p){
   const totals = ()=>{ const c = rows.reduce((s,r)=>s+(Number(r.cap)||0),0), pr = rows.reduce((s,r)=>s+(Number(r.prem)||0),0);
     const a = document.getElementById('an-tc'), b = document.getElementById('an-tp'); if(a) a.textContent = fmt(c); if(b) b.textContent = fmt(pr); };
   const msg = ()=>{ const el = document.getElementById('an-msg'); if(!el) return;
-    el.innerHTML = confirmada ? `<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px"><b>Análise confirmada e salva no cadastro.</b> Siga para a Fase 3 · Diagnóstico. <button class="om-save" id="an-prox" style="margin-left:8px;padding:4px 10px;font-size:12px">Ir para a Fase 3 · Diagnóstico</button></div>` : (iniciada?'<div class="hint">Edições salvas automaticamente — falta <b>Confirmar análise</b>.</div>':'');
+    el.innerHTML = confirmada ? `<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px"><b>Análise confirmada e salva no cadastro.</b> Siga para a Fase 3 · Diagnóstico de proteção. <button class="om-save" id="an-prox" style="margin-left:8px;padding:4px 10px;font-size:12px">Ir para a Fase 3 · Diagnóstico de proteção</button></div>` : (iniciada?'<div class="hint">Edições salvas automaticamente — falta <b>Confirmar análise</b>.</div>':'');
     const b = document.getElementById('an-prox'); if(b) b.addEventListener('click', ()=>{ const d = document.getElementById('pp-diag'); if(d) d.scrollIntoView({behavior:'smooth'}); }); };
   const draw = ()=>{
     host.innerHTML = `<style>.an-t input,.an-t select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font:inherit}.an-t input.unread{background:#fff3e0;border-color:#f0a24b}.an-t td{padding:3px 4px}</style>
@@ -2050,7 +2072,6 @@ const PD = { objetivos:[], deps:[] };
 function pdAdnAvancadoHtml(row){
   const deps = row.dependentes_detalhe||[]; const qtd = row.dependentes!=null ? row.dependentes : deps.length;
   PD.deps = deps; PD.objetivos = row.outros_objetivos||[];
-  const modChecks = MODULOS_ADN.map(([k,l])=>`<label class="tgl"><input type="checkbox" class="pd-mod" data-k="${k}" ${((row.modulos_visiveis||{})[k]!==false)?'checked':''}><span class="tgl-track"><span class="tgl-thumb"></span></span><span class="tgl-lbl">${l}</span></label>`).join('');
   return `<div class="hint">Nº de dependentes vem do campo acima — aqui só o detalhe de cada um.</div>
     <div id="pd-dep-rows" style="margin-top:6px;display:flex;flex-direction:column;gap:4px">${adnDepRows(qtd, deps)}</div>
     <div id="pd-educ-total" class="hint" style="margin-top:4px"></div>
@@ -2082,8 +2103,7 @@ function pdAdnAvancadoHtml(row){
     <div class="ql" style="margin-top:14px">Outros objetivos (opcional)</div>
     <div id="pd-obj-rows" style="display:flex;flex-direction:column;gap:4px">${adnObjRows(row.outros_objetivos)}</div>
     <button type="button" class="om-cancel" id="pd-obj-add" style="margin-top:6px">＋ Adicionar objetivo</button>
-    <div class="ql" style="margin-top:14px">Módulos incluídos na Análise Completa</div>
-    <div class="tgl-grid">${modChecks}</div>`;
+`;
 }
 function pdRenderDeps(host){
   const qtdEl = host.querySelector('[data-dg="dependentes"]'); const qtd = qtdEl ? (parseInt(qtdEl.value,10)||0) : 0;
@@ -2113,7 +2133,7 @@ function pdCollectAvancado(host){
   return { dependentes_detalhe: adnCollectDeps(host, qtd), regime_bens:g('pd-regime')||null, provedor_pct:n('pd-provedor'), renda_desejada_familia:n('pd-renda-desejada'),
     itcmd_pct_override:n('pd-itcmd'), cartorio_pct_override:n('pd-cartorio'), advogado_pct_override:n('pd-advogado'), reajuste_educacao_pct_override:n('pd-reajedu'), meses_reserva_override:n('pd-mreserva'),
     reposicao_ativa: host.querySelector('#pd-repo-ativa').checked, reposicao_horizonte_anos:n('pd-repo-horiz'), reposicao_inflacao_pct:n('pd-repo-infl'), reposicao_rentabilidade_pct:n('pd-repo-rent'), reposicao_renda_conjuge:n('pd-repo-conjuge'),
-    outros_objetivos: adnCollectObjetivos(host), modulos_visiveis: mods };
+    outros_objetivos: adnCollectObjetivos(host), ...(Object.keys(mods).length ? {modulos_visiveis: mods} : {}) };
 }
 const JORNADA_EVOLUTIVA = [
   ['🚀 Carreira', ['trabalho_especialidade_detalhe','trabalho_plantoes_consultorio','trabalho_riscos','renda_dependencia_atividade_medica','renda_estabilidade']],
@@ -2133,7 +2153,7 @@ async function pvDiagnostico(p){
   const avanc = all.filter(f=>!essKeys.includes(f.name) && !DIAG_SAUDE.includes(f.name) && !jornadaKeys.has(f.name) && f.name!=='preenchido_por');
   const imc = (row.peso && row.altura) ? (Number(row.peso)/((Number(row.altura)/100)*(Number(row.altura)/100))).toFixed(1) : null;
   const idadeP = pvIdade(p);
-  host.innerHTML = `<div class="ql">Diagnóstico de proteção</div>
+  host.innerHTML = `<div class="ql">Fase 3 · Diagnóstico de proteção <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— as perguntas ao cliente; salve e siga para a Fase 4</small></div>
     <div class="ql" style="margin-top:4px">Dados pessoais <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— vêm do cadastro; complete aqui o que faltar (salva junto com o diagnóstico)</small></div>
     <div class="fgrid" style="margin-bottom:10px">
       <label class="fl"><span>Estado civil</span><select id="dgp-estado_civil"><option value="">—</option>${['solteiro','casado','união estável','divorciado','viúvo'].map(o=>`<option ${p.estado_civil===o?'selected':''}>${o}</option>`).join('')}</select></label>
@@ -2149,12 +2169,13 @@ async function pvDiagnostico(p){
       <div style="margin-top:8px">${JORNADA_EVOLUTIVA.map(([label,keys])=>`<div class="ql" style="margin-top:10px">${label}</div><div class="fgrid">${keys.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div>`).join('')}</div></details>
     ${avanc.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Outros campos</summary>
       <div class="fgrid" style="margin-top:8px">${avanc.map(f=>pvDiagField(f.name, row[f.name], [f.name,f.label,f.type,f.options])).join('')}</div></details>`:''}
-    <div style="margin-top:10px"><button class="om-save" id="dg-save">Salvar diagnóstico</button> <button class="om-cancel" id="dg-ficha" title="Exporta tudo o que está preenchido neste diagnóstico">📄 Ficha técnica (PDF)</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
+    <div style="margin-top:10px"><button class="om-save" id="dg-save">Salvar diagnóstico</button> <button class="om-cancel" id="dg-prox">Ir para a Fase 4 · O que você tem × o que você precisa</button> <button class="om-cancel" id="dg-ficha" title="Exporta tudo o que está preenchido neste diagnóstico">📄 Ficha técnica (PDF)</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
   pdBindAvancado(host);
   const dgImcUpd = ()=>{ const pe = Number(host.querySelector('[data-dg="peso"]')?.value)||0, al = Number(host.querySelector('[data-dg="altura"]')?.value)||0; const info = imcInfo(al, pe);
     host.querySelector('#dg-imc').innerHTML = info ? `IMC: <b>${info.imc}</b> <span class="tagx" style="background:transparent;border:1px solid ${info.color};color:${info.color}">${info.label}</span>` : ''; };
   ['peso','altura'].forEach(k=>{ const el = host.querySelector(`[data-dg="${k}"]`); if(el) el.addEventListener('input', dgImcUpd); }); dgImcUpd();
   host.querySelector('#dg-ficha').addEventListener('click', ()=> fichaTecnicaPDF(p));
+  host.querySelector('#dg-prox').addEventListener('click', ()=>{ const d = document.getElementById('pp-fase3'); if(d) d.scrollIntoView({behavior:'smooth'}); });
   host.querySelector('#dg-save').addEventListener('click', async ()=>{
     const payload = { preenchido_por:curUserName(), ...pdCollectAvancado(host) };
     host.querySelectorAll('[data-dg]').forEach(el=>{ const k = el.dataset.dg; let v = el.value; if(v===''){ payload[k] = null; return; }
@@ -2169,7 +2190,7 @@ async function pvDiagnostico(p){
     if(res.error){ showToast('Erro: '+res.error.message); return; }
     const sync = await diagPushToADN(p.id, {...payload, ...pessoaUpd});
     showToast(sync.ok ? 'Diagnóstico salvo' : 'Diagnóstico salvo, mas falhou ao sincronizar com o Estudo: '+(sync.error?.message||'erro desconhecido'));
-    pvDiagnostico(p); });
+    pvDiagnostico(p); pvFase3(p); pvFase5(p); });
 }
 
 // ---- RELACIONAMENTO ----
@@ -3586,6 +3607,10 @@ async function ruNovaDialog(pre){
   document.getElementById('ru-txtfile').addEventListener('change', async e=>{ const f = e.target.files[0]; if(f) document.getElementById('ru-txt').value = await f.text(); });
   document.getElementById('ru-go').addEventListener('click', async ()=>{
     const msg = document.getElementById('ru-msg'), go = document.getElementById('ru-go'); msg.textContent = '';
+    try{ await ruSalvar(); }catch(e){ console.error('ruSalvar', e); msg.textContent = '❌ Erro ao salvar: '+(e.message||e); go.disabled = false; }
+  });
+  const ruSalvar = async ()=>{
+    const msg = document.getElementById('ru-msg'), go = document.getElementById('ru-go');
     const txt = document.getElementById('ru-txt').value.trim();
     const f = document.getElementById('ru-audio').files[0];
     if(!txt && !f){ msg.textContent = 'Envie ao menos a gravação ou a transcrição.'; return; }
@@ -3600,7 +3625,7 @@ async function ruNovaDialog(pre){
     if(temTexto){ msg.textContent = '⏳ Analisando a reunião (até 1 minuto)…'; await ruAnalisar(reu.id); }
     else showToast('Reunião salva com a gravação. Cole a transcrição depois para gerar a leitura automática.');
     ruVer(reu.id);
-  });
+  };
 }
 async function renderReunioes(){
   const el = document.getElementById('ru-body');
@@ -5991,7 +6016,7 @@ async function renderPessoaEstudos(person){
   const host = document.getElementById('estudos-block'); if(!host) return;
   const { data } = await sb.from('crm_estudos').select('id,seguradora_atual,tipo_seguro,vigencia_fim,status,created_at').eq('pessoa_id', person.id).order('created_at',{ascending:false});
   const rows = data || [];
-  host.innerHTML = `<div class="block-head"><h3>🔍 Estudos do cliente</h3><span class="count mono">${rows.length}</span></div>
+  host.innerHTML = `<div class="block-head"><h3>🔍 Histórico · Estudos do cliente</h3><span class="count mono">${rows.length}</span></div>
     <div class="block-body open">${rows.length ? rows.map(e=>{ const dias = e.vigencia_fim ? Math.round((new Date(e.vigencia_fim)-new Date())/86400000) : null;
       return `<div class="rec" style="cursor:pointer" data-est="${e.id}"><b>${escapeHtml(e.seguradora_atual||'Apólice atual')}</b> · ${escapeHtml(e.tipo_seguro||'—')} <span class="tagx">${escapeHtml((ES_STATUS.find(s=>s[0]===e.status)||[0,e.status])[1])}</span><br><span class="k">${dias===null?'sem vigência':(dias<0?'vencida há '+(-dias)+'d':'vence em '+dias+'d')}</span> aberto em ${fmtDate(e.created_at)} — clique para abrir</div>`; }).join('') : '<div class="no-rec">Nenhum estudo ainda para este cliente.</div>'}
       <div style="margin-top:10px"><button class="om-save" id="pe-new">＋ Novo estudo para ${escapeHtml(person.nome.split(' ')[0])}</button></div></div>`;
