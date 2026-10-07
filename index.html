@@ -5035,14 +5035,14 @@ async function fase1Read(file){
       text = wb.SheetNames.map(n=>XLSX.utils.sheet_to_csv(wb.Sheets[n])).join('\n'); f = docsExtract(text); f.multiplas = extractMultiPessoas(text);
     } else { f = await docsRead(file); text = f._texto||''; }
   }catch(e){ erro = e.message||String(e); }
-  let tipo = fase1Tipo(file.name, text), viaIA = false;
-  if(!isXls && !(f.multiplas && f.multiplas.length>1) && (!f.nome || !f.cpf || tipo.cat==='documento')){
+  let tipo = fase1Tipo(file.name, text), viaIA = false, resumo = '';
+  if(!isXls && !(f.multiplas && f.multiplas.length>1) && aiMedia(file)){
     try{ const ai = await fase1AI(file);
-      if(ai){ viaIA = true; if(ai.nome) f.nome = ai.nome; if(ai.cpf && validCPF(ai.cpf)) f.cpf = fmtCPF(ai.cpf); if(ai.data_nascimento) f.data_nascimento = ai.data_nascimento; if(ai.telefone) f.telefone = ai.telefone; if(F1_TIPO_IA[ai.tipo]) tipo = F1_TIPO_IA[ai.tipo]; }
-    }catch(e){ if(!erro) erro = null; console.warn('IA documento:', e.message||e); }
+      if(ai){ viaIA = true; if(ai.nome) f.nome = ai.nome; if(ai.cpf && validCPF(ai.cpf)) f.cpf = fmtCPF(ai.cpf); if(ai.data_nascimento) f.data_nascimento = ai.data_nascimento; if(ai.telefone) f.telefone = ai.telefone; if(F1_TIPO_IA[ai.tipo]) tipo = F1_TIPO_IA[ai.tipo]; if(ai.resumo) resumo = String(ai.resumo); }
+    }catch(e){ console.warn('IA documento:', e.message||e); }
   }
   const pessoas = (f.multiplas && f.multiplas.length>1) ? f.multiplas.map(c=>({nome:c.nome||'', cpf:c.cpf||''})) : [{nome:f.nome||'', cpf:f.cpf||'', telefone:f.telefone||'', nasc:f.data_nascimento||''}];
-  return {file, tipo, pessoas, erro, multi:pessoas.length>1, viaIA};
+  return {file, tipo, pessoas, erro, multi:pessoas.length>1, viaIA, resumo};
 }
 async function caFase1(files){
   files = files.filter(f=>f && f.name); if(!files.length) return;
@@ -5081,7 +5081,7 @@ async function caFase1(files){
   const html = G.map((g,gi)=>`<div class="q" style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px" data-gi="${gi}">
       <div class="ql">Pessoa ${gi+1}</div>
       <div class="fgrid">${fld('f1-nome-'+gi,'Nome completo',g.nome)}${fld('f1-cpf-'+gi,'CPF',g.cpf)}</div>
-      <div style="margin:6px 0">${g.docs.map(di=>`<div class="rec">📄 <b>Documento ${di+1}</b> — ${escapeHtml(docs[di].tipo.l)} <small style="color:var(--ink-faint)">· ${escapeHtml(docs[di].file.name)}${docs[di].erro?' · ⚠ não consegui ler ('+escapeHtml(docs[di].erro)+')':''}</small></div>`).join('')}</div>
+      <div style="margin:6px 0">${g.docs.map(di=>`<div class="rec">📄 <b>Documento ${di+1}</b> — ${escapeHtml(docs[di].tipo.l)} <small style="color:var(--ink-faint)">· ${escapeHtml(docs[di].file.name)}${docs[di].erro?' · ⚠ não consegui ler ('+escapeHtml(docs[di].erro)+')':''}</small>${docs[di].resumo?`<div style="font-size:12px;color:var(--ink-soft);margin:2px 0 0 22px">${escapeHtml(docs[di].resumo)}</div>`:''}</div>`).join('')}</div>
       <div id="f1-st-${gi}">${cards[gi].status}${cards[gi].opts}</div>
       <div><button type="button" class="om-cancel" data-rebusca="${gi}" style="font-size:12px;padding:3px 10px">↻ Buscar de novo com o nome/CPF acima</button></div></div>`).join('');
   box.innerHTML = `<div class="om-title"><div><h3>Resumo da leitura — ${docs.length} documento(s), ${G.length} pessoa(s)</h3><div class="om-sub">Confira. Campo que não foi lido fica vazio — o sistema não inventa nem trava o salvamento. Cada pessoa tem o CPF buscado no cadastro antes de anexar.</div></div><button data-close>✕</button></div>
