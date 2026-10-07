@@ -1266,6 +1266,7 @@ async function pvResumo(body, p){
     </div></div>
     <div class="es-box" id="pv-lead"><div class="ql">Quem é o Lead?</div><div class="op-more">Carregando...</div></div>
   </div>
+  <div class="es-box" id="pv-dem"></div>
   <div class="es-box" id="pv-opps-resumo"></div>
   <div class="es-box" id="pv-ia">
     <div class="ql">🤖 Perguntar à IA sobre este cliente</div>
@@ -1273,7 +1274,7 @@ async function pvResumo(body, p){
     <div class="sg-row"><input id="ia-pergunta" class="ca-inp" style="flex:1;min-width:220px" placeholder="Ex.: quanto de cobertura de vida esse cliente já tem?"><button class="om-save" id="ia-perguntar">Perguntar</button></div>
     <div id="ia-resposta" style="margin-top:10px"></div>
   </div>`;
-  pvLead(p); pvOppsResumo(p);
+  pvLead(p); pvDemandas(p); pvOppsResumo(p);
   const iaBtn = document.getElementById('ia-perguntar'), iaInp = document.getElementById('ia-pergunta'), iaOut = document.getElementById('ia-resposta');
   const iaAsk = async ()=>{
     const pergunta = iaInp.value.trim(); if(!pergunta) return;
@@ -1774,8 +1775,8 @@ function f5DeckFase2(rows, emissao){
   const dt = v=>v?String(v).slice(0,10).split('-').reverse().join('/'):'—', esc = escapeHtml;
   const right = emissao ? ['EMISSÃO DA APÓLICE', dt(emissao)] : null;
   const cap = rows.reduce((t,r)=>t+(Number(r.cap)||0),0), prem = rows.reduce((t,r)=>t+(Number(r.prem)||0),0);
-  const head = '<thead><tr><th style="width:19%">Cobertura (nome técnico)</th><th style="width:12%">Categoria</th><th class="r" style="width:12%">Capital segurado</th><th class="r" style="width:11%">Prêmio mensal (com IOF)</th><th style="width:9%">Prazo</th><th style="width:9%">Vigência até</th><th style="width:20%">Observação</th><th style="width:8%">Apólice</th></tr></thead>';
-  const tr = r=>`<tr><td>${esc(r.cob||'—')}</td><td>${esc(r.cat||'—')}</td><td class="r">${fm(r.cap)}</td><td class="r">${fm(r.prem)}</td><td>${esc(r.tipo||'—')}</td><td>${r.tipo==='Vitalícia'?'—':dt(r.vig)}</td><td>${esc(r.obs||'—')}</td><td>—</td></tr>`;
+  const head = '<thead><tr><th style="width:19%">Cobertura (nome técnico)</th><th style="width:12%">Categoria</th><th class="r" style="width:12%">Capital segurado</th><th class="r" style="width:11%">Prêmio mensal (com IOF)</th><th style="width:9%">Prazo</th><th style="width:9%">Vigência até</th><th style="width:17%">Observação</th><th style="width:11%">Apólice</th></tr></thead>';
+  const tr = r=>`<tr><td>${esc(r.cob||'—')}</td><td>${esc(r.cat||'—')}</td><td class="r">${fm(r.cap)}</td><td class="r">${fm(r.prem)}</td><td>${esc(r.tipo||'—')}</td><td>${r.tipo==='Vitalícia'?'—':dt(r.vig)}</td><td>${esc(r.obs||'—')}</td><td>${esc(r.apol||'—')}</td></tr>`;
   const cost = r=> 3.4 + 3.1*Math.max(f5Lines(r.cob,24), f5Lines(r.cat,14), f5Lines(r.obs,26));
   const parts = f5Chunk(rows, cost, 140, 140, 22);
   const pages = parts.map((chunk,i)=>{
@@ -2053,7 +2054,7 @@ async function pvAnalise(p){
   const draw = ()=>{
     host.innerHTML = `<style>.an-t input,.an-t select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font:inherit}.an-t input.unread{background:#fff3e0;border-color:#f0a24b}.an-t td{padding:3px 4px}</style>
       <div class="ql">Fase 2 · Analisar documentos <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— preencha o que está escrito na apólice, cobertura por cobertura</small></div>
-      <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><label class="om-save" style="cursor:pointer;display:inline-block;padding:6px 12px;font-size:13px">🤖 Ler apólice com IA<input type="file" id="an-ia-file" accept=".pdf,image/*" hidden></label><span id="an-ia-st" class="hint" style="margin:0">Escolha o PDF (ou foto) da apólice: o sistema preenche a tabela abaixo. Confira antes de confirmar.</span></div>
+      <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-save" id="an-ia-anex" style="padding:6px 12px;font-size:13px">🤖 Ler as apólices anexadas</button><label class="om-cancel" style="cursor:pointer;display:inline-block;padding:6px 12px;font-size:13px">📎 Escolher arquivos<input type="file" id="an-ia-file" accept=".pdf,image/*" multiple hidden></label><span id="an-ia-st" class="hint" style="margin:0">Leia de uma vez todas as apólices já anexadas ao cliente, ou escolha um ou mais arquivos (PDF ou foto). O sistema preenche a tabela abaixo; confira antes de confirmar.</span></div><div id="an-ia-log"></div>
       <div class="hint" style="margin-bottom:8px">Você também pode preencher à mão. O que ainda não foi preenchido fica em <b style="color:#c06a00">laranja</b>. Cliente sem apólice? Não há o que analisar nesta etapa — <a href="#" id="an-pular">pular para o diagnóstico (Fase 3)</a>.</div>
       ${rows.length?`<div style="overflow-x:auto"><table class="an-t" style="min-width:1050px;border-collapse:collapse"><thead><tr><th style="width:34px">#</th><th style="min-width:200px;text-align:left">Cobertura (nome técnico)</th><th style="min-width:190px;text-align:left">Categoria</th><th style="width:130px">Capital segurado</th><th style="width:130px">Prêmio mensal (com IOF)</th><th style="width:110px">Prazo</th><th style="width:140px">Vigência até</th><th style="min-width:180px;text-align:left">Observação</th><th style="width:34px"></th></tr></thead><tbody>
         ${rows.map((r,i)=>`<tr data-i="${i}"><td>${i+1}</td><td><input data-f="cob" value="${escapeHtml(r.cob||'')}"></td><td><select data-f="cat">${ANL_CATS.concat([ANL_OUTRO]).map(c=>`<option ${c===r.cat?'selected':''}>${c}</option>`).join('')}</select></td>
@@ -2075,20 +2076,53 @@ async function pvAnalise(p){
         if(f==='cap'||f==='prem'||f==='vig') el.classList.toggle('unread', v===''); totals(); msg(); sv(); })); });
     host.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{ rows.splice(+b.dataset.del,1); confirmada = false; draw(); persist(false).then(()=>{ pvApolices(p); pvFase3(p); }); }));
     host.querySelector('#an-add').addEventListener('click', ()=>{ rows.push(anlBlank()); confirmada = false; draw(); });
+    // leitura por IA em lote: cada item = {name, mt, path?, b64()}
+    const lerLote = async (itens)=>{
+      const st = host.querySelector('#an-ia-st'); if(!st) return;
+      if(!itens.length){ st.textContent = 'Nenhum arquivo para ler.'; return; }
+      host.querySelectorAll('#an-ia-anex,#an-ia-file').forEach(b=>{ b.disabled = true; });
+      const chave = r=>[String(r.cob||'').trim().toLowerCase(), r.cap, r.prem, String(r.obs||'').trim().toLowerCase()].join('|');
+      const feitas = [], falhas = []; let totalNovas = 0;
+      for(let i=0;i<itens.length;i++){
+        const it = itens[i]; st.textContent = '⏳ Lendo '+(i+1)+' de '+itens.length+': '+it.name+'…';
+        try{
+          const { data, error } = await sb.functions.invoke('extrair-apolice', { body: { file_base64: await it.b64(), media_type: it.mt, filename: it.name } });
+          if(error || (data&&data.error)) throw new Error(data&&data.error ? data.error : await ruErr(error));
+          const a = data.apolice||{}, lidos = (a.itens||[]).filter(x=>x.cobertura);
+          if(!lidos.length) throw new Error('não encontrei cobertura'+(a.observacoes?(' ('+a.observacoes+')'):''));
+          const novas = lidos.map(x=>({cob:x.cobertura, cat:anlCatFromCob(x.cobertura)||ANL_OUTRO, cap:x.capital==null?'':Number(x.capital), prem:x.premio_mensal==null?'':Number(x.premio_mensal), tipo:/^tempor/i.test(x.prazo||'')?'Temporária':'Vitalícia', vig:x.vigencia_fim||a.vigencia_fim||'',
+            obs:[a.seguradora?('['+a.seguradora+']'):'', x.obs||''].filter(Boolean).join(' '), arq:it.path||it.name, emis:a.vigencia_inicio||'', apol:[a.seguradora, x.apolice||a.numero_apolice].filter(Boolean).join(' · ')}));
+          const ja = new Set(rows.map(chave)); const sem = novas.filter(r=>!ja.has(chave(r)));
+          rows = rows.concat(sem); totalNovas += sem.length;
+          feitas.push({nome:a.seguradora||it.name, n:sem.length, dup:novas.length-sem.length, trunc:!!data.truncado, so:(a.total_mensal && !novas.some(r=>r.prem!=='')) ? a.total_mensal : null});
+        }catch(err){ falhas.push(it.name+': '+(err.message||err)); }
+      }
+      confirmada = false; if(totalNovas) await persist(false); draw(); pvApolices(p); pvFase3(p);
+      const lg = host.querySelector('#an-ia-log'), st2 = host.querySelector('#an-ia-st'); if(!lg) return;
+      if(st2) st2.textContent = '';
+      lg.innerHTML = `<div class="hint" style="margin-bottom:8px;border-radius:8px;padding:8px 10px;background:${falhas.length?'var(--amber-soft)':'var(--green-soft)'}"><b>${totalNovas?'✅ Li '+totalNovas+' cobertura(s) de '+feitas.length+' de '+itens.length+' arquivo(s).':'Nenhuma cobertura nova foi adicionada.'}</b>
+        ${feitas.length?'<ul style="margin:4px 0 0 18px">'+feitas.map(f=>`<li>${escapeHtml(f.nome)}: ${f.n} cobertura(s)${f.dup?` (${f.dup} já estava(m) na tabela)`:''}${f.trunc?' — <b>leitura cortada: o documento é muito grande; confira se falta alguma cobertura</b>':''}${f.so?` — traz só o prêmio total de <b>${fmt(f.so)}/mês</b>: distribua nos campos em laranja`:''}</li>`).join('')+'</ul>':''}
+        ${falhas.length?'<div style="margin-top:6px"><b>Não consegui ler:</b><ul style="margin:2px 0 0 18px">'+falhas.map(f=>'<li>'+escapeHtml(f)+'</li>').join('')+'</ul></div>':''}
+        <div style="margin-top:4px">Confira os campos em laranja e clique em Confirmar análise.</div></div>`;
+    };
     const iaIn = host.querySelector('#an-ia-file'); if(iaIn) iaIn.addEventListener('change', async ()=>{
-      const file = iaIn.files[0]; iaIn.value = ''; const st = host.querySelector('#an-ia-st'); if(!file) return;
-      const mt = aiMedia(file); if(!mt){ st.textContent = 'Formato não suportado para leitura (use PDF, JPG, PNG ou WEBP).'; return; }
-      st.textContent = '⏳ Lendo '+file.name+'…';
-      try{
-        const { data, error } = await sb.functions.invoke('extrair-apolice', { body: { file_base64: await proFileB64(file), media_type: mt, filename: file.name } });
-        if(error || (data&&data.error)) throw new Error(data&&data.error ? data.error : await ruErr(error));
-        const a = data.apolice||{}, itens = (a.itens||[]).filter(i=>i.cobertura);
-        if(!itens.length) throw new Error('Não encontrei cobertura neste documento'+(a.observacoes?(': '+a.observacoes):'')+'. Preencha a tabela à mão.');
-        const novas = itens.map(i=>({cob:i.cobertura, cat:anlCatFromCob(i.cobertura)||ANL_OUTRO, cap:i.capital==null?'':Number(i.capital), prem:i.premio_mensal==null?'':Number(i.premio_mensal), tipo:/^tempor/i.test(i.prazo||'')?'Temporária':'Vitalícia', vig:i.vigencia_fim||a.vigencia_fim||'', obs:[a.seguradora?('['+a.seguradora+']'):'', i.obs||''].filter(Boolean).join(' ')}));
-        const soTotal = a.total_mensal && !novas.some(r=>r.prem!=='');
-        rows = rows.concat(novas); confirmada = false; await persist(false); draw(); pvApolices(p); pvFase3(p);
-        const st2 = host.querySelector('#an-ia-st'); if(st2) st2.innerHTML = '✅ Li '+novas.length+' cobertura(s) de <b>'+escapeHtml(a.seguradora||file.name)+'</b>'+(a.numero_apolice?' (apólice '+escapeHtml(a.numero_apolice)+')':'')+'. '+(soTotal?'O documento traz só o prêmio total de <b>'+fmt(a.total_mensal)+'/mês</b> (sem quebra por cobertura): distribua nos campos em laranja. ':'')+'Confira os campos em laranja e clique em Confirmar análise.';
-      }catch(err){ st.textContent = '❌ '+(err.message||err); }
+      const arqs = [...iaIn.files]; iaIn.value = ''; if(!arqs.length) return; const st = host.querySelector('#an-ia-st');
+      const itens = arqs.map(f=>({name:f.name, mt:aiMedia(f), b64:()=>proFileB64(f)})), ruins = itens.filter(i=>!i.mt);
+      if(ruins.length && st) st.textContent = 'Formato não suportado (use PDF, JPG, PNG ou WEBP): '+ruins.map(i=>i.name).join(', ');
+      await lerLote(itens.filter(i=>i.mt));
+    });
+    const anex = host.querySelector('#an-ia-anex'); if(anex) anex.addEventListener('click', async ()=>{
+      const st = host.querySelector('#an-ia-st'); st.textContent = '⏳ Procurando as apólices anexadas…';
+      const [{ data: docs }, { data: aps }] = await Promise.all([ sb.from('crm_documentos').select('nome_arquivo,path,mime,categoria').eq('pessoa_id', p.id), sb.from('crm_apolices').select('arquivo_apolice').eq('pessoa_id', p.id) ]);
+      const vistos = new Set(), todos = [];
+      const add = (path, nome, mime)=>{ if(!path || vistos.has(path)) return; vistos.add(path); const nm = nome || String(path).split('/').pop(); const mt = aiMedia({name:nm, type:mime||''}); if(!mt) return;
+        todos.push({name:nm, mt, path, b64: async ()=>{ const { data, error } = await sb.storage.from('crm-docs').download(path); if(error) throw error; return proFileB64(data); }}); };
+      (docs||[]).filter(d=>d.categoria==='apolice' || /ap[oó]lice|certificado/i.test(d.nome_arquivo||'')).forEach(d=>add(d.path, d.nome_arquivo, d.mime));
+      (aps||[]).forEach(a=>add(a.arquivo_apolice, null, null));
+      if(!todos.length){ st.textContent = 'Não há apólice anexada a este cliente. Anexe na Fase 1 ou escolha os arquivos.'; return; }
+      const lidos = new Set(rows.map(r=>r.arq).filter(Boolean)), pend = todos.filter(i=>!lidos.has(i.path));
+      if(!pend.length){ st.textContent = 'Todas as apólices anexadas ('+todos.length+') já foram lidas. Para ler de novo, apague as linhas ou escolha o arquivo.'; return; }
+      await lerLote(pend);
     });
     const cf = host.querySelector('#an-conf'); if(cf) cf.addEventListener('click', async ()=>{ clearTimeout(t); if(await persist(true)){ msg(); pvApolices(p); pvFase3(p); pvFase4(p); showToast('Análise confirmada'); } });
     const pf = host.querySelector('#an-pdf'); if(pf) pf.addEventListener('click', async ()=>{
@@ -2738,7 +2772,7 @@ const OP_UNIT_PX = 88;
 const OP_EXPANDED_W = 11;
 let OP_SUM_HEIGHT_INIT = null;
 try{ const h = localStorage.getItem('op-sum-h'); if(h) OP_SUM_HEIGHT_INIT = parseInt(h,10); }catch(e){}
-const OP = { pessoas:[], funil:new Map(), apo:new Map(), filtered:[], shown:0, loaded:false, loading:false,
+const OP = { pessoas:[], funil:new Map(), apo:new Map(), dem:new Map(), filtered:[], shown:0, loaded:false, loading:false,
              plant:new Map(), dirty:false, start:new Date(2026,9,1), monthsCount:12, rangeIni:null, rangeFim:null, sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null, sumHeight:OP_SUM_HEIGHT_INIT };
 const OP_PAGE = 120;
 const TIPOS_PESSOA = {medico:'Médico', profissional_saude:'Outro profissional de saúde', empresa:'Empresa / PJ', outro:'Outro (não médico)'};
@@ -2853,6 +2887,8 @@ async function opLoadFunilApo(){
   OP.apo = new Map(); apo.forEach(r=>{ if(!OP.apo.has(r.pessoa_id)) OP.apo.set(r.pessoa_id,[]); OP.apo.get(r.pessoa_id).push(r); });
   try{ const pl = await opFetchAll('crm_plantoes_resumo','pessoa_id,ultimo_plantao,qtde_mes_atual,qtde_mes_ref,valor_mes_ref,valor_12m,meses_12m',['pessoa_id']);
        OP.plant = new Map(); pl.forEach(r=>OP.plant.set(r.pessoa_id, r)); }catch(e){ console.warn('plantoes', e); }
+  try{ const dm = await opFetchAll('crm_demandas','id,pessoa_id,status,prazo,created_at,produto,acao',['id']);
+       OP.dem = new Map(); dm.forEach(r=>{ if(!OP.dem.has(r.pessoa_id)) OP.dem.set(r.pessoa_id,[]); OP.dem.get(r.pessoa_id).push(r); }); }catch(e){ console.warn('demandas', e); OP.dem = new Map(); }
   OP.dirty = false;
 }
 
@@ -2924,6 +2960,7 @@ function opApplyFilters(keep, scrollToList){
     }
     if(sf){
       if(sf.st === 'cli'){ if(!opClienteNoMes(p.id, sf.mi)) return false; }
+      else if(typeof sf.st === 'string' && sf.st.indexOf('acao_')===0){ if(!opClienteNoMes(p.id, sf.mi) || opAcaoStatusMes(p.id, sf.mi)!==sf.st) return false; }
       else if(opStageAt(p.id, sf.mi) !== sf.st) return false;
     }
     return true;
@@ -2956,7 +2993,7 @@ function opRenderChip(){
   const box = document.getElementById('op-chip'); const sf = OP.sumFilter;
   if(!sf){ box.innerHTML = ''; return; }
   const mo = OP.months[sf.mi];
-  const nm = sf.st==='cli' ? 'Clientes com apólice vigente' : ETAPAS_FUNIL[sf.st].label;
+  const nm = sf.st==='cli' ? 'Clientes com apólice vigente' : (typeof sf.st==='string' ? ACAO_LABEL[sf.st] : ETAPAS_FUNIL[sf.st].label);
   box.innerHTML = `<span class="op-chip">Filtro do resumo: <b>${nm}</b> em <b>${mo.name}/${mo.yr}</b> · ${OP.filtered.length} médico(s) <button id="op-chip-x" title="Limpar filtro">✕</button></span>`;
 }
 
@@ -3025,6 +3062,84 @@ function opGridCss(){
 // Resumo mensal: mês fechado mostra 1 número (o do último dia do mês, como referência de fechamento).
 // Mês aberto (expandido em dias) mostra o número de CADA dia — o valor se mantém (carrega) até mudar,
 // em vez de aparecer só no dia exato em que a etapa começou e ficar em branco no resto do mês.
+// ============ GESTÃO DO CLIENTE · demandas e ações (conceito do protótipo da Amanda) ============
+// Cada cliente tem demandas (produto + ação + o que foi pedido + status). O resumo mensal da Aliança mostra, para os clientes com apólice
+// vigente no mês, quantos já tiveram ação concluída, quantos estão em andamento e quantos ainda estão pendentes (ou sem ação).
+const DEM_PRODUTOS = ['Seguro Saúde','Seguro de Vida','RC (Responsabilidade Civil)','Consórcio','Geral'];
+const DEM_ACOES = ['Contato de acompanhamento','Cotar','Refazer cotação','Comparar apólices','Montar proposta','Enviar apresentação','Alterar ou cancelar apólice','Outro'];
+const DEM_STATUS = ['Pendente','Em andamento','Aguardando seguradora','Aguardando cliente','Concluída'];
+const DEM_COR = {'Pendente':'#8990a3','Em andamento':'#c8790b','Aguardando seguradora':'#7b3fe4','Aguardando cliente':'#0018fc','Concluída':'#149c6b'};
+const ACAO_LABEL = {acao_feita:'Ações do mês · concluídas', acao_andamento:'Ações do mês · em andamento', acao_pendente:'Ações do mês · pendentes'};
+// demandas da pessoa que caem no mês i do resumo (data de referência = prazo, ou a criação)
+function demDoMes(pid, mi){
+  const mo = OP.months[mi]; if(!mo) return [];
+  return (OP.dem.get(pid)||[]).filter(d=>{ const r = d.prazo ? new Date(d.prazo+'T12:00:00') : new Date(d.created_at); return r >= mo.s && r < mo.e; });
+}
+// situação do cliente no mês: concluídas (todas as demandas do mês concluídas), em andamento (alguma em curso ou parte concluída) ou pendentes (nenhuma ação ou só pendentes)
+function opAcaoStatusMes(pid, mi){
+  const ls = demDoMes(pid, mi);
+  if(!ls.length) return 'acao_pendente';
+  if(ls.every(d=>d.status==='Concluída')) return 'acao_feita';
+  if(ls.some(d=>d.status!=='Pendente')) return 'acao_andamento';
+  return 'acao_pendente';
+}
+function opSumRowMonthHtml(label, dotColor, countsPerMonth, stKey){
+  const sf = OP.sumFilter;
+  const cells = OP.months.map((mo,mi)=>{ const v = countsPerMonth[mi], on = sf && sf.st===stKey && sf.mi===mi;
+    return `<div class="op-sumcell${v?' clk':' z'}${on?' sel':''}" data-st="${stKey}" data-mi="${mi}" style="left:${mo.l}%;width:${mo.w}%">${v||'·'}</div>`; }).join('');
+  return `<div class="op-sumrow"><div class="op-left"><span class="op-dot" style="background:${dotColor}"></span>${label}</div><div class="op-right">${cells}</div></div>`;
+}
+// no filtro por ação, cada linha mostra o andamento das demandas do mês
+function opDemInfo(p){
+  const sf = OP.sumFilter; if(!sf || typeof sf.st!=='string' || sf.st.indexOf('acao_')!==0) return '';
+  const ls = demDoMes(p.id, sf.mi), c = {}; ls.forEach(d=>{ c[d.status] = (c[d.status]||0)+1; });
+  const txt = ls.length ? ls.length+' demanda(s): '+Object.entries(c).map(([k,v])=>v+' '+k.toLowerCase()).join(' · ') : 'sem ação registrada no mês';
+  return ' · <span class="tagx" style="background:var(--surface);border:1px solid var(--border);color:var(--ink-soft)">'+escapeHtml(txt)+'</span>';
+}
+// ---- seção "Demandas" dentro do cadastro (aba Resumo) ----
+async function pvDemandas(p){
+  const host = document.getElementById('pv-dem'); if(!host) return;
+  const { data, error } = await sb.from('crm_demandas').select('*').eq('pessoa_id', p.id).order('created_at',{ascending:false});
+  if(error){ host.innerHTML = '<div class="ql">Demandas do cliente</div><div class="om-err">Erro ao carregar: '+escapeHtml(error.message)+'</div>'; return; }
+  const rows = data || [], abertas = rows.filter(d=>d.status!=='Concluída').length;
+  OP.dem.set(p.id, rows.map(d=>({id:d.id, pessoa_id:d.pessoa_id, status:d.status, prazo:d.prazo, created_at:d.created_at, produto:d.produto, acao:d.acao})));
+  const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
+  host.innerHTML = `<div class="ql">Demandas do cliente <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— ações e pedidos desta pessoa, com o andamento de cada um · ${abertas} em aberto</small></div>
+    ${rows.length?`<div style="overflow-x:auto"><table class="ca-table" style="min-width:760px"><thead><tr><th>Produto</th><th>Ação</th><th>O que foi pedido</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td>${escapeHtml(d.descricao||'—')}</td><td><select data-dm-st="${d.id}" style="border:1px solid ${DEM_COR[d.status]||'var(--border)'};color:${DEM_COR[d.status]||'inherit'};border-radius:6px;padding:3px 6px;font-weight:600">${opt(DEM_STATUS,d.status)}</select></td><td>${d.prazo?fmtDate(d.prazo):'—'}</td><td>${escapeHtml(d.responsavel||'—')}</td><td><a href="#" data-dm-del="${d.id}" title="Excluir demanda" style="color:var(--red)">🗑</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="hint">Nenhuma demanda registrada ainda. Registre o contato do mês ou um pedido do cliente.</div>'}
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="om-save" id="dm-new">＋ Nova demanda</button><button type="button" class="om-cancel" id="dm-contato" title="Registra, já concluído, o contato de acompanhamento deste cliente neste mês">✔ Contato de acompanhamento feito</button></div>`;
+  host.querySelectorAll('[data-dm-st]').forEach(sel=>sel.addEventListener('change', async ()=>{
+    const st = sel.value;
+    const { error: e2 } = await sb.from('crm_demandas').update({status:st, concluida_em: st==='Concluída'?new Date().toISOString():null, updated_at:new Date().toISOString()}).eq('id', sel.dataset.dmSt);
+    if(e2){ showToast('Erro: '+e2.message); return; } showToast('Status atualizado'); pvDemandas(p); }));
+  host.querySelectorAll('[data-dm-del]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault();
+    if(!confirm('Excluir esta demanda? Esta ação não pode ser desfeita.')) return;
+    const { error: e2 } = await sb.from('crm_demandas').delete().eq('id', a.dataset.dmDel);
+    if(e2){ showToast('Erro: '+e2.message); return; } showToast('Demanda excluída'); pvDemandas(p); }));
+  host.querySelector('#dm-contato').addEventListener('click', async ()=>{
+    const { error: e2 } = await sb.from('crm_demandas').insert({pessoa_id:p.id, produto:'Geral', acao:'Contato de acompanhamento', descricao:null, status:'Concluída', concluida_em:new Date().toISOString(), responsavel:curUserName()||null, criado_por:curUserName()||null});
+    if(e2){ showToast('Erro: '+e2.message); return; } showToast('Contato de acompanhamento registrado'); pvDemandas(p); });
+  host.querySelector('#dm-new').addEventListener('click', ()=>demDialog(p));
+}
+function demDialog(p){
+  const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
+  const box = dlgOpen(`<div class="om-title"><div><h3>Nova demanda — ${escapeHtml(p.nome)}</h3><div class="om-sub">Registre o pedido ou a ação e acompanhe até concluir.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="fgrid">
+      <label class="fl"><span>Produto</span><select id="dm-prod">${opt(DEM_PRODUTOS,'Seguro de Vida')}</select></label>
+      <label class="fl"><span>Ação</span><select id="dm-acao">${opt(DEM_ACOES,'Cotar')}</select></label>
+      <label class="fl"><span>Status</span><select id="dm-st">${opt(DEM_STATUS,'Pendente')}</select></label>
+      <label class="fl"><span>Prazo (opcional)</span><input type="date" id="dm-prazo"></label>
+      <label class="fl"><span>Responsável</span><input id="dm-resp" value="${escapeHtml(curUserName()||'')}"></label></div>
+      <label class="fl" style="margin-top:8px"><span>O que foi pedido / o que fazer?</span><textarea id="dm-desc" rows="3" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
+      <div class="om-err" id="dm-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="dm-save">Salvar demanda</button></div>`);
+  box.querySelector('#dm-save').addEventListener('click', async ()=>{
+    const g = id=>box.querySelector('#'+id).value.trim(), st = g('dm-st');
+    const btn = box.querySelector('#dm-save'); btn.disabled = true;
+    const { error } = await sb.from('crm_demandas').insert({pessoa_id:p.id, produto:g('dm-prod'), acao:g('dm-acao'), descricao:g('dm-desc')||null, status:st, prazo:g('dm-prazo')||null, responsavel:g('dm-resp')||null, criado_por:curUserName()||null, concluida_em: st==='Concluída'?new Date().toISOString():null});
+    if(error){ box.querySelector('#dm-err').textContent = 'Erro: '+error.message; btn.disabled = false; return; }
+    dlgClose(); showToast('Demanda registrada'); pvDemandas(p); });
+}
+
 function opSummary(){
   const months = OP.months;
   const dayList = months.map(mo => mo.exp
@@ -3048,7 +3163,9 @@ function opSummary(){
       }); });
     }
   });
-  return {stageCounts, cliCounts, dayList};
+  const acaoCounts = {acao_feita:months.map(()=>0), acao_andamento:months.map(()=>0), acao_pendente:months.map(()=>0)};
+  OP.pessoas.forEach(p=>{ if(!(OP.apo.get(p.id)||[]).length) return; months.forEach((mo,mi)=>{ if(opClienteNoMes(p.id, mi)) acaoCounts[opAcaoStatusMes(p.id, mi)][mi]++; }); });
+  return {stageCounts, cliCounts, dayList, acaoCounts};
 }
 function opSumRowHtml(label, dotColor, countsPerMonth, dayListPerMonth, stKey){
   const sf = OP.sumFilter;
@@ -3068,7 +3185,10 @@ function opSumRowHtml(label, dotColor, countsPerMonth, dayListPerMonth, stKey){
 function opSumRowsHtml(){
   const sm = opSummary();
   return ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], sm.dayList, i)).join('')
-    + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, sm.dayList, 'cli');
+    + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, sm.dayList, 'cli')
+    + opSumRowMonthHtml(ACAO_LABEL.acao_feita, '#149c6b', sm.acaoCounts.acao_feita, 'acao_feita')
+    + opSumRowMonthHtml(ACAO_LABEL.acao_andamento, '#c8790b', sm.acaoCounts.acao_andamento, 'acao_andamento')
+    + opSumRowMonthHtml(ACAO_LABEL.acao_pendente, '#c23636', sm.acaoCounts.acao_pendente, 'acao_pendente');
 }
 
 function opRenderAll(prevShown){
@@ -3131,7 +3251,7 @@ function opRowHtml(p){
     const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}`;
     lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
   });
-  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${p.cpf?' · CPF '+escapeHtml(fmtCPF(p.cpf)):''}${p.classificacao==='call_hot'?' · <span class="pl-tag hot" style="color:var(--red)">🔥 Call Hot</span>':(p.classificacao==='quente'?' · <span class="pl-tag warm">Quente</span>':'')}${(p.tags&&p.tags.length)?' · 🏷 '+escapeHtml(p.tags.join(', ')):''}${opNextInfo(p)}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
+  return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${p.cpf?' · CPF '+escapeHtml(fmtCPF(p.cpf)):''}${p.classificacao==='call_hot'?' · <span class="pl-tag hot" style="color:var(--red)">🔥 Call Hot</span>':(p.classificacao==='quente'?' · <span class="pl-tag warm">Quente</span>':'')}${(p.tags&&p.tags.length)?' · 🏷 '+escapeHtml(p.tags.join(', ')):''}${opNextInfo(p)}${opDemInfo(p)}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
 }
 
 function opAppendRows(n){
@@ -3273,7 +3393,7 @@ document.getElementById('view-operacao').addEventListener('click', (e)=>{
   }
   const sc = e.target.closest('.op-sumcell.clk');
   if(sc){
-    const st = sc.dataset.st==='cli' ? 'cli' : parseInt(sc.dataset.st,10), mi = parseInt(sc.dataset.mi,10);
+    const ds = sc.dataset.st, st = (ds==='cli' || ds.indexOf('acao_')===0) ? ds : parseInt(ds,10), mi = parseInt(sc.dataset.mi,10);
     const same = OP.sumFilter && OP.sumFilter.st===st && OP.sumFilter.mi===mi;
     OP.sumFilter = same ? null : {st, mi};
     opApplyFilters(false, !same); return;
@@ -6504,7 +6624,7 @@ document.getElementById('who-email').title = 'Clique para trocar o nome exibido'
 document.getElementById('who-email').addEventListener('click', ()=>userNameDialog(false));
 
 // ---- backup ----
-const BACKUP_TABLES = ['crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
+const BACKUP_TABLES = ['crm_demandas','crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
 async function backupNow(){
   const btn = document.getElementById('btn-backup'); btn.disabled = true; const out = {exportado_em:new Date().toISOString(), tabelas:{}};
   try{
