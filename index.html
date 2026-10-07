@@ -1008,7 +1008,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
   });
 });
 function goToPersonView(personId, tab){
-  if(FLOW.open){ if(FLOW.p && String(FLOW.p.id)===String(personId)){ flowRefresh(); return; } flowClose(); }
+  if(FLOW.open){ if(FLOW.p && String(FLOW.p.id)===String(personId)){ const veioDoUpload = tab==='protecao' && FLOW.step===0; flowRefresh(); if(veioDoUpload){ FLOW.autoLer = true; flowGo(1); } return; } flowClose(); }
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   const opBtn = document.querySelector('.nav-btn[data-view="operacao"]');
   opBtn.classList.add('active');
@@ -1448,7 +1448,7 @@ function pvEditAtividade(p, a){
 // ============ FLUXO DE PROTEÇÃO · guiado, uma etapa por vez (conceito do protótipo da Amanda) ============
 // Abre sobre o cadastro do cliente: menu de etapas à esquerda e a etapa atual à direita. Reaproveita as fases já construídas
 // (pvAnalise, pvDiagnostico, pvFase3 = "Tem × Precisa", pvFase4 = cotações, pvFase5 = apresentação): elas desenham nos mesmos blocos de sempre.
-const FLOW = { open:false, p:null, step:0, st:[], t:null };
+const FLOW = { open:false, p:null, step:0, st:[], t:null, autoLer:false };
 const FLOW_STEPS = [
   {k:'docs',    n:'Fase 1', t:'Documentos',               s:'Apólices e arquivos do cliente',    host:'fl-docs'},
   {k:'analise', n:'Fase 2', t:'Analisar documentos',      s:'Tabela das apólices',               host:'pp-analise'},
@@ -1484,6 +1484,7 @@ function flowGo(i){
   if(!FLOW.open) return; i = Math.max(0, Math.min(FLOW_STEPS.length-1, i)); FLOW.step = i;
   FLOW_STEPS.forEach((s,k)=>{ const h = document.getElementById(s.host); if(h) h.style.display = k===i ? '' : 'none'; });
   flowSide(); flowNav(); const m = document.getElementById('fl-main'); if(m) m.scrollTop = 0; flowStatusRefresh();
+  if(i===1 && FLOW.autoLer){ FLOW.autoLer = false; const tentar = n=>{ const b = document.getElementById('an-ia-anex'); if(b && !b.disabled) b.click(); else if(n>0) setTimeout(()=>tentar(n-1), 600); }; setTimeout(()=>tentar(10), 500); }
 }
 // substitui o "rolar até a seção": dentro do fluxo vai para a etapa; fora dele mantém a rolagem
 function pvGotoSection(id){
@@ -1493,19 +1494,24 @@ function pvGotoSection(id){
 }
 async function flowDocs(p){
   const host = document.getElementById('fl-docs'); if(!host) return;
-  const [{ data: aps }, { data: dcs }] = await Promise.all([
-    sb.from('crm_apolices').select('id,seguradora,tipo_seguro,data_emissao,data_vencimento,status,arquivo_apolice').eq('pessoa_id', p.id).order('data_vencimento',{ascending:true}),
-    sb.from('crm_documentos').select('id').eq('pessoa_id', p.id)]);
-  const rows = aps || [], nd = (dcs||[]).length;
-  host.innerHTML = `<div class="ql">Fase 1 · Documentos <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— apólices e arquivos já anexados a ${escapeHtml(p.nome.split(' ')[0])}</small></div>
-    <div class="hint" style="margin-bottom:10px">Anexe a apólice, a CNH ou outro documento do cliente: o sistema lê nome, CPF e tipo e junta ao cadastro. Depois siga para <b>Analisar documentos</b>. Cliente sem apólice? <a href="#" id="fl-pular">pule para o Diagnóstico (Fase 3)</a>.</div>
-    ${rows.length?`<div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Seguradora</th><th>Produto</th><th>Emissão</th><th>Vigência até</th><th>Status</th><th>Documento</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${escapeHtml(a.seguradora||'—')}</td><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${fmtDate(a.data_emissao)||'—'}</td><td>${fmtDate(a.data_vencimento)||'—'}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td>${a.arquivo_apolice?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(a.arquivo_apolice)}">📎 Abrir apólice</button>`:'<span style="color:var(--ink-faint)">sem arquivo</span>'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px">Nenhuma apólice anexada ainda.</div>'}
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="om-save" id="fl-anexar">📎 Anexar apólice ou documento</button><small style="color:var(--ink-faint)">${rows.length} apólice(s) · ${nd} documento(s) anexado(s)</small></div>`;
+  const [{ data: dcs }, { data: aps }] = await Promise.all([
+    sb.from('crm_documentos').select('id,nome_arquivo,categoria,path,created_at,enviado_por').eq('pessoa_id', p.id).order('created_at',{ascending:false}),
+    sb.from('crm_apolices').select('id,seguradora,tipo_seguro,data_emissao,data_vencimento,status,arquivo_apolice').eq('pessoa_id', p.id).order('data_vencimento',{ascending:true})]);
+  const docs = dcs || [], rows = aps || [];
+  host.innerHTML = `<div class="ql">Fase 1 · Documentos <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— apólices e arquivos de ${escapeHtml(p.nome.split(' ')[0])}, para o estudo</small></div>
+    <div class="hint" style="margin-bottom:10px">Solte aqui todas as apólices e documentos do cliente <b>de uma vez</b>. O sistema lê só o básico (nome, CPF, telefone e nascimento) e mostra o resumo da leitura; os documentos ficam mantidos neste cadastro. Depois, a <b>Fase 2</b> lê as coberturas de cada apólice. Cliente sem apólice? <a href="#" id="fl-pular">pule para o Diagnóstico (Fase 3)</a>.</div>
+    <div class="dz" id="fl-dz">📎 Arraste aqui as apólices e documentos (várias de uma vez) ou clique<input type="file" id="fl-file" accept=".pdf,image/*,.xlsx,.xls" multiple hidden></div>
+    ${docs.length?`<div class="ql" style="margin-top:12px">Documentos anexados (${docs.length})</div><div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Documento</th><th>Tipo</th><th>Enviado por</th><th>Data</th><th></th></tr></thead><tbody>${docs.map(d=>`<tr><td>${escapeHtml(d.nome_arquivo||'—')}</td><td>${escapeHtml(d.categoria||'—')}</td><td>${escapeHtml(d.enviado_por||'—')}</td><td>${fmtDate(d.created_at)}</td><td>${d.path?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(d.path)}">Abrir</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-top:10px">Nenhum documento anexado ainda.</div>'}
+    ${rows.length?`<div class="ql" style="margin-top:12px">Apólices registradas (${rows.length})</div><div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Seguradora</th><th>Produto</th><th>Emissão</th><th>Vigência até</th><th>Status</th><th>Documento</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${escapeHtml(a.seguradora||'—')}</td><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${fmtDate(a.data_emissao)||'—'}</td><td>${fmtDate(a.data_vencimento)||'—'}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td>${a.arquivo_apolice?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(a.arquivo_apolice)}">📎 Abrir apólice</button>`:'<span style="color:var(--ink-faint)">sem arquivo</span>'}</td></tr>`).join('')}</tbody></table></div>`:''}`;
   host.querySelectorAll('[data-fl-doc]').forEach(b=>b.addEventListener('click', async ()=>{ try{ window.open(await docsSignedUrl(b.dataset.flDoc),'_blank'); }catch(x){ showToast('Erro ao abrir documento: '+x.message); } }));
   const pu = host.querySelector('#fl-pular'); if(pu) pu.addEventListener('click', e=>{ e.preventDefault(); flowGo(2); });
-  host.querySelector('#fl-anexar').addEventListener('click', ()=>{
-    const inp = document.createElement('input'); inp.type = 'file'; inp.multiple = true; inp.accept = '.pdf,image/*';
-    inp.addEventListener('change', ()=>{ window._caFixed = {id:p.id, nome:p.nome, cpf:p.cpf, crm:p.crm}; caEnqueue([...inp.files]); }); inp.click(); });
+  const dz = host.querySelector('#fl-dz'), inp = host.querySelector('#fl-file');
+  const enviar = fs=>{ fs = [...fs].filter(f=>f && f.name); if(fs.length) caFase1(fs, {id:p.id, nome:p.nome, cpf:p.cpf}); };
+  dz.addEventListener('click', ()=>inp.click());
+  dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+  dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); enviar(e.dataTransfer.files); });
+  inp.addEventListener('change', ()=>{ const fs = [...inp.files]; inp.value = ''; enviar(fs); });
 }
 function flowRefresh(){
   if(!FLOW.open || !FLOW.p) return; const p = FLOW.p;
@@ -5044,7 +5050,7 @@ async function fase1Read(file){
   const pessoas = (f.multiplas && f.multiplas.length>1) ? f.multiplas.map(c=>({nome:c.nome||'', cpf:c.cpf||''})) : [{nome:f.nome||'', cpf:f.cpf||'', telefone:f.telefone||'', nasc:f.data_nascimento||''}];
   return {file, tipo, pessoas, erro, multi:pessoas.length>1, viaIA, resumo};
 }
-async function caFase1(files){
+async function caFase1(files, fixed){
   files = files.filter(f=>f && f.name); if(!files.length) return;
   const box = dlgOpen(`<div class="om-title"><div><h3>Lendo ${files.length} documento(s)…</h3><div class="om-sub" id="f1-prog">Extraindo nome, CPF e o tipo de cada documento.</div></div></div><div class="dlg-body"><div class="op-more">⏳ Aguarde…</div></div>`, true);
   await ensurePessoas();
@@ -5067,6 +5073,12 @@ async function caFase1(files){
     const nameM = !exact && dOnly(g.cpf).length!==11 ? found.find(r=>r.why==='nome idêntico'||r.why==='nome semelhante') : null;
     g._match = exact || nameM || null; g._status = exact ? 'existe' : (nameM ? 'dup' : (g.nome||dOnly(g.cpf).length===11 ? 'novo' : 'semid'));
     let status = '', opts = '';
+    // dentro do fluxo de proteção o cliente já está aberto: documento dele (mesmo CPF, ou sem CPF e nome parecido) fica mantido neste cadastro
+    const mesmoFixo = fixed && ((dOnly(g.cpf).length===11 && dOnly(fixed.cpf)===dOnly(g.cpf)) || (dOnly(g.cpf).length!==11 && (!g.nome || (()=>{ const A = new Set(normNome(fixed.nome)), B = normNome(g.nome); const hit = B.filter(t=>A.has(t)).length; return hit>=2 || (B.length>0 && hit===B.length); })())));
+    if(mesmoFixo){ g._match = {id:fixed.id, nome:fixed.nome}; g._status = 'existe';
+      status = `<div class="hint"><b>Cadastro atual:</b> <b>${escapeHtml(fixed.nome)}</b>. Os documentos ficam mantidos neste cadastro.</div>`;
+      opts = radio(gi,'attach',`Manter estes documentos no cadastro de ${escapeHtml(fixed.nome)}`,true)+radio(gi,'cancel','Cancelar — não salvar estes documentos');
+      return {status, opts}; }
     if(g._status==='existe'){ status = `<div class="hint"><b>Cadastro existente</b> com esse CPF: <b>${escapeHtml(exact.nome)}</b></div>`;
       opts = radio(gi,'attach',`Sim — inserir estes documentos no cadastro de ${escapeHtml(exact.nome)}`,true)+radio(gi,'novo','Não — criar um novo cadastro e anexar lá <small>(sem CPF, pois o sistema não aceita o mesmo CPF em dois cadastros)</small>')+radio(gi,'cancel','Cancelar — não salvar nada para esta pessoa'); }
     else if(g._status==='dup'){ status = `<div class="hint" style="color:var(--amber-ink)">⚠ Sem CPF no documento. <b>Possível duplicidade:</b> já existe <b>${escapeHtml(nameM.nome)}</b> (${escapeHtml(nameM.why)}${nameM.cpf?' · CPF '+escapeHtml(nameM.cpf):''}).</div>`;
@@ -5075,6 +5087,7 @@ async function caFase1(files){
       opts = radio(gi,'novo','Criar o cadastro e anexar os documentos',true)+radio(gi,'cancel','Cancelar — não salvar nada para esta pessoa'); }
     else { status = `<div class="hint" style="color:var(--amber-ink)">⚠ Não consegui ler nome nem CPF nestes documentos. Digite o nome acima para criar o cadastro, ou cancele.</div>`;
       opts = radio(gi,'novo','Criar o cadastro com o nome digitado e anexar')+radio(gi,'cancel','Cancelar — não salvar nada para esta pessoa',true); }
+    if(fixed){ status = '<div class="hint" style="color:var(--amber-ink)">⚠ O CPF/nome deste documento não bate com o cadastro aberto ('+escapeHtml(fixed.nome)+').</div>'+status; opts = radio(gi,'attachfixed','Anexar mesmo assim ao cadastro de '+escapeHtml(fixed.nome))+opts; }
     return {status, opts};
   };
   const cards = await Promise.all(G.map(cardHtml));
@@ -5109,7 +5122,7 @@ async function caFase1(files){
       for(let k=0;k<ativos.length;k++){
         const {g, dec} = ativos[k]; btn.textContent = `Salvando… ${k+1}/${ativos.length}`;
         let pessoaId;
-        if(dec==='attach'){ pessoaId = g._match.id; }
+        if(dec==='attach' || dec==='attachfixed'){ pessoaId = dec==='attachfixed' ? fixed.id : g._match.id; }
         else {
           const row = {nome:g.nome, tipo:document.getElementById('f1-tipo').value||'medico'};
           if(g._status!=='existe' && dOnly(g.cpf).length===11) row.cpf = fmtCPF(g.cpf);
@@ -5133,7 +5146,7 @@ async function caFase1(files){
       }
       OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR')); OP.dirty = true; CA.loaded = false;
       dlgClose(); showToast(`${nDocs} documento(s) anexado(s) · ${nCad} cadastro(s) novo(s)${falhas?` · ${falhas} com erro`:''}`);
-      if(ativos.length===1 && ultimo) goToPersonView(ultimo, 'protecao'); else renderCentral(true);
+      if(ativos.length===1 && ultimo) goToPersonView(ultimo, 'protecao'); else if(fixed && FLOW.open) flowRefresh(); else renderCentral(true);
     }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e)+' (parte pode já ter sido gravada — confira o cadastro).'; btn.disabled = false; btn.textContent = 'Salvar e anexar'; }
   });
 }
