@@ -1448,7 +1448,7 @@ function pvEditAtividade(p, a){
 // ============ FLUXO DE PROTEÇÃO · guiado, uma etapa por vez (conceito do protótipo da Amanda) ============
 // Abre sobre o cadastro do cliente: menu de etapas à esquerda e a etapa atual à direita. Reaproveita as fases já construídas
 // (pvAnalise, pvDiagnostico, pvFase3 = "Tem × Precisa", pvFase4 = cotações, pvFase5 = apresentação): elas desenham nos mesmos blocos de sempre.
-const FLOW = { open:false, p:null, step:0, st:[], t:null, autoLer:false };
+const FLOW = { open:false, p:null, step:0, st:[], t:null, autoLer:false, f4org:null };
 const FLOW_STEPS = [
   {k:'docs',    n:'Fase 1', t:'Documentos',               s:'Apólices e arquivos do cliente',    host:'fl-docs'},
   {k:'analise', n:'Fase 2', t:'Analisar documentos',      s:'Tabela das apólices',               host:'pp-analise'},
@@ -1481,7 +1481,9 @@ function flowNav(){
 }
 async function flowStatusRefresh(){ if(!FLOW.open || !FLOW.p) return; try{ FLOW.st = await flowStatus(FLOW.p); }catch(e){ console.warn('flowStatus', e); } flowSide(); }
 function flowGo(i){
-  if(!FLOW.open) return; i = Math.max(0, Math.min(FLOW_STEPS.length-1, i)); FLOW.step = i;
+  if(!FLOW.open) return; i = Math.max(0, Math.min(FLOW_STEPS.length-1, i));
+  if(FLOW.step!==i && FLOW.f4org){ try{ FLOW.f4org(); }catch(e){ console.warn('organizar cotações', e); } }
+  FLOW.step = i;
   FLOW_STEPS.forEach((s,k)=>{ const h = document.getElementById(s.host); if(h) h.style.display = k===i ? '' : 'none'; });
   flowSide(); flowNav(); const m = document.getElementById('fl-main'); if(m) m.scrollTop = 0; flowStatusRefresh();
   if(i===1 && FLOW.autoLer){ FLOW.autoLer = false; const tentar = n=>{ const b = document.getElementById('an-ia-anex'); if(b && !b.disabled) b.click(); else if(n>0) setTimeout(()=>tentar(n-1), 600); }; setTimeout(()=>tentar(10), 500); }
@@ -1633,7 +1635,7 @@ async function f5Context(p){
     repr: E.provedor_pct!=null?Number(E.provedor_pct):100, padrao: Number(E.renda_desejada_familia)||Number(E.gastos_mensais)||Number(E.renda_mensal)||0, pat: Number(E.patrimonio_bruto)||0, meac, pref,
     esporte: D.pratica_esportes===true?'Sim':'Não informado', saude: D.tem_plano_saude===false?'Não':'Sim', investir: Number(D.valor_cheque_mensal)||0, deps };
   const apol = ((an&&an.linhas)||[]).filter(r=>ANL_CATS.includes(r.cat));
-  const cot = (ct&&ct.linhas)||[]; const solSub = (ct&&ct.sol_sub)||1;
+  const cot = ((ct&&ct.linhas)||[]).map((r,i)=>({r, o:Number(r.ord)>0?Number(r.ord):i+1, i})).sort((a,b)=>a.o-b.o || a.i-b.i).map(x=>x.r); const solSub = (ct&&ct.sol_sub)||1;
   return {P, prem, cli, apol, cot, solSub, hasPol: apol.length>0};
 }
 function f5Faltas(m, X){
@@ -1674,7 +1676,7 @@ function f5Deck(m, X, opt){
   const c = X.cli, p = X.prem, esc = escapeHtml;
   const fm = v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}), f0 = v=>'R$ '+Math.round(Number(v)||0).toLocaleString('pt-BR');
   const dtBR = v=>v?String(v).split('-').reverse().join('/'):'';
-  const sel = n=> F3_ORD.flatMap(cat=>X.cot.filter(r=>r.cat===cat && r['s'+n]));
+  const sel = n=> X.cot.filter(r=>r['s'+n]);
   const sumCap = l=>l.reduce((t,r)=>t+(Number(r.cap)||0),0), sumPrem = l=>l.reduce((t,r)=>t+(Number(r.prem)||0),0);
   const capTxt = r=>(F5_UPTO.includes(r.cat)?'até ':'')+f0(r.cap), capSub = r=>F3_DIARIA.includes(r.cat)?'por dia'+(Number(r.uti)?' · UTI '+f0(r.uti):''):'';
   const primeiro = ()=>(c.nome||'O cliente').trim().split(/\s+/)[0];
@@ -1731,7 +1733,7 @@ function f5Deck(m, X, opt){
        ${X.apol.map(r=>`<tr><td style="border-left:1mm solid ${r.tipo==='Vitalícia'?'#75f5d2':/^ok/i.test(r.obs||'')?'#000a61':'#b45630'}"><b>${esc(r.cob||'—')}</b></td><td class="r" style="${r.cap===''?'color:#7a400f;font-weight:700':''}">${r.cap===''?'não lido':fm(r.cap)}</td><td class="r" style="${r.prem===''?'color:#7a400f;font-weight:700':''}">${r.prem===''?'não lido':fm(r.prem)}</td><td style="${alertOf(r)?'color:#b45630;font-weight:700':''}">${r.tipo==='Vitalícia'?'Vitalício':'Até '+dtBR(r.vig)}</td><td style="background:#fbeee7;font-size:7.2pt">${esc(r.obs||'')}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma apólice cadastrada na Fase 2.</td></tr>'}
        <tr class="tot"><td>Total</td><td class="r">${fm(X.apol.reduce((a,r)=>a+(Number(r.cap)||0),0))}</td><td class="r">${fm(X.apol.reduce((a,r)=>a+(Number(r.prem)||0),0))}</td><td colspan="2" style="font-weight:400;font-size:6.6pt;color:#6b6b66">Soma de todas as coberturas atuais (capital segurado e prêmio mensal).</td></tr></tbody></table>`);
     // 2 · substituição
-    const l = X.cot.filter(r=>r['s'+X.solSub]).slice().sort((a,b)=>F3_ORD.indexOf(a.cat)-F3_ORD.indexOf(b.cat));
+    const l = X.cot.filter(r=>r['s'+X.solSub]);
     const antes = r=>{ const idx = String(r.subst||'').split(/[^0-9]+/).filter(Boolean).map(n=>parseInt(n,10)-1).filter(i=>X.apol[i]); const rows = idx.map(i=>X.apol[i]); if(!rows.length) return null;
       const cap = rows.reduce((a,x)=>a+(Number(x.cap)||0),0), prem = rows.reduce((a,x)=>a+(Number(x.prem)||0),0); const lab = x=>x.tipo==='Vitalícia'?'Vitalício':dtBR(x.vig); const labs = [...new Set(rows.map(lab))];
       const vig = labs.length===1 ? labs[0] : [...new Set(rows.map(x=>x.tipo==='Vitalícia'?'Vitalício':(x.vig||'').slice(0,4)))].filter(Boolean).sort().join(' e '); return {cap, prem, vig, rows}; };
@@ -1747,8 +1749,8 @@ function f5Deck(m, X, opt){
     page('Proposta de substituição de apólices','Novas seguradoras · todas as melhorias em relação ao que você possui hoje',
       `<div class="dk-sec"><span>A nova proteção sugerida</span><small style="color:#6b6b66">Cada linha mostra o valor novo e, em cinza, o que você possui hoje</small></div>
        <table class="dk-t"><thead><tr><th>COBERTURA</th><th>SEGURADORA</th><th class="r">CAPITAL SEGURADO</th><th class="r">PRÊMIO MENSAL</th><th class="r">VIGÊNCIA</th><th>MELHORIAS</th></tr></thead><tbody>
-       ${l.map(r=>{ const a = antes(r); if(a && a.rows.length>1) anyMulti = true; const mel = (r.motivo||melAuto(r,a)||'').trim(); const d = a?(Number(r.prem)||0)-a.prem:0;
-         return `<tr><td>${nomeCat(r)}</td><td><b>${esc(r.seg||'')}</b></td><td class="r"><b>${fm(r.cap)}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${fm(a.cap)}</div>`:''}</td><td class="r"><b>${fm(r.prem)}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${fm(a.prem)}</div><div style="font-size:6.4pt;font-weight:700;color:${d<0?'#01043b':'#b45630'}">${d<0?'–':'+'}${fm(Math.abs(d))}/mês</div>`:''}</td><td class="r"><b>${esc(r.prazo||'')}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${esc(a.vig)}</div>`:''}</td><td style="background:#e2eaf5;font-size:7.2pt">${esc(mel)}</td></tr>`; }).join('')||'<tr><td colspan="6">Nenhuma cobertura marcada para a proposta (Fase 5).</td></tr>'}
+       ${l.map(r=>{ const a = antes(r); if(a && a.rows.length>1) anyMulti = true; const vv = t=>{ t = String(t||'').trim(); return /^x+$/i.test(t)?'':t; }; const mel = vv(r.motivo)||melAuto(r,a)||'', desc = vv(r.nota), det = vv(r.sub); const d = a?(Number(r.prem)||0)-a.prem:0;
+         return `<tr><td>${nomeCat(r)}${det?`<div style="font-size:6pt;color:#6b6b66">${esc(det)}</div>`:''}</td><td><b>${esc(r.seg||'')}</b></td><td class="r"><b>${fm(r.cap)}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${fm(a.cap)}</div>`:''}</td><td class="r"><b>${fm(r.prem)}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${fm(a.prem)}</div><div style="font-size:6.4pt;font-weight:700;color:${d<0?'#01043b':'#b45630'}">${d<0?'–':'+'}${fm(Math.abs(d))}/mês</div>`:''}</td><td class="r"><b>${esc(r.prazo||'')}</b>${a?`<div style="font-size:6.2pt;color:#6b6b66">antes: ${esc(a.vig)}</div>`:''}</td><td style="background:#e2eaf5;font-size:7.2pt">${mel?`<b>${esc(mel)}</b>`:''}${desc?`<div style="color:#6b6b66;margin-top:.6mm">${esc(desc)}</div>`:''}</td></tr>`; }).join('')||'<tr><td colspan="6">Nenhuma cobertura marcada para a proposta (Fase 5).</td></tr>'}
        <tr class="tot"><td colspan="2">Total</td><td class="r">${fm(capN)}<div style="font-size:6.2pt;color:#6b6b66;font-weight:400">antes: ${fm(capH)}</div></td><td class="r">${fm(premN)}<div style="font-size:6.2pt;color:#6b6b66;font-weight:400">antes: ${fm(premH)}</div></td><td colspan="2" style="font-weight:400;font-size:7.4pt">Capital segurado ${sg(dc)}${fm(Math.abs(dc))} (${sg(pc)}${Math.abs(pc).toFixed(0)}%) · prêmio mensal ${sg(dp)}${fm(Math.abs(dp))} (${sg(pp)}${Math.abs(pp).toFixed(1)}%)</td></tr></tbody></table>
        ${anyMulti?'<p style="font-size:6.4pt;color:#6b6b66;margin:1mm 0">Nas coberturas unificadas, o valor "antes" é a soma das apólices atuais que passam a ser uma só. Os totais somam todas as coberturas, incluindo a diária hospitalar.</p>':''}
        <div class="dk-fin"><div><small>CAPITAL SEGURADO TOTAL</small><b>${fm(capN)}</b><i>hoje ${fm(capH)} · ${sg(pc)}${Math.abs(pc).toFixed(0)}%</i></div><div><small>PRÊMIO MENSAL TOTAL</small><b>${fm(premN)}</b><i>hoje ${fm(premH)} · ${sg(pp)}${Math.abs(pp).toFixed(1)}%</i></div>${msgs.map(x=>`<div class="g"><b>${esc(x[0])}</b><i>${esc(x[1])}</i></div>`).join('')}</div>`);
@@ -1826,6 +1828,14 @@ async function f5Emissao(pessoaId){
     return ds.length ? ds[ds.length-1] : null; }catch(e){ return null; }
 }
 const f5FileName = (pre, nome)=> pre+'_'+String(nome||'cliente').trim().replace(/[^\w]+/g,'_')+'.pdf';
+// nome digitado pela usuária vira o nome do PDF (".pdf" entra sozinho; caracteres proibidos em nomes de arquivo saem); em branco vale o automático
+function f5NomeArq(inputId, automatico){
+  const el = document.getElementById(inputId); let v = el ? String(el.value||'') : '';
+  v = v.replace(/[\\/:*?"<>|\x00-\x1f]+/g,'').replace(/\s+/g,' ').trim().replace(/\.pdf$/i,'').trim().replace(/^\.+|\.+$/g,'').trim();
+  return v ? v+'.pdf' : automatico;
+}
+const f5NomeLimpar = inputId=>{ const el = document.getElementById(inputId); if(el) el.value = ''; };
+const f5NomeCampo = (id)=>`<label class="fl" style="min-width:230px;margin:0"><span>Nome do arquivo (opcional)</span><input type="text" id="${id}" placeholder="em branco = nome automático" maxlength="120"></label>`;
 async function f5DownloadPdf(html, nome){
   await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
   await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
@@ -1854,7 +1864,7 @@ async function pvFase5(p){
       <div class="hint" style="margin-top:6px">${modeloEsc==='auto'?(X.hasPol?'Motivo da sugestão: há apólice lançada na Fase 2.':'Motivo da sugestão: nenhuma apólice lançada na Fase 2.'):'Escolhido por você. <a href="#" id="f5-auto">Voltar ao sugerido</a>'}</div>
       ${m==='luiz'?`<div class="fgrid" style="margin-top:8px;max-width:520px"><label class="fl"><span>Página "Proteger um bem ou uma vida?": valor do carro (R$)</span><input type="number" id="f5-carro" value="${opt.carro}"></label><label class="fl"><span>Taxa anual do seguro do carro (%)</span><input type="number" step="0.1" id="f5-taxa" value="${opt.taxaCarro}"></label></div>`:''}
       <div style="margin-top:10px">${f.length?`<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px"><b>Faltam dados para esta apresentação ficar completa:</b><ul style="margin:4px 0 0 18px">${f.map((x,i)=>`<li>${escapeHtml(x.t)} <a href="#" data-goto="${x.go}">ir para a tela certa</a></li>`).join('')}</ul></div>`:'<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px">Todos os dados necessários estão preenchidos.</div>'}</div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button class="om-save" id="f5-baixar">⬇ Baixar PDF</button><button class="om-cancel" id="f5-gerar">🖨️ Imprimir ou salvar como PDF</button><span id="f5-st" style="font-size:12px;color:var(--ink-faint)">"Baixar PDF" gera o arquivo direto. "Imprimir" abre a janela do navegador (A4 paisagem, sem margens).</span></div>`;
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">${f5NomeCampo('f5-nome-pdf')}<button class="om-save" id="f5-baixar">⬇ Baixar PDF</button><button class="om-cancel" id="f5-gerar">🖨️ Imprimir ou salvar como PDF</button><span id="f5-st" style="font-size:12px;color:var(--ink-faint)">"Baixar PDF" gera o arquivo direto. "Imprimir" abre a janela do navegador (A4 paisagem, sem margens).</span></div>`;
     host.querySelectorAll('[data-modelo]').forEach(b=>b.addEventListener('click', ()=>{ modeloEsc = b.dataset.modelo; draw(); }));
     const au = host.querySelector('#f5-auto'); if(au) au.addEventListener('click', e=>{ e.preventDefault(); modeloEsc = 'auto'; draw(); });
     host.querySelectorAll('[data-goto]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); pvGotoSection(a.dataset.goto); }));
@@ -1867,7 +1877,7 @@ async function pvFase5(p){
     host.querySelector('#f5-gerar').addEventListener('click', ()=>{ const html = preparar(); if(!html) return; document.getElementById('print-report').innerHTML = html; setTimeout(()=>window.print(), 150); });
     host.querySelector('#f5-baixar').addEventListener('click', async ()=>{
       const html = preparar(); if(!html) return; const st = host.querySelector('#f5-st'), btn = host.querySelector('#f5-baixar'); btn.disabled = true; st.textContent = '⏳ Gerando o PDF…';
-      try{ await f5DownloadPdf(html, 'Apresentacao_'+(X.cli.nome||'cliente').trim().replace(/[^\w]+/g,'_')+(m==='luiz'?'_Proposta':'_Comparativo')+'.pdf'); st.textContent = '✅ PDF baixado.'; }
+      try{ await f5DownloadPdf(html, f5NomeArq('f5-nome-pdf', 'Apresentacao_'+(X.cli.nome||'cliente').trim().replace(/[^\w]+/g,'_')+(m==='luiz'?'_Proposta':'_Comparativo')+'.pdf')); f5NomeLimpar('f5-nome-pdf'); st.textContent = '✅ PDF baixado.'; }
       catch(e){ st.textContent = '❌ Não consegui gerar o arquivo ('+(e.message||e)+'). Use "Imprimir ou salvar como PDF".'; }
       btn.disabled = false; });
   };
@@ -1899,6 +1909,17 @@ async function pvFase4(p){
   let tmr = null;
   const persist = async ()=>{ const { error } = await sb.from('crm_cotacoes_estudo').upsert({pessoa_id:p.id, linhas:rows, sol_sub:solSub, atualizado_por:curUserName(), atualizado_em:new Date().toISOString()}, {onConflict:'pessoa_id'}); if(error) showToast('Erro ao salvar cotações: '+error.message); };
   const saveSoon = ()=>{ clearTimeout(tmr); tmr = setTimeout(persist, 700); };
+  // ordem das coberturas na apresentação: a usuária digita o # de cada linha; "Organizar" reordena e refaz a numeração de 1 em diante.
+  // Número repetido: a linha que ela acabou de mudar fica na frente. Sem mudança, não redesenha.
+  let lastEd = null;
+  const organizar = (forca)=>{
+    const key = (r,i)=>[Number(r.ord)>0?Number(r.ord):i+1, r===lastEd?0:1, i];
+    const ord = rows.map((r,i)=>({r, k:key(r,i)})).sort((a,b)=>a.k[0]-b.k[0] || a.k[1]-b.k[1] || a.k[2]-b.k[2]).map(x=>x.r);
+    const mudou = ord.some((r,i)=>r!==rows[i] || Number(r.ord)!==i+1);
+    lastEd = null; if(!mudou){ if(forca===true) showToast('As coberturas já estão na ordem digitada.'); return false; }
+    rows = ord; rows.forEach((r,i)=>{ r.ord = i+1; }); persist();
+    if(host.isConnected) draw(); if(forca===true) showToast('Coberturas organizadas pela numeração.'); return true; };
+  FLOW.f4org = ()=>{ if(host.isConnected) organizar(); };
   const summary = ()=>{ const e = document.getElementById('f4-sum'); if(!e) return;
     const a = sel(1), b = sel(2), hp = apol.length>0, h = sumPrem(apol), hc = sumCap(apol);
     const diff = v=> hp ? `<div class="hint">${v>=h?'+':'−'}${fm(Math.abs(v-h))} por mês em relação ao que paga hoje</div>` : '';
@@ -1917,13 +1938,14 @@ async function pvFase4(p){
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="f4-dadd">＋ Linha</button><button class="om-save" id="f4-dgo">Adicionar esta cotação à tabela</button></div><div id="f4-dav"></div></details>
       ${resumo?`<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px;margin-bottom:8px"><b>${escapeHtml(resumo)}</b></div>`:''}
       ${avisos.length?`<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-bottom:8px"><b>Pontos de atenção</b><ul style="margin:4px 0 0 18px">${avisos.map(a=>`<li>${escapeHtml(a)}</li>`).join('')}</ul></div>`:''}
-      <div style="overflow-x:auto"><table class="f4-t" style="min-width:1500px;border-collapse:collapse"><thead><tr><th style="width:30px">#</th><th style="min-width:170px;text-align:left">Categoria</th><th style="width:110px">Seguradora</th><th style="min-width:170px">Cobertura (nome na proposta)</th><th style="width:130px">Detalhe do produto</th><th style="width:110px">Capital</th><th style="width:100px">Prêmio mensal</th><th style="width:100px">Prazo</th><th style="width:80px">UTI (R$/dia)</th><th style="min-width:180px">Descrição para o cliente</th><th style="min-width:160px">Melhoria / motivo</th><th style="width:50px">Sol. 1</th><th style="width:50px">Sol. 2</th><th style="width:90px">Substitui (# Fase 2)</th><th style="width:34px"></th></tr></thead><tbody>
-      ${rows.length?rows.map((r,i)=>`<tr data-i="${i}"><td>${i+1}</td><td><select data-f="cat">${ANL_CATS.map(c=>`<option ${c===r.cat?'selected':''}>${c}</option>`).join('')}</select></td><td><input type="text" data-f="seg" value="${escapeHtml(r.seg||'')}"></td><td><input type="text" data-f="cob" value="${escapeHtml(r.cob||'')}"></td><td><input type="text" data-f="sub" value="${escapeHtml(r.sub||'')}"></td>
+      <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-cancel" id="f4-org">↕ Organizar pela numeração</button><span class="hint" style="margin:0">Digite a posição de cada cobertura em <b>#</b> (é a ordem em que saem na apresentação) e tecle Enter ou clique aqui.</span></div>
+      <div style="overflow-x:auto"><table class="f4-t" style="min-width:1500px;border-collapse:collapse"><thead><tr><th style="width:56px">#</th><th style="min-width:170px;text-align:left">Categoria</th><th style="width:110px">Seguradora</th><th style="min-width:170px">Cobertura (nome na proposta)</th><th style="width:130px">Detalhe do produto</th><th style="width:110px">Capital</th><th style="width:100px">Prêmio mensal</th><th style="width:100px">Prazo</th><th style="width:80px">UTI (R$/dia)</th><th style="min-width:180px">Descrição para o cliente</th><th style="min-width:160px">Melhoria / motivo</th><th style="width:50px">Sol. 1</th><th style="width:50px">Sol. 2</th><th style="width:90px">Substitui (# Fase 2)</th><th style="width:34px"></th></tr></thead><tbody>
+      ${rows.length?rows.map((r,i)=>`<tr data-i="${i}"><td><input type="number" min="1" step="1" data-f="ord" title="Posição na apresentação. Digite e tecle Enter (ou clique em Organizar pela numeração)" style="text-align:center" value="${Number(r.ord)>0?Number(r.ord):i+1}"></td><td><select data-f="cat">${ANL_CATS.map(c=>`<option ${c===r.cat?'selected':''}>${c}</option>`).join('')}</select></td><td><input type="text" data-f="seg" value="${escapeHtml(r.seg||'')}"></td><td><input type="text" data-f="cob" value="${escapeHtml(r.cob||'')}"></td><td><input type="text" data-f="sub" value="${escapeHtml(r.sub||'')}"></td>
         <td><input type="number" step="0.01" data-f="cap" class="${r.cap===''?'unread':''}" value="${r.cap}"></td><td><input type="number" step="0.01" data-f="prem" class="${r.prem===''?'unread':''}" value="${r.prem}"></td><td><input type="text" data-f="prazo" value="${escapeHtml(r.prazo||'')}"></td><td><input type="number" step="0.01" data-f="uti" value="${r.uti===''||r.uti==null?'':r.uti}"></td>
         <td><input type="text" data-f="nota" value="${escapeHtml(r.nota||'')}"></td><td><input type="text" data-f="motivo" value="${escapeHtml(r.motivo||'')}"></td><td style="text-align:center"><input type="checkbox" data-f="s1" ${r.s1?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-f="s2" ${r.s2?'checked':''}></td>
         <td><input type="text" data-f="subst" placeholder="ex.: 2,3" value="${escapeHtml(r.subst||'')}"></td><td><button type="button" class="om-cancel icon-btn" data-del="${i}" title="Remover">×</button></td></tr>`).join(''):'<tr><td colspan="15" style="color:var(--ink-faint)">Nenhuma cotação ainda. Use "Nova cotação" acima.</td></tr>'}
       </tbody></table></div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><button class="om-cancel" id="f4-add">＋ Adicionar linha</button><button class="om-cancel" id="f4-clear" style="color:var(--red)">Limpar cotações</button>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><button class="om-cancel" id="f4-add">＋ Adicionar linha</button><button class="om-cancel" id="f4-clear" style="color:var(--red)">Limpar cotações</button><button class="om-save" id="f4-salvar">💾 Salvar informações</button><button class="om-cancel" id="f4-prox">Ir para a Fase 6 · Apresentação</button>
         ${apol.length?`<label class="fl" style="min-width:260px"><span>Solução usada na proposta de substituição</span><select id="f4-sol"><option value="1" ${solSub===1?'selected':''}>Solução 1</option><option value="2" ${solSub===2?'selected':''}>Solução 2</option></select></label>`:''}</div>
       <div class="hint" style="margin-top:6px">O prêmio da diária inclui o adicional de UTI. Os totais somam todas as coberturas marcadas, inclusive os valores por dia da diária e do DIT (o valor de UTI não entra na soma).</div>
       <div id="f4-sum" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>`;
@@ -1931,10 +1953,14 @@ async function pvFase4(p){
     // tabela principal
     host.querySelectorAll('tbody tr[data-i]').forEach(tr=>{ const i = +tr.dataset.i;
       tr.querySelectorAll('[data-f]').forEach(el=>el.addEventListener(el.tagName==='SELECT'||el.type==='checkbox'?'change':'input', ()=>{
-        const f = el.dataset.f; let v = el.type==='checkbox' ? el.checked : el.value; if(['cap','prem','uti'].includes(f)) v = v===''?'':Number(v);
-        rows[i][f] = v; if(f==='cap'||f==='prem') el.classList.toggle('unread', v===''); summary(); saveSoon(); })); });
+        const f = el.dataset.f; let v = el.type==='checkbox' ? el.checked : el.value; if(['cap','prem','uti','ord'].includes(f)) v = v===''?'':Number(v);
+        rows[i][f] = v; if(f==='ord') lastEd = rows[i]; if(f==='cap'||f==='prem') el.classList.toggle('unread', v===''); summary(); saveSoon(); })); });
+    host.querySelectorAll('input[data-f="ord"]').forEach(el=>el.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); clearTimeout(tmr); organizar(true); } }));
     host.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{ rows.splice(+b.dataset.del,1); persist(); draw(); }));
     host.querySelector('#f4-add').addEventListener('click', ()=>{ rows.push(f4Blank()); persist(); draw(); });
+    host.querySelector('#f4-salvar').addEventListener('click', async ()=>{ clearTimeout(tmr); organizar(); await persist(); showToast('Informações salvas (Cotações e plano novo)'); });
+    host.querySelector('#f4-prox').addEventListener('click', async ()=>{ clearTimeout(tmr); organizar(); await persist(); pvGotoSection('pp-fase5'); });
+    host.querySelector('#f4-org').addEventListener('click', ()=>{ organizar(true); });
     host.querySelector('#f4-clear').addEventListener('click', ()=>{ if(!rows.length || !confirm('Limpar todas as cotações deste cliente?')) return; rows = []; avisos = []; resumo = ''; persist(); draw(); });
     const sol = host.querySelector('#f4-sol'); if(sol) sol.addEventListener('change', ()=>{ solSub = +sol.value; saveSoon(); });
     // nova cotação
@@ -2017,11 +2043,13 @@ async function pvFase3(p){
       ${rows.map(r=>`<tr><td><b>${escapeHtml(r.cat)}</b></td><td>${fmtMoney(r.need)}${r.dy}</td>${temApolice?`<td>${r.cap?fmtMoney(r.cap)+r.dy:'—'}</td><td><b style="color:${r.s[2]}">${r.s[1]}</b></td><td>${r.gap?fmtMoney(r.gap)+r.dy:'—'}</td><td>${r.prem?fmtMoney(r.prem):'—'}</td><td>${r.alerta?'<span class="tagx warn">'+escapeHtml(r.alerta)+'</span>':''}</td><td><small>${escapeHtml(r.ponto)}</small></td>`:''}<td><small>${escapeHtml(r.sug)}</small></td></tr>`).join('')}
       <tr style="font-weight:700;background:#f6f7fc"><td>Total (sem as diárias)</td><td>${fmtMoney(T.need)}</td>${temApolice?`<td>${fmtMoney(T.cap)}</td><td>${T.sem} sem · ${T.ins} insuf.</td><td>${fmtMoney(T.gap)}</td><td>${fmtMoney(T.prem)}</td><td></td><td></td>`:''}<td></td></tr></tbody></table></div>
     <div class="hint" style="margin-top:6px">Situação: <b>Sem cobertura</b> = nada lançado na Fase 2; <b>Insuficiente</b> = tem menos de 90% da necessidade; <b>Adequada</b> = 90% ou mais. Diárias (internação e DIT) são valores por dia e não entram no total.</div>
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-save" id="f3-pdf">⬇ Baixar PDF · Fases 3 e 4 (Diagnóstico)</button></div>`;
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">${f5NomeCampo('f3-nome-pdf')}<button class="om-save" id="f3-pdf">⬇ Baixar PDF · Fases 3 e 4 (Diagnóstico)</button><button class="om-save" id="f3-save">💾 Salvar informações</button><button class="om-cancel" id="f3-prox">Ir para a Fase 5 · Cotações e plano novo</button></div>`;
+  host.querySelector('#f3-save').addEventListener('click', ()=>{ showToast('Informações salvas. Esta tela é calculada com o que está salvo nas Fases 2 e 3.'); pvFase3(p); });
+  host.querySelector('#f3-prox').addEventListener('click', ()=>pvGotoSection('pp-fase4'));
   const pdfBtn = host.querySelector('#f3-pdf'); pdfBtn.addEventListener('click', async ()=>{
     pdfBtn.disabled = true; const lb = pdfBtn.textContent; pdfBtn.textContent = '⏳ Gerando…';
     try{ const X = await f5Context(p);
-      await f5DownloadPdf(f5DeckFase34(X, {rows, T, temApolice}, await f5Emissao(p.id)), f5FileName('Fases3e4_Diagnostico', p.nome)); showToast('PDF das Fases 3 e 4 baixado'); }
+      await f5DownloadPdf(f5DeckFase34(X, {rows, T, temApolice}, await f5Emissao(p.id)), f5NomeArq('f3-nome-pdf', f5FileName('Fases3e4_Diagnostico', p.nome))); f5NomeLimpar('f3-nome-pdf'); showToast('PDF das Fases 3 e 4 baixado'); }
     catch(e){ showToast('Não consegui gerar o PDF: '+(e.message||e)); }
     pdfBtn.disabled = false; pdfBtn.textContent = lb; });
 }
@@ -2068,7 +2096,7 @@ async function pvAnalise(p){
           <td><select data-f="tipo"><option ${r.tipo==='Vitalícia'?'selected':''}>Vitalícia</option><option ${r.tipo==='Temporária'?'selected':''}>Temporária</option></select></td><td><input type="date" data-f="vig" class="${r.vig?'':'unread'}" value="${r.vig||''}"></td>
           <td><input data-f="obs" value="${escapeHtml(r.obs||'')}"></td><td><button type="button" class="om-cancel icon-btn" data-del="${i}" title="Remover linha">×</button></td></tr>`).join('')}
         </tbody><tfoot><tr style="font-weight:700;background:#f6f7fc"><td colspan="3">Soma das apólices</td><td id="an-tc"></td><td id="an-tp"></td><td colspan="4"></td></tr></tfoot></table></div>`:'<div class="hint">Nenhuma cobertura lançada ainda. Use "Adicionar cobertura" para preencher a tabela manualmente.</div>'}
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="an-add">＋ Adicionar cobertura</button>${rows.length?'<button class="om-cancel" id="an-pdf">⬇ Baixar PDF · Fase 2</button><button class="om-save" id="an-conf">Confirmar análise</button>':''}</div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="an-add">＋ Adicionar cobertura</button>${rows.length?f5NomeCampo('an-nome-pdf')+'<button class="om-cancel" id="an-pdf">⬇ Baixar PDF · Fase 2</button><button class="om-save" id="an-conf">Confirmar análise</button>':''}</div>
       <div id="an-msg" style="margin-top:8px"></div>
       <div class="hint" style="margin-top:6px">Categoria "Outro (não entra na análise)" serve para RC Profissional, Vida em Grupo e outros ramos. O "Proteção atual" e o "Capital de vida já segurado" acima passam a vir desta tabela.</div>`;
     totals(); msg();
@@ -2135,7 +2163,7 @@ async function pvAnalise(p){
       const dados = rows.filter(r=>r.cob || (r.cap!=='' && r.cap!=null) || (r.prem!=='' && r.prem!=null));
       if(!dados.length){ showToast('Preencha ao menos uma cobertura para gerar o PDF.'); return; }
       pf.disabled = true; const lb = pf.textContent; pf.textContent = '⏳ Gerando…';
-      try{ await f5DownloadPdf(f5DeckFase2(dados, await f5Emissao(p.id)), f5FileName('Fase2_Analise', p.nome)); showToast('PDF da Fase 2 baixado'); }
+      try{ await f5DownloadPdf(f5DeckFase2(dados, await f5Emissao(p.id)), f5NomeArq('an-nome-pdf', f5FileName('Fase2_Analise', p.nome))); f5NomeLimpar('an-nome-pdf'); showToast('PDF da Fase 2 baixado'); }
       catch(e){ showToast('Não consegui gerar o PDF: '+(e.message||e)); }
       pf.disabled = false; pf.textContent = lb; });
     const pl = host.querySelector('#an-pular'); if(pl) pl.addEventListener('click', e=>{ e.preventDefault(); pvGotoSection('pp-diag'); });
@@ -2400,7 +2428,7 @@ async function pvDiagnostico(p){
       <div style="margin-top:8px">${JORNADA_EVOLUTIVA.map(([label,keys])=>`<div class="ql" style="margin-top:10px">${label}</div><div class="fgrid">${keys.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div>`).join('')}</div></details>
     ${avanc.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Outros campos</summary>
       <div class="fgrid" style="margin-top:8px">${avanc.map(f=>pvDiagField(f.name, row[f.name], [f.name,f.label,f.type,f.options])).join('')}</div></details>`:''}
-    <div style="margin-top:10px"><button class="om-save" id="dg-save">Salvar diagnóstico</button> <button class="om-cancel" id="dg-prox">Ir para a Fase 4 · O que você tem × o que você precisa</button> <button class="om-cancel" id="dg-ficha" title="Exporta tudo o que está preenchido neste diagnóstico">📄 Ficha técnica (PDF)</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
+    <div style="margin-top:10px"><button class="om-save" id="dg-save">💾 Salvar informações</button> <button class="om-cancel" id="dg-prox">Ir para a Fase 4 · O que você tem × o que você precisa</button> <button class="om-cancel" id="dg-ficha" title="Exporta tudo o que está preenchido neste diagnóstico">📄 Ficha técnica (PDF)</button> <small style="color:var(--ink-faint)">${row.preenchido_por?'Última edição por '+escapeHtml(row.preenchido_por):''}</small></div>`;
   pdBindAvancado(host);
   const dgImcUpd = ()=>{ const pe = Number(host.querySelector('[data-dg="peso"]')?.value)||0, al = Number(host.querySelector('[data-dg="altura"]')?.value)||0; const info = imcInfo(al, pe);
     host.querySelector('#dg-imc').innerHTML = info ? `IMC: <b>${info.imc}</b> <span class="tagx" style="background:transparent;border:1px solid ${info.color};color:${info.color}">${info.label}</span>` : ''; };
@@ -2420,7 +2448,7 @@ async function pvDiagnostico(p){
     const res = row.id ? await sb.from('crm_diagnostico').update(payload).eq('id', row.id) : await sb.from('crm_diagnostico').insert({...payload, pessoa_id:p.id});
     if(res.error){ showToast('Erro: '+res.error.message); return; }
     const sync = await diagPushToADN(p.id, {...payload, ...pessoaUpd});
-    showToast(sync.ok ? 'Diagnóstico salvo' : 'Diagnóstico salvo, mas falhou ao sincronizar com o Estudo: '+(sync.error?.message||'erro desconhecido'));
+    showToast(sync.ok ? 'Informações salvas (Diagnóstico)' : 'Informações salvas, mas falhou ao sincronizar com o Estudo: '+(sync.error?.message||'erro desconhecido'));
     pvDiagnostico(p); pvFase3(p); pvFase5(p); });
 }
 
