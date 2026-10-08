@@ -5093,6 +5093,12 @@ async function caFase1(files, fixed){
     const g = groups.get(key); if(!g.nome && p.nome) g.nome = p.nome; if(!g.cpf && p.cpf) g.cpf = p.cpf; if(!g.telefone && p.telefone) g.telefone = p.telefone; if(!g.nasc && p.nasc) g.nasc = p.nasc;
     g.docs.push(di);
   }));
+  // dentro do fluxo de proteção todos os documentos são do cliente aberto (as apólices anexadas são para o estudo): o CPF/nome lido
+  // em beneficiário, dependente ou titular de outro certificado não vira "outra pessoa" — só aparece como aviso no documento
+  if(fixed){ groups.clear(); groups.set('fixo', {nome:fixed.nome||'', cpf:fixed.cpf||'', telefone:'', nasc:'', docs:docs.map((_,di)=>di)}); }
+  const lidoLinha = d=>{ if(!fixed) return ''; const q = (d.pessoas&&d.pessoas[0])||{}; const partes = [q.nome, q.cpf, q.telefone, q.nasc?String(q.nasc).split('-').reverse().join('/'):''].filter(Boolean);
+    const dif = dOnly(q.cpf).length===11 && dOnly(fixed.cpf).length===11 && dOnly(q.cpf)!==dOnly(fixed.cpf);
+    return `<div style="font-size:12px;color:var(--ink-soft);margin:2px 0 0 22px">Lido: ${partes.length?escapeHtml(partes.join(' · ')):'sem nome/CPF legível'}${dif?' <span style="color:var(--amber-ink)">⚠ CPF diferente do cadastro aberto (pode ser beneficiário ou dependente) — o documento fica neste cadastro</span>':''}</div>`; };
   const G = [...groups.values()];
   const radio = (gi,v,label,checked)=>`<label class="rd"><input type="radio" name="f1-d-${gi}" value="${v}" ${checked?'checked':''}> ${label}</label>`;
   const cardHtml = async (g,gi)=>{
@@ -5122,7 +5128,7 @@ async function caFase1(files, fixed){
   const html = G.map((g,gi)=>`<div class="q" style="border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px" data-gi="${gi}">
       <div class="ql">Pessoa ${gi+1}</div>
       <div class="fgrid">${fld('f1-nome-'+gi,'Nome completo',g.nome)}${fld('f1-cpf-'+gi,'CPF',g.cpf)}</div>
-      <div style="margin:6px 0">${g.docs.map(di=>`<div class="rec">📄 <b>Documento ${di+1}</b> — ${escapeHtml(docs[di].tipo.l)} <small style="color:var(--ink-faint)">· ${escapeHtml(docs[di].file.name)}${docs[di].erro?' · ⚠ não consegui ler ('+escapeHtml(docs[di].erro)+')':''}</small>${docs[di].resumo?`<div style="font-size:12px;color:var(--ink-soft);margin:2px 0 0 22px">${escapeHtml(docs[di].resumo)}</div>`:''}</div>`).join('')}</div>
+      <div style="margin:6px 0">${g.docs.map(di=>`<div class="rec">📄 <b>Documento ${di+1}</b> — ${escapeHtml(docs[di].tipo.l)} <small style="color:var(--ink-faint)">· ${escapeHtml(docs[di].file.name)}${docs[di].erro?' · ⚠ não consegui ler ('+escapeHtml(docs[di].erro)+')':''}</small>${docs[di].resumo?`<div style="font-size:12px;color:var(--ink-soft);margin:2px 0 0 22px">${escapeHtml(docs[di].resumo)}</div>`:''}${lidoLinha(docs[di])}</div>`).join('')}</div>
       <div id="f1-st-${gi}">${cards[gi].status}${cards[gi].opts}</div>
       <div><button type="button" class="om-cancel" data-rebusca="${gi}" style="font-size:12px;padding:3px 10px">↻ Buscar de novo com o nome/CPF acima</button></div></div>`).join('');
   box.innerHTML = `<div class="om-title"><div><h3>Resumo da leitura — ${docs.length} documento(s), ${G.length} pessoa(s)</h3><div class="om-sub">Confira. Campo que não foi lido fica vazio — o sistema não inventa nem trava o salvamento. Cada pessoa tem o CPF buscado no cadastro antes de anexar.</div></div><button data-close>✕</button></div>
@@ -6089,7 +6095,7 @@ document.addEventListener('click', e=>{
   if(e.target.id==='pa-fluxo'){ const p = window._curPerson; if(p) pvFluxo(p); }
   if(e.target.id==='pa-apolice'){ const p = window._curPerson; if(!p) return;
     const inp = document.createElement('input'); inp.type='file'; inp.multiple = true; inp.accept = '.pdf,image/*';
-    inp.addEventListener('change', ()=>{ window._caFixed = {id:p.id, nome:p.nome, cpf:p.cpf, crm:p.crm}; caEnqueue([...inp.files]); }); inp.click(); }
+    inp.addEventListener('change', ()=>{ const fs = [...inp.files]; if(fs.length) caFase1(fs, {id:p.id, nome:p.nome, cpf:p.cpf}); }); inp.click(); }
 });
 
 document.getElementById('op-newcli').addEventListener('click', ()=> openNovoCliente());
