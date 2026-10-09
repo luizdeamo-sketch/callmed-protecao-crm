@@ -212,6 +212,7 @@
     <button class="nav-btn" data-view="comercial" title="Metas comerciais e projeção de vendas">💼<span>Comercial</span></button>
     <button class="nav-btn" data-view="reunioes" title="Reuniões gravadas: leitura da conversa e atualização automática do CRM">🎙️<span>Reuniões</span></button>
     <button class="nav-btn" data-view="indicadores" title="Indicadores do funil e da produção">📊<span>Indicadores</span></button>
+    <button class="nav-btn" data-view="analitico" title="Analítico: perfil da base médica, onde atuam e onde está a oportunidade">🔎<span>Analítico</span></button>
     <button class="nav-btn" data-view="agenda">📅<span>Agenda</span></button>
     <button class="nav-btn" data-view="conhecimento">📚<span>Base</span></button>
     <button class="nav-btn" data-view="sugestoes" title="Sugestões de melhoria do sistema">💡<span>Sugestões</span></button>
@@ -390,6 +391,12 @@
       </div>
     </div>
 
+    <div id="view-analitico" class="view">
+      <div class="an-head"><h2>🔎 Analítico</h2><div id="an-modes" class="seg-toggle"><button type="button" class="active" data-m="painel">Painel</button><button type="button" data-m="pontos">Pontos</button><button type="button" data-m="mapa">Mapa</button></div><span class="sp"></span><button type="button" class="om-save" id="an-play">▶ Apresentar</button><button type="button" class="om-cancel" id="an-reload" title="Recarregar os dados">↻</button></div>
+      <div id="an-body"></div>
+    </div>
+    <div id="an-pres" hidden></div>
+
     <div id="view-ata" class="view" style="overflow-y:auto; padding:30px 36px;">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:4px;">
         <h2 style="margin:0;">🗒️ Ata de Entregáveis</h2>
@@ -416,6 +423,33 @@
   .ata-entry li{ font-size:13px; color:var(--ink-soft); line-height:1.5;}
   .ata-entry .done-h4{ color:var(--teal-deep);}
   .ata-entry .open-h4{ color:var(--amber-ink);}
+
+  /* ---- Analítico ---- */
+  #view-analitico{ overflow-y:auto; padding:26px 32px 40px; }
+  .an-head{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px; } .an-head h2{ margin:0; } .an-head .sp{ flex:1; }
+  .an-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; margin-bottom:8px; }
+  .an-kpi{ background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:2px; }
+  .an-kpi b{ font-size:24px; font-family:'Roboto Condensed',sans-serif; color:var(--ink); } .an-kpi span{ font-size:12.5px; color:var(--ink-soft); } .an-kpi small{ font-size:11px; color:var(--ink-faint); }
+  .an-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:14px; }
+  .an-bar{ display:grid; grid-template-columns:150px 1fr 96px; gap:8px; align-items:center; padding:3px 0; font-size:12.5px; } .an-bar .l{ color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .an-bar .b{ background:var(--surface-2); border-radius:6px; height:12px; overflow:hidden; } .an-bar .b i{ display:block; height:100%; border-radius:6px; } .an-bar .v{ text-align:right; font-variant-numeric:tabular-nums; } .an-bar .v small{ color:var(--ink-faint); margin-left:3px; }
+  .an-seg{ display:grid; grid-template-columns:1fr 110px auto; gap:12px; align-items:center; padding:10px 0; border-bottom:1px solid var(--border-soft); } .an-seg b{ display:block; } .an-seg span{ font-size:12.5px; color:var(--ink-soft); }
+  .an-seg .n{ text-align:right; } .an-seg .n b{ font-size:20px; font-family:'Roboto Condensed',sans-serif; } .an-seg .n small{ color:var(--ink-faint); font-size:11px; } .an-seg .a{ display:flex; gap:6px; flex-wrap:wrap; }
+  .an-list{ display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:6px; margin-top:6px; } .an-list a{ display:block; border:1px solid var(--border); border-radius:8px; padding:7px 10px; text-decoration:none; color:var(--ink); } .an-list a span{ display:block; font-size:11.5px; color:var(--ink-faint); }
+  .an-perfil{ border:1px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:8px; background:var(--surface); } .an-perfil a{ color:var(--brand); text-decoration:none; }
+  .an-tools{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:10px; } .an-tools label{ display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--ink-faint); font-family:'IBM Plex Mono',monospace; text-transform:uppercase; } .an-tools select{ font:inherit; font-size:13px; text-transform:none; padding:6px 8px; border:1px solid var(--border); border-radius:8px; background:var(--surface); color:var(--ink); }
+  .an-stagewrap{ background:#030D13; border-radius:14px; overflow:hidden; border:1px solid #0e2430; } .an-stage{ position:relative; height:min(66vh,640px); min-height:420px; }
+  .an-cv{ display:block; } .an-tip{ position:absolute; z-index:5; background:rgba(8,22,30,.96); color:#e8f1f6; border:1px solid #1e4254; border-radius:10px; padding:8px 11px; font-size:12px; line-height:1.45; pointer-events:none; max-width:250px; }
+  #an-pres{ position:fixed; inset:0; z-index:4000; background:#030D13; color:#e8f1f6; font-family:Inter,sans-serif; } #an-pres[hidden]{ display:none; } .an-pstage{ position:absolute; inset:0; }
+  .an-pcap{ position:absolute; left:48px; top:36px; max-width:min(780px,70vw); transition:opacity .3s; } .an-pcap.fade{ opacity:0; } .an-pcap i{ display:block; font-style:normal; font-family:'IBM Plex Mono',monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#75f5d2; margin-bottom:8px; }
+  .an-pcap b{ display:block; font-family:'Roboto Condensed',sans-serif; font-size:clamp(26px,3.2vw,48px); line-height:1.08; } .an-pcap span{ display:block; margin-top:8px; font-size:clamp(13px,1.15vw,18px); color:rgba(200,220,232,.8); }
+  .an-pkpi{ position:absolute; right:40px; top:40px; display:flex; flex-direction:column; gap:10px; } .an-pkpi div{ background:rgba(8,28,38,.82); border:1px solid #17384a; border-radius:14px; padding:10px 18px; min-width:190px; } .an-pkpi b{ display:block; font-family:'Roboto Condensed',sans-serif; font-size:clamp(24px,2.6vw,40px); color:#75f5d2; } .an-pkpi span{ font-size:12.5px; color:rgba(200,220,232,.85); }
+  .an-pfala{ position:absolute; left:50%; bottom:34px; transform:translateX(-50%); width:min(980px,86vw); text-align:center; font-size:clamp(14px,1.25vw,19px); color:rgba(225,238,245,.92); line-height:1.5; text-shadow:0 2px 12px #000; }
+  .an-pctl{ position:absolute; right:24px; bottom:24px; display:flex; gap:8px; z-index:6; } .an-pctl button{ background:rgba(8,28,38,.85); color:#e8f1f6; border:1px solid #1e4254; border-radius:10px; width:40px; height:40px; font-size:16px; cursor:pointer; }
+  .an-pbar{ position:absolute; left:0; right:0; bottom:0; height:4px; background:#0b1d28; } .an-pbar i{ display:block; height:100%; width:0; background:#75f5d2; transition:width .6s; }
+  #an-pres.fim .an-pcap{ left:50%; top:42%; transform:translate(-50%,-50%); text-align:center; max-width:80vw; } #an-pres.fim .an-pkpi{ right:50%; top:60%; transform:translateX(50%); flex-direction:row; }
+  body.an-presenting .rail, body.an-presenting header{ visibility:hidden; }
+  @media (max-width:760px){ #view-analitico{ padding:18px 14px 30px; } .an-bar{ grid-template-columns:110px 1fr 80px; } .an-seg{ grid-template-columns:1fr; } .an-seg .n{ text-align:left; } .an-pkpi{ display:none; } }
   .seg-toggle{ display:inline-flex; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:3px;}
   .seg-toggle button{ border:none; background:transparent; padding:6px 14px; border-radius:999px; font-size:12.5px; font-weight:600; color:var(--ink-soft);}
   .seg-toggle button.active{ background:var(--brand); color:#fff;}
@@ -1005,6 +1039,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'agenda') renderCalendar();
     if(btn.dataset.view === 'conhecimento') renderConhecimento();
     if(btn.dataset.view === 'ata') renderAta();
+    if(btn.dataset.view === 'analitico') renderAnalitico();
   });
 });
 function goToPersonView(personId, tab){
@@ -1268,13 +1303,14 @@ async function pvResumo(body, p){
   </div>
   <div class="es-box" id="pv-dem"></div>
   <div class="es-box" id="pv-opps-resumo"></div>
+  <div class="es-box" id="pv-ana" style="display:none"></div>
   <div class="es-box" id="pv-ia">
     <div class="ql">🤖 Perguntar à IA sobre este cliente</div>
     <div class="hint" style="margin-bottom:8px">Responde com base só no que já está registrado (cadastro, diagnóstico, apólices, estudos, histórico) — não inventa dado.</div>
     <div class="sg-row"><input id="ia-pergunta" class="ca-inp" style="flex:1;min-width:220px" placeholder="Ex.: quanto de cobertura de vida esse cliente já tem?"><button class="om-save" id="ia-perguntar">Perguntar</button></div>
     <div id="ia-resposta" style="margin-top:10px"></div>
   </div>`;
-  pvLead(p); pvDemandas(p); pvOppsResumo(p);
+  pvLead(p); pvDemandas(p); pvOppsResumo(p); anaCardPessoa(p);
   const iaBtn = document.getElementById('ia-perguntar'), iaInp = document.getElementById('ia-pergunta'), iaOut = document.getElementById('ia-resposta');
   const iaAsk = async ()=>{
     const pergunta = iaInp.value.trim(); if(!pergunta) return;
@@ -2630,6 +2666,324 @@ document.getElementById('conhecimento-form').addEventListener('submit', async (e
 
 // ---------- ATA DE ENTREGÁVEIS ----------
 function fmtDateLong(s){ if(!s) return ''; try{ const d = new Date(s+'T00:00:00'); return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'}); }catch(e){ return s; } }
+// ============ ANALÍTICO · perfil da base médica, pontinhos, mapa e apresentação ============
+// Fonte: tabela crm_analitico (um registro por médico: idade, área, hospital, faixa de renda em plantões, sexo estimado) cruzada com as apólices do CRM.
+// Renda aparece só em faixas (plantões CallMed nos últimos 12 meses: não é a renda total do médico). Sexo é estimado pelo primeiro nome.
+const ANA = { rows:[], loaded:false, loading:false, err:null, modo:'painel', stage:null, pres:null, nomes:new Map(), geo:null, geoTry:false };
+const ANA_HOSP = {
+  'Vitória':{cid:'São Paulo',lat:-23.5655,lon:-46.5440}, 'Ana Costa':{cid:'Santos',lat:-23.9561,lon:-46.3300}, 'Santa Helena':{cid:'Santo André',lat:-23.6639,lon:-46.5383},
+  'São Bernardo (HSB)':{cid:'São Bernardo do Campo',lat:-23.7075,lon:-46.5527}, 'Santa Saúde':{cid:'Santos',lat:-23.9610,lon:-46.3390}, 'Notre Care ABC':{cid:'São Bernardo do Campo',lat:-23.6930,lon:-46.5600},
+  'Ipiranga Mogi':{cid:'Mogi das Cruzes',lat:-23.5229,lon:-46.1883}, 'Mário Covas':{cid:'Santo André',lat:-23.6700,lon:-46.5200}, 'Amhemed':{cid:'Sorocaba',lat:-23.4969,lon:-47.4577},
+  'Prevent Sênior':{cid:'São Paulo',lat:-23.5629,lon:-46.6544}, 'Intermédica ABC':{cid:'São Bernardo do Campo',lat:-23.6667,lon:-46.5667}, 'Ipiranga Arujá':{cid:'Arujá',lat:-23.3964,lon:-46.3208},
+  'Salvalus':{cid:'São Paulo',lat:-23.5558,lon:-46.5990}, 'Japonês Santa Cruz':{cid:'São Paulo',lat:-23.5967,lon:-46.6370} };
+const ANA_CIDADES_MAPA = [['São Paulo',-23.5505,-46.6333],['Santos',-23.9608,-46.3336],['Sorocaba',-23.5015,-47.4526],['Mogi das Cruzes',-23.5229,-46.1883],['ABC',-23.69,-46.55]];
+const ANA_AREAS = ['Anestesia','UTI','Enfermaria'], ANA_SEM = 'Sem plantão no período';
+const ANA_IDADE = ['Até 29','30–39','40–49','50–59','60+','Sem idade'];
+const ANA_RENDA = ['Até R$ 50 mil','R$ 50–150 mil','R$ 150–300 mil','R$ 300–500 mil','R$ 500 mil+'];
+const ANA_PROT = ['Vida em grupo / COPA','Só RC Unimed','Sem apólice'];
+const ANA_PAL = ['#75f5d2','#4f7cff','#ffb454','#c084fc','#ff7a7a','#7bd88f','#5ec8ff','#f2e96b','#ff9fd0','#9aa4b8','#b45630','#8fa0ff','#36d1b0','#d7a8ff','#ffd27f'];
+const ANA_DIMS = {
+  todos:{t:'Todos os médicos', key:()=>'Médicos da base'},
+  idade:{t:'Idade', ord:ANA_IDADE, key:r=>r.fi},
+  area:{t:'Área de atuação', ord:ANA_AREAS.concat([ANA_SEM]), key:r=>r.area||ANA_SEM},
+  hospital:{t:'Hospital onde atua', key:r=>r.hosp||ANA_SEM},
+  renda:{t:'Renda em plantões (12 meses)', ord:[ANA_SEM].concat(ANA_RENDA), key:r=>r.pl>0?ANA_RENDA[r.rf]:ANA_SEM},
+  protecao:{t:'Proteção hoje', ord:ANA_PROT, key:r=>r.protT},
+  sexo:{t:'Sexo (estimado)', ord:['Feminino','Masculino'], key:r=>r.sx} };
+const anaRgb = h=>[parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+function anaCor(dim, label){
+  if(dim==='protecao') return {'Vida em grupo / COPA':'#75f5d2','Só RC Unimed':'#ffb454','Sem apólice':'#ff7a7a'}[label] || '#9aa4b8';
+  if(label===ANA_SEM || label==='Sem idade') return '#5b6b7d';
+  const d = ANA_DIMS[dim]; let i = d && d.ord ? d.ord.indexOf(label) : -1;
+  if(i<0){ const ks = [...new Set(ANA.rows.map(r=>d.key(r)))].sort(); i = ks.indexOf(label); }
+  if(dim==='idade') return ['#5ec8ff','#75f5d2','#7bd88f','#ffb454','#ff7a7a'][i] || '#9aa4b8';
+  if(dim==='renda') return ['#5b6b7d','#5ec8ff','#75f5d2','#ffb454','#ff7a7a','#c084fc'][i] || '#9aa4b8';
+  return ANA_PAL[Math.max(0,i) % ANA_PAL.length];
+}
+const anaPct = (a,b)=> b>0 ? Math.round(100*a/b) : 0;
+const anaN = v=> Number(v||0).toLocaleString('pt-BR');
+function anaNorm(r, protMap){
+  const ano = r.ano_nasc ? Number(r.ano_nasc) : null, idade = ano ? (new Date().getFullYear() - ano) : null;
+  const fi = idade==null ? 'Sem idade' : idade<30 ? ANA_IDADE[0] : idade<40 ? ANA_IDADE[1] : idade<50 ? ANA_IDADE[2] : idade<60 ? ANA_IDADE[3] : ANA_IDADE[4];
+  const pr = r.pessoa_id ? protMap.get(r.pessoa_id) : null;
+  return { id:r.id, pid:r.pessoa_id||null, idade, fi, sx:r.sexo_est==='F'?'Feminino':r.sexo_est==='M'?'Masculino':'Sem dado', area:r.area||null, hosp:r.hospital||null, cid:r.cidade||null,
+    pl:Number(r.plantoes_12m)||0, meses:Number(r.meses_ativos)||0, rf:Math.max(0,Math.min(4,Number(r.renda_faixa)||0)),
+    prot:!!pr, protT: pr ? (pr.vida?ANA_PROT[0]:ANA_PROT[1]) : ANA_PROT[2] };
+}
+async function anaLoad(force){
+  if(ANA.loading || (ANA.loaded && !force)) return; ANA.loading = true; ANA.err = null;
+  try{
+    const [rows, aps] = await Promise.all([ opFetchAll('crm_analitico','id,pessoa_id,ano_nasc,sexo_est,area,hospital,cidade,plantoes_12m,meses_ativos,renda_faixa',['id']),
+      opFetchAll('crm_apolices','pessoa_id,tipo_seguro,status',['pessoa_id']) ]);
+    const protMap = new Map();
+    (aps||[]).filter(a=>a.status==='ativa' && a.pessoa_id).forEach(a=>{ const o = protMap.get(a.pessoa_id) || {vida:false}; if(/vida/i.test(a.tipo_seguro||'')) o.vida = true; protMap.set(a.pessoa_id, o); });
+    ANA.rows = (rows||[]).map(r=>anaNorm(r, protMap)); ANA.loaded = true;
+    try{ await ensurePessoas(); ANA.nomes = new Map(OP.pessoas.map(p=>[p.id, p.nome])); }catch(e){ console.warn('analítico: nomes', e); }
+  }catch(e){ ANA.err = e.message||String(e); }
+  ANA.loading = false;
+}
+function anaStats(){
+  const R = ANA.rows, N = R.length, S = { N };
+  S.comIdade = R.filter(r=>r.idade!=null).length; S.menos40 = R.filter(r=>r.idade!=null && r.idade<40).length;
+  S.mediana = (()=>{ const a = R.filter(r=>r.idade!=null).map(r=>r.idade).sort((x,y)=>x-y); return a.length ? a[Math.floor(a.length/2)] : null; })();
+  S.ativos = R.filter(r=>r.pl>0); S.nAtivos = S.ativos.length;
+  const cnt = (list, f)=>{ const m = new Map(); list.forEach(r=>{ const k = f(r); if(k!=null) m.set(k,(m.get(k)||0)+1); }); return [...m.entries()].sort((a,b)=>b[1]-a[1]); };
+  S.porArea = cnt(S.ativos, r=>r.area); S.porHosp = cnt(S.ativos, r=>r.hosp); S.porCid = cnt(S.ativos, r=>r.hosp ? (ANA_HOSP[r.hosp]||{}).cid : null);
+  S.porIdade = ANA_IDADE.map(k=>[k, R.filter(r=>r.fi===k).length]); S.porRenda = ANA_RENDA.map((k,i)=>[k, S.ativos.filter(r=>r.rf===i).length]);
+  S.porProt = ANA_PROT.map(k=>[k, R.filter(r=>r.protT===k).length]); S.nProt = R.filter(r=>r.prot).length;
+  S.porSexo = [['Feminino',R.filter(r=>r.sx==='Feminino').length],['Masculino',R.filter(r=>r.sx==='Masculino').length]];
+  S.alvo = R.filter(r=>r.pl>0 && r.rf>=2 && !r.prot); S.alvoJovem = S.alvo.filter(r=>r.idade!=null && r.idade<50);
+  S.altaRenda = S.ativos.filter(r=>r.rf>=3).length; S.totalPl = S.ativos.reduce((t,r)=>t+r.pl,0); S.plAlta = S.ativos.filter(r=>r.rf>=3).reduce((t,r)=>t+r.pl,0);
+  return S;
+}
+// ---- palco de pontos (usado na aba Pontos/Mapa e na apresentação) ----
+function anaStage(host){
+  const cv = document.createElement('canvas'); cv.className = 'an-cv'; host.appendChild(cv); const ctx = cv.getContext('2d');
+  const tip = document.createElement('div'); tip.className = 'an-tip'; tip.hidden = true; host.appendChild(tip);
+  const S = { w:0, h:0, dpr:1, dots:[], labels:[], layout:'todos', color:'area', hi:null, mapa:false, alive:true, raf:0, geoPath:null, proj:null, ro:null, hover:null, fade:1 };
+  const hex = anaRgb;
+  function size(){ const r = host.getBoundingClientRect(); S.dpr = Math.min(2, window.devicePixelRatio||1); S.w = Math.max(200, r.width); S.h = Math.max(200, r.height); cv.width = S.w*S.dpr; cv.height = S.h*S.dpr; cv.style.width = S.w+'px'; cv.style.height = S.h+'px'; }
+  function ensureDots(){
+    if(S.dots.length === ANA.rows.length) return;
+    S.dots = ANA.rows.map(r=>({r, x:S.w/2+(Math.random()-.5)*60, y:S.h/2+(Math.random()-.5)*60, tx:S.w/2, ty:S.h/2, rad:2, trad:2, c:[117,245,210], tc:[117,245,210], a:1, ta:1}));
+  }
+  function project(lat, lon){ const p = S.proj; return [p.x0 + (lon - p.lon0)*p.k, p.y0 + (p.lat0 - lat)*p.k*1.0]; }
+  function setProj(){
+    const lonA = -47.62, lonB = -46.05, latA = -23.22, latB = -24.04, cosL = Math.cos(23.6*Math.PI/180);
+    const wDeg = (lonB-lonA)*cosL, hDeg = (latA-latB), pad = 46; const k = Math.min((S.w-pad*2-170-170)/wDeg, (S.h-pad*2)/hDeg);
+    const kx = k*cosL; S.proj = { lon0:lonA, lat0:latA, k:kx, x0:pad+170+((S.w-pad*2-340)-wDeg*k)/2, y0:pad+((S.h-pad*2)-hDeg*k)/2, ky:k };
+    S.project = (lat, lon)=>[S.proj.x0 + (lon - lonA)*kx, S.proj.y0 + (latA - lat)*k];
+  }
+  function buildGeo(){
+    S.geoPath = null; if(!ANA.geo || !S.proj) return;
+    const path = new Path2D(); const ring = pts=>{ pts.forEach((c,i)=>{ const [x,y] = S.project(c[1], c[0]); if(i) path.lineTo(x,y); else path.moveTo(x,y); }); path.closePath(); };
+    ANA.geo.features.forEach(f=>{ const g = f.geometry; if(!g) return; if(g.type==='Polygon') g.coordinates.forEach(ring); else if(g.type==='MultiPolygon') g.coordinates.forEach(p=>p.forEach(ring)); });
+    S.geoPath = path;
+  }
+  function place(){
+    if(!ANA.rows.length) return; ensureDots(); const N = S.dots.length, W = S.w, H = S.h; S.labels = [];
+    const rb0 = Math.max(1.5, Math.min(5.5, Math.sqrt(0.42*W*H/(Math.PI*N))/2.2));
+    const rOf = (r, f)=> rb0*f*(r.pl>0 ? 0.78+0.2*r.rf : 0.66);
+    const colorKey = S.color; const colOf = r=> anaCor(colorKey, (ANA_DIMS[colorKey]||ANA_DIMS.area).key(r));
+    S.dots.forEach(d=>{ d.tc = hex(colOf(d.r)); d.ta = S.hi ? (S.hi(d.r)?1:0.14) : 1; });
+    if(S.layout==='mapa'){
+      S.mapa = true; setProj(); buildGeo(); const groups = new Map();
+      S.dots.forEach(d=>{ const k = d.r.hosp && ANA_HOSP[d.r.hosp] ? d.r.hosp : null; if(!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
+      const city = new Map();
+      groups.forEach((list, k)=>{ let sp = rb0*1.9, cx, cy, fr = 1;
+        if(k){ const h = ANA_HOSP[k]; [cx, cy] = S.project(h.lat, h.lon); } else { cx = 100; cy = H - 118; sp = Math.min(sp, 66/Math.sqrt(list.length)); fr = Math.min(1, sp/(rb0*1.9)+0.25); }
+        list.sort((a,b)=>b.r.rf-a.r.rf).forEach((d,i)=>{ const a = i*2.39996, rr = sp*Math.sqrt(i+0.5); d.tx = cx + rr*Math.cos(a); d.ty = cy + rr*Math.sin(a); d.trad = rOf(d.r,fr); });
+        const R = sp*Math.sqrt(list.length)+rb0;
+        if(!k){ S.labels.push({x:cx, y:cy + R + 14, t:ANA_SEM, s:anaN(list.length)+' médicos', al:'center'}); return; }
+        const cid = ANA_HOSP[k].cid, c = city.get(cid) || {n:0, sx:0, sy:0, R:0, hs:0, lon:ANA_HOSP[k].lon}; c.n += list.length; c.sx += cx*list.length; c.sy += cy*list.length; c.R = Math.max(c.R, R); c.hs++; city.set(cid, c);
+      });
+      const cl = [];
+      city.forEach((c, cid)=>{ const cx = c.sx/c.n, cy = c.sy/c.n, east = c.lon > -46.45; cl.push({x: east ? cx + c.R + 10 : cx - c.R - 10, y:cy, t:cid, s:anaN(c.n)+' médicos · '+c.hs+(c.hs>1?' hospitais':' hospital'), al:east?'left':'right', mapa:true}); });
+      cl.sort((a,b)=>a.y-b.y).forEach((l,i)=>{ for(let j=0;j<i;j++){ const q = cl[j]; if(l.al===q.al && Math.abs(l.x-q.x)<230 && Math.abs(l.y-q.y)<34){ l.y = q.y+34; j = -1; } } l.y = Math.min(l.y, H-26); S.labels.push(l); });
+      return;
+    }
+    S.mapa = false; const dim = ANA_DIMS[S.layout] || ANA_DIMS.todos; const groups = new Map();
+    S.dots.forEach(d=>{ const k = dim.key(d.r); if(!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
+    let keys = [...groups.keys()]; if(dim.ord){ keys = dim.ord.filter(k=>groups.has(k)).concat(keys.filter(k=>!dim.ord.includes(k))); } else keys.sort((a,b)=>groups.get(b).length-groups.get(a).length);
+    if(S.layout==='hospital'){ keys = keys.filter(k=>k!==ANA_SEM).concat(keys.includes(ANA_SEM)?[ANA_SEM]:[]); }
+    const sp = rb0*2.2, lab = 40, items = keys.map(k=>{ const n = groups.get(k).length, R = sp*Math.sqrt(n)+rb0*1.4; return {k, n, R, d:R*2}; });
+    const maxW = W*0.92; const rows = []; let cur = {it:[], w:0, h:0};
+    items.slice().sort((a,b)=>b.n-a.n).forEach(it=>{ if(cur.it.length && cur.w + it.d + 28 > maxW){ rows.push(cur); cur = {it:[], w:0, h:0}; } cur.it.push(it); cur.w += it.d + 28; cur.h = Math.max(cur.h, it.d + lab); });
+    rows.push(cur); const totW = Math.max(...rows.map(r=>r.w)), totH = rows.reduce((t,r)=>t+r.h,0);
+    const f = Math.max(0.08, Math.min(W*0.92/totW, (H-30)/totH, 1.8)); let y = (H - totH*f)/2;
+    rows.forEach(row=>{ let x = (W - row.w*f)/2; const rh = row.h*f;
+      row.it.forEach(it=>{ const cx = x + it.R*f, cy = y + it.R*f; x += (it.d+28)*f;
+        groups.get(it.k).sort((a,b)=>b.r.rf-a.r.rf).forEach((d,i)=>{ const a = i*2.39996, rr = sp*f*Math.sqrt(i+0.5); d.tx = cx + rr*Math.cos(a); d.ty = cy + rr*Math.sin(a); d.trad = rOf(d.r,f); });
+        S.labels.push({x:cx, y:cy + it.R*f + 17, t:it.k, s:anaN(it.n)+' · '+anaPct(it.n,N)+'%', dim:S.layout, f}); });
+      y += rh; });
+  }
+  function frame(){
+    if(!S.alive) return; S.raf = requestAnimationFrame(frame);
+    if(!S.w) return; ctx.setTransform(S.dpr,0,0,S.dpr,0,0); ctx.clearRect(0,0,S.w,S.h);
+    if(S.mapa && S.geoPath){ ctx.save(); ctx.globalAlpha = .9; ctx.fillStyle = '#0a1a24'; ctx.fill(S.geoPath); ctx.lineWidth = .6; ctx.strokeStyle = '#1b3a4b'; ctx.stroke(S.geoPath); ctx.restore(); }
+    if(S.mapa && S.proj){ ctx.fillStyle = 'rgba(160,190,205,.45)'; ctx.font = '600 11px Inter, sans-serif'; ctx.textAlign = 'left'; ANA_CIDADES_MAPA.forEach(c=>{ const [x,y] = S.project(c[1], c[2]); ctx.fillText(c[0].toUpperCase(), x+8, y-22); }); }
+    for(const d of S.dots){
+      d.x += (d.tx-d.x)*0.13; d.y += (d.ty-d.y)*0.13; d.rad += (d.trad-d.rad)*0.2; d.a += (d.ta-d.a)*0.15;
+      for(let i=0;i<3;i++) d.c[i] += (d.tc[i]-d.c[i])*0.12;
+      ctx.globalAlpha = d.a; ctx.fillStyle = 'rgb('+(d.c[0]|0)+','+(d.c[1]|0)+','+(d.c[2]|0)+')'; ctx.beginPath(); ctx.arc(d.x, d.y, d.rad, 0, 6.2832); ctx.fill();
+    }
+    ctx.globalAlpha = 1; ctx.textAlign = 'center';
+    S.labels.forEach(l=>{ ctx.textAlign = l.al || 'center'; const big = Math.max(12, Math.min(18, 12.5*(l.f||1)+3)); ctx.fillStyle = '#e8f1f6'; ctx.font = '700 '+big+'px Inter, sans-serif'; ctx.fillText(l.t, l.x, l.y);
+      ctx.fillStyle = 'rgba(190,210,222,.8)'; ctx.font = '500 '+Math.max(11,big-3)+'px Inter, sans-serif'; ctx.fillText(l.s, l.x, l.y + big); });
+    if(S.hover){ ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(S.hover.x, S.hover.y, S.hover.rad+3, 0, 6.2832); ctx.stroke(); }
+  }
+  function pick(ev){ const b = cv.getBoundingClientRect(), x = ev.clientX-b.left, y = ev.clientY-b.top; let best = null, bd = 1e9; for(const d of S.dots){ const dd = (d.x-x)*(d.x-x)+(d.y-y)*(d.y-y), lim = (d.rad+4)*(d.rad+4); if(dd<lim && dd<bd){ bd = dd; best = d; } } return {d:best, x, y}; }
+  const descr = r=>{ const nome = r.pid ? (ANA.nomes.get(r.pid)||'Cadastro no CRM') : 'Sem cadastro vinculado'; const L = [];
+    L.push('<b>'+escapeHtml(nome)+'</b>'); L.push([r.idade!=null?r.idade+' anos':'idade não informada', r.sx!=='Sem dado'?r.sx+' (est.)':null].filter(Boolean).join(' · '));
+    L.push((r.area?r.area:ANA_SEM)+(r.hosp?' · '+escapeHtml(r.hosp):'')); L.push(r.pl>0 ? anaN(r.pl)+' plantões em 12 meses · renda '+ANA_RENDA[r.rf] : 'Sem plantão CallMed em 12 meses'); L.push(r.prot ? '✅ '+r.protT : '⚠️ Sem apólice ativa'); return L.join('<br>'); };
+  cv.addEventListener('mousemove', ev=>{ const p = pick(ev); S.hover = p.d; if(p.d){ tip.hidden = false; tip.innerHTML = descr(p.d.r); tip.style.left = Math.min(S.w-250, p.x+14)+'px'; tip.style.top = Math.max(6, p.y-10)+'px'; cv.style.cursor = p.d.r.pid ? 'pointer' : 'default'; } else { tip.hidden = true; cv.style.cursor = 'default'; } });
+  cv.addEventListener('mouseleave', ()=>{ S.hover = null; tip.hidden = true; });
+  cv.addEventListener('click', ev=>{ const p = pick(ev); if(p.d && p.d.r.pid && S.onOpen) S.onOpen(p.d.r.pid); });
+  S.set = (o)=>{ if(o.layout) S.layout = o.layout; if(o.color) S.color = o.color; if('hi' in o) S.hi = o.hi; place(); };
+  S.destroy = ()=>{ S.alive = false; cancelAnimationFrame(S.raf); if(S.ro) S.ro.disconnect(); cv.remove(); tip.remove(); };
+  S.ro = new ResizeObserver(()=>{ size(); place(); }); S.ro.observe(host); size(); place(); frame();
+  return S;
+}
+async function anaGeo(){
+  if(ANA.geo || ANA.geoTry) return; ANA.geoTry = true;
+  try{ const r = await fetch('https://servicodados.ibge.gov.br/api/v3/malhas/estados/35?formato=application/vnd.geo+json&qualidade=minima&intrarregiao=municipio'); if(r.ok) ANA.geo = await r.json(); }catch(e){ console.warn('mapa SP indisponível', e); }
+}
+// ---- aba Analítico ----
+const ANA_SEGMENTOS = [
+  {k:'alvo', t:'Atuam bastante e não têm apólice', d:'Renda em plantões de R$ 150 mil ou mais, sem nenhuma apólice ativa no CRM. É a fila principal da Amanda.', f:r=>r.pl>0 && r.rf>=2 && !r.prot, layout:'protecao'},
+  {k:'jovens', t:'Jovens ativos, 30 a 39 anos, sem apólice', d:'Fase de construir patrimônio e proteger a renda. Boa porta de entrada para vida e invalidez.', f:r=>r.pl>0 && r.fi==='30–39' && !r.prot, layout:'idade'},
+  {k:'seniores', t:'50 anos ou mais, ativos', d:'Sucessão, patrimônio e saúde. Conversa de legado e de proteção da renda até a aposentadoria.', f:r=>r.pl>0 && r.idade!=null && r.idade>=50, layout:'idade'},
+  {k:'altarenda', t:'Alta renda em plantões (R$ 300 mil+)', d:'Quem mais depende da própria produção: invalidez e doenças graves pesam mais.', f:r=>r.pl>0 && r.rf>=3, layout:'renda'},
+  {k:'hosp', t:'Concentrados no mesmo hospital', d:'Dá para abordar por hospital: evento, conversa de corredor e indicação entre colegas.', f:r=>!!r.hosp, layout:'hospital'},
+  {k:'inativos', t:'Na base, sem plantão recente', d:'Cadastro antigo ou lead frio. Reativar com o gancho da marca antes de oferecer.', f:r=>r.pl===0, layout:'protecao'} ];
+function anaBar(list, total, dim){ const mx = Math.max(1, ...list.map(x=>x[1])); return list.map(([k,n])=>`<div class="an-bar"><span class="l">${escapeHtml(k)}</span><span class="b"><i style="width:${Math.max(2,100*n/mx)}%;background:${anaCor(dim,k)}"></i></span><span class="v">${anaN(n)} <small>${anaPct(n,total)}%</small></span></div>`).join(''); }
+function anaCardHtml(S){
+  const kp = (v,l,s)=>`<div class="an-kpi"><b>${v}</b><span>${l}</span>${s?`<small>${s}</small>`:''}</div>`;
+  return `<div class="an-kpis">${kp(anaN(S.N),'médicos na base','cadastro de plantões e CRM')}${kp(anaN(S.nAtivos),'com plantão nos últimos 12 meses',anaPct(S.nAtivos,S.N)+'% da base')}${kp(S.mediana!=null?S.mediana+' anos':'—','idade mediana','de '+anaN(S.comIdade)+' com data de nascimento')}${kp(anaN(S.nProt),'com apólice ativa',anaPct(S.nProt,S.N)+'% da base')}${kp(anaN(S.alvo.length),'ativos de renda média/alta sem apólice','fila para a Amanda')}</div>`;
+}
+async function renderAnalitico(){
+  const host = document.getElementById('an-body'); if(!host) return;
+  if(ANA.stage){ ANA.stage.destroy(); ANA.stage = null; }
+  if(!ANA.loaded){ host.innerHTML = '<div class="op-more">⏳ Carregando a base do Analítico…</div>'; await anaLoad(); }
+  document.querySelectorAll('#an-modes button').forEach(b=>b.classList.toggle('active', b.dataset.m===ANA.modo));
+  if(ANA.err){ host.innerHTML = `<div class="om-err">Não consegui carregar o Analítico: ${escapeHtml(ANA.err)}</div>`; return; }
+  if(!ANA.rows.length){ host.innerHTML = `<div class="es-box"><div class="ql">A base do Analítico ainda não foi carregada</div><div class="hint">A tabela <b>crm_analitico</b> está vazia. Ela é preenchida a partir do cadastro de médicos e dos plantões (projeto CallMed Plantões). Peça ao Luiz para atualizar a base.</div></div>`; return; }
+  const S = anaStats();
+  if(ANA.modo==='painel') return anaPainel(host, S);
+  host.innerHTML = `<div class="an-tools"><label>Agrupar por <select id="an-lay">${Object.entries(ANA_DIMS).filter(([k])=>ANA.modo==='mapa'?false:true).map(([k,v])=>`<option value="${k}">${v.t}</option>`).join('')}</select></label>
+      <label>Colorir por <select id="an-col">${Object.entries(ANA_DIMS).filter(([k])=>k!=='todos').map(([k,v])=>`<option value="${k}">${v.t}</option>`).join('')}</select></label>
+      <label>Destacar <select id="an-hi"><option value="">Todos</option>${ANA_SEGMENTOS.map(s=>`<option value="${s.k}">${escapeHtml(s.t)}</option>`).join('')}</select></label>
+      <span class="hint" style="margin:0">Cada ponto é um médico; o tamanho mostra a faixa de renda em plantões. Passe o mouse para ver o perfil e clique para abrir o cadastro.</span></div>
+    <div class="an-stagewrap"><div id="an-stage" class="an-stage"></div></div>`;
+  const st = anaStage(document.getElementById('an-stage')); ANA.stage = st; st.onOpen = pid=>goToPersonView(pid);
+  const lay = document.getElementById('an-lay'), col = document.getElementById('an-col'), hi = document.getElementById('an-hi');
+  const seg = k=> { const s = ANA_SEGMENTOS.find(x=>x.k===k); return s ? s.f : null; };
+  const apply = ()=> st.set({layout: ANA.modo==='mapa'?'mapa':lay.value, color:col.value, hi:seg(hi.value)});
+  if(ANA.modo==='mapa'){ lay.parentElement.style.display = 'none'; col.value = 'area'; await anaGeo(); } else { lay.value = ANA.layoutSel || 'idade'; col.value = ANA.colorSel || 'area'; }
+  hi.value = ANA.hiSel || ''; [lay,col,hi].forEach(e=>e.addEventListener('change', ()=>{ ANA.layoutSel = lay.value; ANA.colorSel = col.value; ANA.hiSel = hi.value; apply(); })); apply();
+}
+function anaPainel(host, S){
+  const seg = ANA_SEGMENTOS.map(s=>{ const n = ANA.rows.filter(s.f).length; return `<div class="an-seg"><div><b>${escapeHtml(s.t)}</b><span>${escapeHtml(s.d)}</span></div><div class="n"><b>${anaN(n)}</b><small>${anaPct(n,S.N)}% da base</small></div><div class="a"><button type="button" class="om-cancel" data-seg="${s.k}">Ver nos pontos</button><button type="button" class="om-cancel" data-lista="${s.k}">Ver nomes</button></div></div>`; }).join('');
+  host.innerHTML = anaCardHtml(S) + `<div class="hint" style="margin:6px 0 14px">Renda = plantões CallMed nos últimos 12 meses, em faixas (não é a renda total do médico). Sexo é estimado pelo primeiro nome. Região: por enquanto, onde o médico atua (hospital); o endereço de residência ainda não está na base.</div>
+    <div class="an-grid">
+      <div class="es-box"><div class="ql">Idade</div>${anaBar(S.porIdade, S.N, 'idade')}</div>
+      <div class="es-box"><div class="ql">Área de atuação (quem tem plantão)</div>${anaBar(S.porArea, S.nAtivos, 'area')}</div>
+      <div class="es-box"><div class="ql">Renda em plantões, 12 meses (quem tem plantão)</div>${anaBar(S.porRenda, S.nAtivos, 'renda')}</div>
+      <div class="es-box"><div class="ql">Proteção hoje</div>${anaBar(S.porProt, S.N, 'protecao')}</div>
+      <div class="es-box"><div class="ql">Onde atuam (hospital)</div>${anaBar(S.porHosp.slice(0,10), S.nAtivos, 'hospital')}</div>
+      <div class="es-box"><div class="ql">Onde atuam (cidade)</div>${anaBar(S.porCid.slice(0,8), S.nAtivos, 'hospital')}<div class="ql" style="margin-top:14px">Sexo (estimado)</div>${anaBar(S.porSexo, S.N, 'sexo')}</div>
+    </div>
+    <div class="es-box" style="margin-top:14px"><div class="ql">Repertório para abordar · grupos de médicos</div><div id="an-segs">${seg}</div><div id="an-lista"></div></div>
+    <div class="es-box" style="margin-top:14px"><div class="ql">Perfil de um médico</div><div class="sg-row"><input id="an-busca" class="ca-inp" style="flex:1;min-width:240px" placeholder="Digite o nome do médico"><button class="om-save" id="an-buscar">Buscar</button></div><div id="an-perfil" style="margin-top:10px"></div></div>`;
+  host.querySelectorAll('[data-seg]').forEach(b=>b.addEventListener('click', ()=>{ const s = ANA_SEGMENTOS.find(x=>x.k===b.dataset.seg); ANA.modo = 'pontos'; ANA.layoutSel = s.layout; ANA.colorSel = s.layout==='protecao'?'protecao':'area'; ANA.hiSel = s.k; renderAnalitico(); }));
+  host.querySelectorAll('[data-lista]').forEach(b=>b.addEventListener('click', ()=>{ const s = ANA_SEGMENTOS.find(x=>x.k===b.dataset.lista); const list = ANA.rows.filter(s.f).filter(r=>r.pid).sort((a,c)=>(c.rf-a.rf)||(c.pl-a.pl)).slice(0,40);
+    document.getElementById('an-lista').innerHTML = `<div class="ql" style="margin-top:12px">${escapeHtml(s.t)} · primeiros ${list.length} com cadastro no CRM</div><div class="an-list">${list.map(r=>`<a href="#" data-pid="${r.pid}"><b>${escapeHtml(ANA.nomes.get(r.pid)||'Cadastro')}</b><span>${[r.idade!=null?r.idade+' anos':null, r.area, r.hosp, r.pl>0?ANA_RENDA[r.rf]:null].filter(Boolean).map(escapeHtml).join(' · ')}</span></a>`).join('')||'<span class="hint">Nenhum com cadastro vinculado.</span>'}</div>`;
+    document.querySelectorAll('#an-lista [data-pid]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); goToPersonView(a.dataset.pid); })); }));
+  const busca = ()=>{ const q = anaSemAc(document.getElementById('an-busca').value); const out = document.getElementById('an-perfil'); if(q.length<3){ out.innerHTML = '<span class="hint">Digite pelo menos 3 letras.</span>'; return; }
+    const ach = ANA.rows.filter(r=>r.pid && anaSemAc(ANA.nomes.get(r.pid)||'').includes(q)).slice(0,6); out.innerHTML = ach.length ? ach.map(r=>anaPerfilHtml(r)).join('') : '<span class="hint">Ninguém encontrado com esse nome na base do Analítico.</span>';
+    out.querySelectorAll('[data-pid]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); goToPersonView(a.dataset.pid); })); };
+  document.getElementById('an-buscar').addEventListener('click', busca); document.getElementById('an-busca').addEventListener('keydown', e=>{ if(e.key==='Enter') busca(); });
+}
+const anaSemAc = t=>String(t||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();
+// frase de repertório: quem é o médico e como é o grupo dele
+function anaPerfilTxt(r){
+  const g = ANA.rows.filter(x=>x.fi===r.fi && (x.area||'')===(r.area||'')); const gp = g.filter(x=>x.prot).length;
+  const partes = [];
+  if(r.idade!=null) partes.push(r.idade+' anos'); if(r.area) partes.push(r.area.toLowerCase()); if(r.hosp) partes.push('atua no '+r.hosp+' ('+((ANA_HOSP[r.hosp]||{}).cid||'')+')');
+  partes.push(r.pl>0 ? 'fez '+anaN(r.pl)+' plantões em 12 meses (renda em plantões: '+ANA_RENDA[r.rf]+')' : 'sem plantão CallMed nos últimos 12 meses');
+  const grupo = g.length>1 ? `No grupo dele (${r.fi!=='Sem idade'?r.fi.toLowerCase()+' anos':'sem idade'}${r.area?', '+r.area.toLowerCase():''}) são ${anaN(g.length)} médicos e ${anaPct(gp,g.length)}% têm apólice ativa.` : '';
+  return {linha: partes.join(' · '), grupo, prot: r.prot ? 'Já tem apólice ativa ('+r.protT+').' : 'Ainda sem apólice ativa: boa hora para a conversa de proteção.'};
+}
+function anaPerfilHtml(r){ const t = anaPerfilTxt(r); return `<div class="an-perfil"><a href="#" data-pid="${r.pid}"><b>${escapeHtml(ANA.nomes.get(r.pid)||'Cadastro')}</b></a><div>${escapeHtml(t.linha)}</div><div class="hint" style="margin:3px 0">${escapeHtml(t.grupo)}</div><div>${escapeHtml(t.prot)}</div></div>`; }
+async function anaCardPessoa(p){
+  const host = document.getElementById('pv-ana'); if(!host) return;
+  try{ if(!ANA.loaded) await anaLoad(); const r = ANA.rows.find(x=>x.pid===p.id);
+    if(!r){ host.style.display = 'none'; return; } host.style.display = ''; const t = anaPerfilTxt(r);
+    host.innerHTML = `<div class="ql">🔎 Repertório para a conversa <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— do Analítico, estimativas pela base CallMed</small></div><div>${escapeHtml(t.linha)}</div><div class="hint" style="margin:4px 0">${escapeHtml(t.grupo)}</div><div>${escapeHtml(t.prot)}</div>`;
+  }catch(e){ host.style.display = 'none'; }
+}
+// ---- apresentação: pontos, mapa, narração e trilha (tudo no navegador) ----
+function anaCenas(S){
+  const N = S.N, c = [];
+  const lista = a=> a.length>1 ? a.slice(0,-1).join(', ')+' e '+a[a.length-1] : (a[0]||'');
+  const pIdade = k=> (S.porIdade.find(x=>x[0]===k)||[0,0])[1];
+  const m40 = S.comIdade ? anaPct(S.menos40, S.comIdade) : 0, top = S.porArea[0] || ['Anestesia',0], topH = S.porHosp.slice(0,3).map(x=>x[0]), topC = S.porCid.slice(0,3).map(x=>x[0]);
+  c.push({k:'1 · Quem são', t:`${anaN(N)} médicos na nossa base.`, s:'Cada ponto é um médico · o tamanho mostra a renda em plantões', layout:'todos', color:'area', dur:9000,
+    fala:`Esta é a base da CallMed. São ${anaN(N)} médicos, e cada ponto é um deles. Quanto maior o ponto, maior a renda que ele teve em plantões conosco nos últimos doze meses. ${anaN(S.nAtivos)} fizeram plantão no período. Vamos entender quem são, onde atuam e onde está a oportunidade de proteção.`,
+    kpis:[[anaN(N),'médicos'],[anaN(S.nAtivos),'com plantão em 12 meses'],[anaN(S.nProt),'com apólice ativa']]});
+  c.push({k:'2 · Idade', t:`Uma base jovem: ${m40}% abaixo de 40 anos.`, s:`Entre os ${anaN(S.comIdade)} com data de nascimento · mediana de ${S.mediana} anos`, layout:'idade', color:'idade', dur:12000,
+    fala:`Entre os ${anaN(S.comIdade)} médicos com data de nascimento, ${m40} por cento têm menos de quarenta anos, e a mediana é de ${S.mediana} anos. É uma base que está construindo carreira e patrimônio. A conversa de proteção da renda e de vida faz sentido agora, e não daqui a vinte anos.`,
+    kpis:[[pIdade('30–39')?anaN(pIdade('30–39')):'0','de 30 a 39 anos'],[anaN(pIdade('Até 29')),'até 29 anos'],[anaN(pIdade('50–59')+pIdade('60+')),'50 anos ou mais']]});
+  c.push({k:'3 · Atuação', t:`${top[0]} é a área de ${anaPct(top[1], S.nAtivos)}% dos que atuam.`, s:S.porArea.map(x=>x[0]+' '+anaN(x[1])).join(' · '), layout:'area', color:'area', dur:11000,
+    fala:`Entre quem atua, ${top[0].toLowerCase()} lidera, com ${anaPct(top[1], S.nAtivos)} por cento dos médicos. ${S.porArea.slice(1).map(x=>x[0].toLowerCase()+' tem '+anaN(x[1])).join(', ')}. O risco muda com a área: quem opera, quem plantona em terapia intensiva e quem cuida de enfermaria têm rotinas e exposições diferentes.`,
+    kpis:S.porArea.slice(0,3).map(x=>[anaN(x[1]),x[0].toLowerCase()])});
+  c.push({k:'4 · Onde atuam', t:`Grande SP, ABC e Baixada: ${lista(topC)}.`, s:'Hospitais onde os médicos fazem plantão', layout:'mapa', color:'area', mapa:true, dur:13000,
+    fala:`No mapa, onde eles atuam. A concentração está em ${lista(topC)}. Os maiores polos são ${lista(topH)}. Isso dá um mapa de abordagem: dá para ir ao hospital, fazer uma conversa de corredor, um café com a especialista e pedir indicação entre colegas.`,
+    kpis:[[anaN(S.porHosp.length),'hospitais com médicos'],[anaN((S.porCid||[]).length),'cidades'],[anaN((S.porHosp[0]||[0,0])[1]),'no maior polo']]});
+  c.push({k:'5 · Renda', t:`${anaPct(S.plAlta, S.totalPl)}% dos plantões vêm de ${anaN(S.altaRenda)} médicos de renda alta.`, s:'Renda em plantões CallMed nos últimos 12 meses, por faixa', layout:'renda', color:'renda', dur:12000,
+    fala:`A renda em plantões é concentrada. ${anaN(S.altaRenda)} médicos, os de faixa mais alta, respondem por ${anaPct(S.plAlta, S.totalPl)} por cento de todos os plantões. É um retrato só do que ganham conosco, e não da renda total deles. Mas mostra quem mais depende da própria produção, e portanto quem mais precisa proteger a renda.`,
+    kpis:S.porRenda.slice(2).map(x=>[anaN(x[1]),x[0].replace('R$ ','').toLowerCase()])});
+  c.push({k:'6 · Proteção hoje', t:`Só ${anaPct(S.nProt, N)}% têm apólice ativa.`, s:'Vida em grupo (Porto), cortesia COPA e RC Unimed', layout:'protecao', color:'protecao', dur:11000,
+    fala:`Hoje, ${anaN(S.nProt)} médicos têm alguma apólice ativa conosco, ${anaPct(S.nProt, N)} por cento da base. Os outros ${anaN(N - S.nProt)} ainda não têm nada. Essa é a distância entre o que a CallMed já entregou e o que ainda pode proteger.`,
+    kpis:S.porProt.map(x=>[anaN(x[1]),x[0].toLowerCase()])});
+  c.push({k:'7 · A oportunidade', t:`${anaN(S.alvo.length)} médicos atuam bastante e não têm apólice.`, s:`Renda em plantões de R$ 150 mil ou mais · ${anaN(S.alvoJovem.length)} têm menos de 50 anos`, layout:'protecao', color:'protecao', hi:r=>r.pl>0 && r.rf>=2 && !r.prot, dur:13000,
+    fala:`Aqui está a oportunidade. Destacados, ${anaN(S.alvo.length)} médicos que atuam bastante, com renda em plantões de cento e cinquenta mil reais ou mais, e que não têm nenhuma apólice ativa. ${anaN(S.alvoJovem.length)} deles têm menos de cinquenta anos. É a fila principal para a especialista.`,
+    kpis:[[anaN(S.alvo.length),'fila principal'],[anaN(S.alvoJovem.length),'menos de 50 anos'],[anaPct(S.alvo.length, S.nAtivos)+'%','dos que atuam']]});
+  c.push({k:'8 · O plano', t:'Quem abordar primeiro.', s:'Priorizar pela renda, pelo hospital e pelo momento de vida', layout:'protecao', color:'protecao', hi:r=>r.pl>0 && r.rf>=3 && !r.prot, dur:13000,
+    fala:`O plano é simples. Primeiro, os médicos de renda alta e sem apólice. Segundo, trabalhar por hospital, para ganhar indicações dentro do mesmo grupo. Terceiro, adaptar a conversa à idade: construção de patrimônio para os mais jovens, sucessão e legado para os mais experientes. A base já está aqui, e o CRM organiza a fila todos os dias.`,
+    kpis:[[anaN(S.altaRenda),'renda alta'],[anaN(S.alvo.filter(r=>r.rf>=3).length),'renda alta sem apólice'],['100','contatos por semana · meta']]});
+  c.push({fim:true, k:'', t:'CallMed Proteção Patrimonial', s:'Dados da própria base, atualizados quando o Analítico é recarregado', layout:'todos', color:'protecao', dur:8000,
+    fala:`Resumindo: uma base jovem, concentrada em poucos hospitais, com muita gente que trabalha bastante e ainda não tem proteção. CallMed Proteção Patrimonial.`, kpis:[[anaN(N),'médicos'],[anaN(S.alvo.length),'na fila principal'],[anaPct(S.nProt,N)+'%','já protegidos']]});
+  return c;
+}
+const ANA_AUDIO = { ctx:null, on:true, nodes:null };
+function anaSomIniciar(){
+  try{ const AC = window.AudioContext||window.webkitAudioContext; if(!AC) return; const a = ANA_AUDIO; a.ctx = a.ctx || new AC(); if(a.ctx.state==='suspended') a.ctx.resume();
+    if(a.nodes) return; const g = a.ctx.createGain(); g.gain.value = 0.0001; g.connect(a.ctx.destination); const lp = a.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520; lp.connect(g);
+    const os = [110, 164.81, 220.5].map((f,i)=>{ const o = a.ctx.createOscillator(); o.type = i===1?'triangle':'sine'; o.frequency.value = f; o.detune.value = (i-1)*5; o.connect(lp); o.start(); return o; });
+    g.gain.linearRampToValueAtTime(a.on?0.05:0.0001, a.ctx.currentTime+2.5); a.nodes = {g, os};
+  }catch(e){ console.warn('som', e); }
+}
+function anaSomPing(f){ const a = ANA_AUDIO; if(!a.ctx || !a.on) return; try{ const o = a.ctx.createOscillator(), g = a.ctx.createGain(); o.type = 'sine'; o.frequency.value = f||660; g.gain.setValueAtTime(0.0001, a.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.06, a.ctx.currentTime+0.03); g.gain.exponentialRampToValueAtTime(0.0001, a.ctx.currentTime+0.6); o.connect(g); g.connect(a.ctx.destination); o.start(); o.stop(a.ctx.currentTime+0.7); }catch(e){} }
+function anaSomParar(){ const a = ANA_AUDIO; if(a.nodes){ try{ a.nodes.g.gain.linearRampToValueAtTime(0.0001, a.ctx.currentTime+0.6); a.nodes.os.forEach(o=>o.stop(a.ctx.currentTime+0.8)); }catch(e){} a.nodes = null; } }
+function anaFalar(texto, fim){
+  if(!ANA_AUDIO.on || !('speechSynthesis' in window)){ return null; }
+  try{ speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(texto); u.lang = 'pt-BR'; u.rate = 1.02; const v = speechSynthesis.getVoices().find(x=>/pt[-_]BR/i.test(x.lang)) || speechSynthesis.getVoices().find(x=>/^pt/i.test(x.lang)); if(v) u.voice = v;
+    u.onend = ()=>fim && fim(); u.onerror = ()=>fim && fim(); speechSynthesis.speak(u); return u; }catch(e){ return null; }
+}
+async function anaApresentar(){
+  if(!ANA.loaded) await anaLoad(); if(!ANA.rows.length){ showToast('A base do Analítico ainda está vazia.'); return; }
+  await anaGeo(); const S = anaStats(), cenas = anaCenas(S); const ov = document.getElementById('an-pres'); ov.hidden = false; document.body.classList.add('an-presenting');
+  ov.innerHTML = `<div class="an-pstage" id="an-pst"></div><div class="an-pcap" id="an-pcap"></div><div class="an-pkpi" id="an-pkpi"></div><div class="an-pfala" id="an-pfala"></div>
+    <div class="an-pctl"><button type="button" id="an-pp" title="Pausar">⏸</button><button type="button" id="an-pm" title="Som e narração">🔊</button><button type="button" id="an-pf" title="Tela cheia">⛶</button><button type="button" id="an-px" title="Sair">✕</button></div><div class="an-pbar"><i id="an-pbar"></i></div>`;
+  const st = anaStage(document.getElementById('an-pst')); ANA.pres = {st, i:-1, pausa:false, timer:null, alive:true, cenas};
+  const P = ANA.pres; ANA_AUDIO.on = true; anaSomIniciar();
+  const parar = ()=>{ P.alive = false; clearTimeout(P.timer); try{ speechSynthesis.cancel(); }catch(e){} anaSomParar(); st.destroy(); ov.hidden = true; ov.innerHTML = ''; document.body.classList.remove('an-presenting'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); ANA.pres = null; document.removeEventListener('keydown', teclas); };
+  const teclas = e=>{ if(e.key==='Escape') parar(); else if(e.key==='ArrowRight') ir(P.i+1); else if(e.key==='ArrowLeft') ir(P.i-1); else if(e.key===' '){ e.preventDefault(); pausa(); } };
+  const pausa = ()=>{ P.pausa = !P.pausa; document.getElementById('an-pp').textContent = P.pausa?'▶':'⏸'; if(P.pausa){ clearTimeout(P.timer); try{ speechSynthesis.pause(); }catch(e){} } else { try{ speechSynthesis.resume(); }catch(e){} agendar(P.restante||1500); } };
+  const agendar = ms=>{ clearTimeout(P.timer); P.t0 = Date.now(); P.restante = ms; P.timer = setTimeout(()=>{ if(P.alive && !P.pausa) ir(P.i+1); }, ms); };
+  const ir = i=>{
+    if(!P.alive) return; if(i>=cenas.length){ parar(); return; } i = Math.max(0,i); P.i = i; const c = cenas[i]; try{ speechSynthesis.cancel(); }catch(e){}
+    st.set({layout:c.layout, color:c.color, hi:c.hi||null}); anaSomPing(i%2?523:660);
+    ov.classList.toggle('fim', !!c.fim); const cap = document.getElementById('an-pcap'); cap.classList.add('fade');
+    setTimeout(()=>{ cap.innerHTML = (c.k?`<i>${escapeHtml(c.k)}</i>`:'')+`<b>${escapeHtml(c.t)}</b><span>${escapeHtml(c.s)}</span>`; cap.classList.remove('fade'); }, 280);
+    document.getElementById('an-pkpi').innerHTML = (c.kpis||[]).map(k=>`<div><b>${escapeHtml(String(k[0]))}</b><span>${escapeHtml(k[1])}</span></div>`).join('');
+    const fl = document.getElementById('an-pfala'); fl.textContent = c.fala||''; document.getElementById('an-pbar').style.width = ((i+1)/cenas.length*100)+'%';
+    let acabou = false; const avancar = ()=>{ if(acabou || !P.alive || P.pausa) return; acabou = true; setTimeout(()=>{ if(P.alive && !P.pausa) ir(i+1); }, 900); };
+    const u = anaFalar(c.fala, avancar); if(u){ P.timer = setTimeout(avancar, Math.max(c.dur, c.fala.length*95)+4000); } else agendar(Math.max(c.dur, 6000));
+  };
+  document.getElementById('an-px').addEventListener('click', parar); document.getElementById('an-pp').addEventListener('click', pausa);
+  document.getElementById('an-pm').addEventListener('click', e=>{ ANA_AUDIO.on = !ANA_AUDIO.on; e.target.textContent = ANA_AUDIO.on?'🔊':'🔇'; if(!ANA_AUDIO.on){ try{ speechSynthesis.cancel(); }catch(x){} if(ANA_AUDIO.nodes) ANA_AUDIO.nodes.g.gain.value = 0.0001; agendar(Math.max(cenas[P.i].dur,6000)); } else { if(ANA_AUDIO.nodes) ANA_AUDIO.nodes.g.gain.value = 0.05; else anaSomIniciar(); ir(P.i); } });
+  document.getElementById('an-pf').addEventListener('click', ()=>{ if(document.fullscreenElement) document.exitFullscreen(); else ov.requestFullscreen && ov.requestFullscreen().catch(()=>{}); });
+  document.addEventListener('keydown', teclas); try{ if(ov.requestFullscreen) await ov.requestFullscreen(); }catch(e){}
+  setTimeout(()=>ir(0), 400);
+}
+
+document.addEventListener('click', e=>{
+  const mb = e.target.closest('#an-modes button'); if(mb){ ANA.modo = mb.dataset.m; renderAnalitico(); return; }
+  if(e.target.closest('#an-play')){ anaApresentar(); return; }
+  if(e.target.closest('#an-reload')){ ANA.loaded = false; renderAnalitico(); }
+});
 async function renderAta(){
   const { data, error } = await sb.from('crm_ata_entregaveis').select('*').order('data', {ascending:false});
   const el = document.getElementById('ata-list');
