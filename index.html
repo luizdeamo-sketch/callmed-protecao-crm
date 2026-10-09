@@ -452,7 +452,7 @@
   .an-pkpi{ position:absolute; right:40px; top:40px; display:flex; flex-direction:column; gap:10px; } .an-pkpi div{ background:rgba(8,28,38,.82); border:1px solid #17384a; border-radius:14px; padding:10px 18px; min-width:190px; } .an-pkpi b{ display:block; font-family:'Poppins',sans-serif; font-size:clamp(24px,2.6vw,40px); color:#32dfb6; } .an-pkpi span{ font-size:12.5px; color:rgba(200,220,232,.85); }
   .an-pfala{ position:absolute; left:50%; bottom:34px; transform:translateX(-50%); width:min(980px,86vw); text-align:center; font-size:clamp(14px,1.25vw,19px); color:rgba(225,238,245,.92); line-height:1.5; text-shadow:0 2px 12px #000; }
   .an-pctl{ position:absolute; right:24px; bottom:24px; display:flex; gap:8px; z-index:6; } .an-pctl select{ background:rgba(8,28,38,.85); color:#e8f1f6; border:1px solid #1e4254; border-radius:10px; height:40px; padding:0 10px; max-width:190px; font-size:12px; }
-  .an-pctl button{ background:rgba(8,28,38,.85); color:#e8f1f6; border:1px solid #1e4254; border-radius:10px; width:40px; height:40px; font-size:16px; cursor:pointer; }
+  .an-pctl button{ background:rgba(8,28,38,.85); color:#e8f1f6; border:1px solid #1e4254; border-radius:10px; min-width:40px; padding:0 12px; height:40px; font-size:13px; cursor:pointer; }
   .an-pbar{ position:absolute; left:0; right:0; bottom:0; height:4px; background:#0b1d28; } .an-pbar i{ display:block; height:100%; width:0; background:#32dfb6; transition:width .6s; }
   #an-pres.fim .an-pcap{ left:50%; top:42%; transform:translate(-50%,-50%); text-align:center; max-width:80vw; } #an-pres.fim .an-pkpi{ right:50%; top:60%; transform:translateX(50%); flex-direction:row; }
   body.an-presenting .rail, body.an-presenting header{ visibility:hidden; }
@@ -3037,16 +3037,70 @@ function anaCenas(S){
     fala:`Resumindo: uma base jovem, concentrada em poucos hospitais, com muita gente que trabalha bastante e ainda não tem proteção. Uma oferta clara, uma meta definida e um caminho para chegar lá. CallMed Proteção Patrimonial.`, kpis:[[anaN(N),'médicos'],[anaN(S.alvo.length),'na fila principal'],[anaPct(S.nProt,N)+'%','já protegidos']]});
   return c;
 }
-const ANA_AUDIO = { ctx:null, on:true, nodes:null };
+const ANA_AUDIO = { ctx:null, on:true, musica:true, nodes:null, fala:null, rate:0.93, arq:null };
+// Trilha original gerada por código (Web Audio): pad, baixo, arpejo com eco e pulso suave, em Lá menor / Fá / Dó / Sol.
+// Opcionalmente a pessoa escolhe um arquivo de áudio livre de direitos para tocar no lugar da trilha gerada.
+const anaMf = n=> 440*Math.pow(2,(n-69)/12);
+const ANA_ACORDES = [ {r:45, t:[57,60,64]}, {r:41, t:[53,57,60]}, {r:48, t:[60,64,67]}, {r:43, t:[55,59,62]} ];
+function anaRuido(ctx, seg){ const n = Math.floor(ctx.sampleRate*seg), buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0); for(let i=0;i<n;i++) d[i] = Math.random()*2-1; return buf; }
 function anaSomIniciar(){
   try{ const AC = window.AudioContext||window.webkitAudioContext; if(!AC) return; const a = ANA_AUDIO; a.ctx = a.ctx || new AC(); if(a.ctx.state==='suspended') a.ctx.resume();
-    if(a.nodes) return; const g = a.ctx.createGain(); g.gain.value = 0.0001; g.connect(a.ctx.destination); const lp = a.ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520; lp.connect(g);
-    const os = [110, 164.81, 220.5].map((f,i)=>{ const o = a.ctx.createOscillator(); o.type = i===1?'triangle':'sine'; o.frequency.value = f; o.detune.value = (i-1)*5; o.connect(lp); o.start(); return o; });
-    g.gain.linearRampToValueAtTime(a.on?0.05:0.0001, a.ctx.currentTime+2.5); a.nodes = {g, os};
+    if(a.nodes) return; const c = a.ctx;
+    const master = c.createGain(); master.gain.value = 0.0001; const comp = c.createDynamicsCompressor(); master.connect(comp); comp.connect(c.destination);
+    const mus = c.createGain(); mus.gain.value = a.musica ? 1 : 0.0001; mus.connect(master);
+    const fx = c.createGain(); fx.gain.value = 1; fx.connect(master);
+    const eco = c.createDelay(1); eco.delayTime.value = 0.42; const fb = c.createGain(); fb.gain.value = 0.38; const lpE = c.createBiquadFilter(); lpE.type = 'lowpass'; lpE.frequency.value = 2200; eco.connect(lpE); lpE.connect(fb); fb.connect(eco); lpE.connect(mus);
+    const ruido = anaRuido(c, 2);
+    master.gain.linearRampToValueAtTime(0.9, c.currentTime+2.2);
+    const N = {master, mus, fx, eco, ruido, passo:0, prox:c.currentTime+0.2, timer:null, bpm:88};
+    N.timer = setInterval(()=>anaSomTick(), 110); a.nodes = N;
   }catch(e){ console.warn('som', e); }
 }
-function anaSomPing(f){ const a = ANA_AUDIO; if(!a.ctx || !a.on) return; try{ const o = a.ctx.createOscillator(), g = a.ctx.createGain(); o.type = 'sine'; o.frequency.value = f||660; g.gain.setValueAtTime(0.0001, a.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.06, a.ctx.currentTime+0.03); g.gain.exponentialRampToValueAtTime(0.0001, a.ctx.currentTime+0.6); o.connect(g); g.connect(a.ctx.destination); o.start(); o.stop(a.ctx.currentTime+0.7); }catch(e){} }
-function anaSomParar(){ const a = ANA_AUDIO; if(a.nodes){ try{ a.nodes.g.gain.linearRampToValueAtTime(0.0001, a.ctx.currentTime+0.6); a.nodes.os.forEach(o=>o.stop(a.ctx.currentTime+0.8)); }catch(e){} a.nodes = null; } }
+function anaNota(tipo, f, t, dur, vol, destino, att){
+  const a = ANA_AUDIO, c = a.ctx, o = c.createOscillator(), g = c.createGain(); o.type = tipo; o.frequency.value = f; att = att||0.01;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t+att); g.gain.exponentialRampToValueAtTime(0.0001, t+dur); o.connect(g); g.connect(destino); o.start(t); o.stop(t+dur+0.05); return {o,g};
+}
+function anaSomTick(){
+  const a = ANA_AUDIO, N = a.nodes; if(!a.ctx || !N || a.arq) return; const c = a.ctx, passoDur = 60/N.bpm/2;
+  while(N.prox < c.currentTime + 0.4){
+    const t = N.prox, i = N.passo, ac = ANA_ACORDES[Math.floor(i/16)%ANA_ACORDES.length], k = i%16;
+    if(k===0){ // pad e baixo a cada acorde (2 compassos)
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 950; lp.connect(N.mus);
+      ac.t.forEach((m,j)=>{ anaNota('triangle', anaMf(m-12)*(1+(j-1)*0.002), t, passoDur*16+1.2, 0.05, lp, 1.1); anaNota('sine', anaMf(m), t, passoDur*16+1.0, 0.018, lp, 1.4); });
+      anaNota('sine', anaMf(ac.r), t, passoDur*7, 0.16, N.mus, 0.03);
+    }
+    if(k===8) anaNota('sine', anaMf(ac.r), t, passoDur*6, 0.12, N.mus, 0.03);
+    // arpejo (pluck) em colcheias, vai para o eco
+    const padrao = [0,1,2,1,2,1,0,2]; const nota = ac.t[padrao[i%8]] + (i%8===4 || i%8===7 ? 12 : 0);
+    if(!(k===7 || k===15)){ const pl = anaNota('triangle', anaMf(nota), t, 0.5, 0.045, N.mus, 0.006); const sd = c.createGain(); sd.gain.value = 0.55; pl.g.connect(sd); sd.connect(N.eco); }
+    // pulso: bumbo suave nos tempos, chiado leve nos contratempos
+    if(i%2===0){ const o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(48, t+0.14); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.11, t+0.005); g.gain.exponentialRampToValueAtTime(0.0001, t+0.22); o.connect(g); g.connect(N.mus); o.start(t); o.stop(t+0.25); }
+    else { const s2 = c.createBufferSource(); s2.buffer = N.ruido; const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 7000; const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.014, t+0.004); g.gain.exponentialRampToValueAtTime(0.0001, t+0.07); s2.connect(hp); hp.connect(g); g.connect(N.mus); s2.start(t, Math.random()); s2.stop(t+0.09); }
+    N.prox += passoDur; N.passo++;
+  }
+}
+// efeito a cada troca de gráfico: varredura de ar (whoosh), bolhas estourando e um brilho ascendente
+function anaSomTransicao(fim){
+  const a = ANA_AUDIO, N = a.nodes; if(!a.ctx || !N || !a.on && !a.musica) return; const c = a.ctx, t0 = c.currentTime + 0.02;
+  try{
+    const s1 = c.createBufferSource(); s1.buffer = N.ruido; s1.loop = true; const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 1.4; bp.frequency.setValueAtTime(220, t0); bp.frequency.exponentialRampToValueAtTime(4200, t0+0.65); bp.frequency.exponentialRampToValueAtTime(900, t0+1.2);
+    const g1 = c.createGain(); g1.gain.setValueAtTime(0.0001, t0); g1.gain.exponentialRampToValueAtTime(0.16, t0+0.4); g1.gain.exponentialRampToValueAtTime(0.0001, t0+1.25); s1.connect(bp); bp.connect(g1); g1.connect(N.fx); s1.start(t0); s1.stop(t0+1.3);
+    for(let i=0;i<7;i++){ const ti = t0 + 0.1 + Math.random()*0.85, f0 = 380 + Math.random()*700, o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f0, ti); o.frequency.exponentialRampToValueAtTime(f0*1.9, ti+0.09); g.gain.setValueAtTime(0.0001, ti); g.gain.exponentialRampToValueAtTime(0.07, ti+0.012); g.gain.exponentialRampToValueAtTime(0.0001, ti+0.16); o.connect(g); g.connect(N.fx); o.start(ti); o.stop(ti+0.2); }
+    const notas = fim ? [69,72,76,81,84] : [81,84,88]; notas.forEach((m,j)=>{ const ti = t0 + 0.55 + j*0.09; anaNota('sine', anaMf(m), ti, fim?2.4:1.5, 0.028, N.fx, 0.01); const sd = c.createGain(); sd.gain.value = 0.4; });
+  }catch(e){ console.warn('efeito', e); }
+}
+function anaMusicaLigar(on){ const a = ANA_AUDIO; a.musica = !!on; if(a.nodes){ a.nodes.mus.gain.cancelScheduledValues(a.ctx.currentTime); a.nodes.mus.gain.linearRampToValueAtTime(a.musica?1:0.0001, a.ctx.currentTime+0.4); } if(a.audioEl){ a.audioEl.muted = !a.musica; } }
+// trilha escolhida pela pessoa (arquivo de áudio livre de direitos): toca em loop no lugar da trilha gerada
+function anaMusicaArquivo(file){
+  const a = ANA_AUDIO; if(!file || !a.ctx || !a.nodes) return;
+  try{ if(a.audioEl){ a.audioEl.pause(); URL.revokeObjectURL(a.audioEl.src); }
+    const el = new Audio(URL.createObjectURL(file)); el.loop = true; el.volume = 1; a.audioEl = el; a.arq = file.name; el.muted = !a.musica;
+    if(!a.srcNode){ a.srcNode = a.ctx.createMediaElementSource(el); } else { a.srcNode.disconnect(); }
+    const g = a.ctx.createGain(); g.gain.value = 0.32; a.srcNode.connect(g); g.connect(a.nodes.mus); el.play().catch(()=>{}); showToast('Trilha escolhida: '+file.name);
+  }catch(e){ console.warn('trilha', e); a.arq = null; showToast('Não consegui usar esse arquivo de áudio.'); }
+}
+function anaSomParar(){ const a = ANA_AUDIO; const N = a.nodes; if(N){ clearInterval(N.timer); try{ N.master.gain.cancelScheduledValues(a.ctx.currentTime); N.master.gain.linearRampToValueAtTime(0.0001, a.ctx.currentTime+0.7); }catch(e){} a.nodes = null; }
+  if(a.audioEl){ try{ a.audioEl.pause(); URL.revokeObjectURL(a.audioEl.src); }catch(e){} a.audioEl = null; } a.arq = null; a.srcNode = null; }
 const ANA_VOZ_KEY = 'ana_voz';
 function anaVozes(){ try{ return (speechSynthesis.getVoices()||[]).filter(v=>/^pt/i.test(v.lang)); }catch(e){ return []; } }
 function anaVozNota(v){ const n = v.name||''; let t = 0; if(/natural|neural/i.test(n)) t += 60; if(/online/i.test(n)) t += 25; if(/google/i.test(n)) t += 15; if(/francisca|antonio|thalita|brenda|donato|giovanna|fabio|leila|elza|manuela|yara|valerio|humberto|nicolau/i.test(n)) t += 10; if(/pt[-_]BR/i.test(v.lang)) t += 8; if(/desktop|maria|daniel/i.test(n)) t -= 20; if(v.localService===false) t += 3; return t; }
@@ -3055,25 +3109,29 @@ function anaFalarParar(){ if(ANA_AUDIO.fala) ANA_AUDIO.fala.cancel = true; try{ 
 // fala frase por frase, com pausa curta entre elas (soa menos "leitura contínua" e evita o corte de falas longas)
 function anaFalar(texto, fim){
   if(!ANA_AUDIO.on || !('speechSynthesis' in window)) return null;
-  try{ anaFalarParar(); const partes = String(texto||'').replace(/\s+/g,' ').trim().split(/(?<=[.!?:;])\s+/).filter(Boolean); const v = anaVozAtual(); const tok = {cancel:false}; ANA_AUDIO.fala = tok; let i = 0;
+  try{ anaFalarParar();
+    // frases, e dentro delas pedaços de até ~90 caracteres quebrados nas vírgulas: a pausa natural vem do respiro, não do motor de voz
+    const partes = []; String(texto||'').replace(/\s+/g,' ').trim().split(/(?<=[.!?:;])\s+/).filter(Boolean).forEach(fr=>{ if(fr.length<=95){ partes.push(fr); return; } let cur = ''; fr.split(/(?<=,)\s+/).forEach(pc=>{ if(cur && (cur+' '+pc).length>95){ partes.push(cur); cur = pc; } else cur = cur ? cur+' '+pc : pc; }); if(cur) partes.push(cur); });
+    const v = anaVozAtual(); const tok = {cancel:false}; ANA_AUDIO.fala = tok; let i = 0;
     const prox = ()=>{ if(tok.cancel) return; if(i>=partes.length){ if(fim) fim(); return; } const f = partes[i++]; const u = new SpeechSynthesisUtterance(f); u.lang = 'pt-BR'; if(v) u.voice = v;
-      u.rate = ANA_AUDIO.rate || 0.95; u.pitch = /\?$/.test(f) ? 1.06 : 1; u.volume = 1; const pausa = /[:;]$/.test(f) ? 200 : 340; u.onend = ()=>setTimeout(prox, pausa); u.onerror = ()=>setTimeout(prox, 120); speechSynthesis.speak(u); };
+      const fimFrase = /[.!?]$/.test(f); u.rate = (ANA_AUDIO.rate || 0.93) + (i%3===0 ? 0.02 : 0); u.pitch = /\?$/.test(f) ? 1.08 : (fimFrase ? 0.98 : 1.03); u.volume = 1;
+      const pausa = /[.!?]$/.test(f) ? 420 : /[:;]$/.test(f) ? 280 : 170; u.onend = ()=>setTimeout(prox, pausa); u.onerror = ()=>setTimeout(prox, 120); speechSynthesis.speak(u); };
     prox(); return tok; }catch(e){ return null; }
 }
 async function anaApresentar(){
   if(!ANA.loaded) await anaLoad(); if(!ANA.rows.length){ showToast('A base do Analítico ainda está vazia.'); return; }
   await anaGeo(); const S = anaStats(), cenas = anaCenas(S); const ov = document.getElementById('an-pres'); ov.hidden = false; document.body.classList.add('an-presenting');
   ov.innerHTML = `<div class="an-pstage" id="an-pst"></div><div class="an-pcap" id="an-pcap"></div><div class="an-pkpi" id="an-pkpi"></div><div class="an-pfala" id="an-pfala"></div>
-    <div class="an-pctl"><select id="an-pv" title="Voz da narração"></select><button type="button" id="an-pp" title="Pausar">Pausar</button><button type="button" id="an-pm" title="Som e narração">Som</button><button type="button" id="an-pf" title="Tela cheia">⛶</button><button type="button" id="an-px" title="Sair">✕</button></div><div class="an-pbar"><i id="an-pbar"></i></div>`;
+    <div class="an-pctl"><select id="an-pv" title="Voz da narração"></select><button type="button" id="an-pp" title="Pausar">Pausar</button><button type="button" id="an-pm" title="Narração (voz)">Voz</button><button type="button" id="an-pmu" title="Música de fundo">Música</button><button type="button" id="an-pmf" title="Escolher um arquivo de áudio livre de direitos como trilha">Trilha…</button><input type="file" id="an-pma" accept="audio/*" hidden><button type="button" id="an-pf" title="Tela cheia">⛶</button><button type="button" id="an-px" title="Sair">✕</button></div><div class="an-pbar"><i id="an-pbar"></i></div>`;
   const st = anaStage(document.getElementById('an-pst')); ANA.pres = {st, i:-1, pausa:false, timer:null, alive:true, cenas};
-  const P = ANA.pres; ANA_AUDIO.on = true; anaSomIniciar();
+  const P = ANA.pres; ANA_AUDIO.on = true; ANA_AUDIO.musica = true; anaSomIniciar();
   const parar = ()=>{ P.alive = false; clearTimeout(P.timer); anaFalarParar(); anaSomParar(); st.destroy(); ov.hidden = true; ov.innerHTML = ''; document.body.classList.remove('an-presenting'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); ANA.pres = null; document.removeEventListener('keydown', teclas); };
   const teclas = e=>{ if(e.key==='Escape') parar(); else if(e.key==='ArrowRight') ir(P.i+1); else if(e.key==='ArrowLeft') ir(P.i-1); else if(e.key===' '){ e.preventDefault(); pausa(); } };
   const pausa = ()=>{ P.pausa = !P.pausa; document.getElementById('an-pp').textContent = P.pausa?'Continuar':'Pausar'; if(P.pausa){ clearTimeout(P.timer); try{ speechSynthesis.pause(); }catch(e){} } else { try{ speechSynthesis.resume(); }catch(e){} agendar(P.restante||1500); } };
   const agendar = ms=>{ clearTimeout(P.timer); P.t0 = Date.now(); P.restante = ms; P.timer = setTimeout(()=>{ if(P.alive && !P.pausa) ir(P.i+1); }, ms); };
   const ir = i=>{
     if(!P.alive) return; if(i>=cenas.length){ parar(); return; } i = Math.max(0,i); P.i = i; const c = cenas[i]; anaFalarParar();
-    st.set({layout:c.layout, color:c.color, hi:c.hi||null}); anaSomPing(i%2?523:660);
+    st.set({layout:c.layout, color:c.color, hi:c.hi||null}); anaSomTransicao(!!c.fim);
     ov.classList.toggle('fim', !!c.fim); const cap = document.getElementById('an-pcap'); cap.classList.add('fade');
     setTimeout(()=>{ cap.innerHTML = (c.k?`<i>${escapeHtml(c.k)}</i>`:'')+`<b>${escapeHtml(c.t)}</b><span>${escapeHtml(c.s)}</span>`; cap.classList.remove('fade'); }, 280);
     document.getElementById('an-pkpi').innerHTML = (c.kpis||[]).map(k=>`<div><b>${escapeHtml(String(k[0]))}</b><span>${escapeHtml(k[1])}</span></div>`).join('');
@@ -3086,7 +3144,9 @@ async function anaApresentar(){
   povoar(); try{ speechSynthesis.onvoiceschanged = povoar; }catch(e){}
   pvSel.addEventListener('change', ()=>{ try{ localStorage.setItem(ANA_VOZ_KEY, pvSel.value); }catch(e){} ir(P.i); });
   document.getElementById('an-px').addEventListener('click', parar); document.getElementById('an-pp').addEventListener('click', pausa);
-  document.getElementById('an-pm').addEventListener('click', e=>{ ANA_AUDIO.on = !ANA_AUDIO.on; e.target.textContent = ANA_AUDIO.on?'Som':'Mudo'; if(!ANA_AUDIO.on){ try{ speechSynthesis.cancel(); }catch(x){} if(ANA_AUDIO.nodes) ANA_AUDIO.nodes.g.gain.value = 0.0001; agendar(Math.max(cenas[P.i].dur,6000)); } else { if(ANA_AUDIO.nodes) ANA_AUDIO.nodes.g.gain.value = 0.05; else anaSomIniciar(); ir(P.i); } });
+  document.getElementById('an-pm').addEventListener('click', e=>{ ANA_AUDIO.on = !ANA_AUDIO.on; e.target.textContent = ANA_AUDIO.on?'Voz':'Sem voz'; if(!ANA_AUDIO.on){ anaFalarParar(); agendar(Math.max(cenas[P.i].dur,6000)); } else { ir(P.i); } });
+  document.getElementById('an-pmu').addEventListener('click', e=>{ anaMusicaLigar(!ANA_AUDIO.musica); e.target.textContent = ANA_AUDIO.musica?'Música':'Sem música'; });
+  const pma = document.getElementById('an-pma'); document.getElementById('an-pmf').addEventListener('click', ()=>pma.click()); pma.addEventListener('change', ()=>{ if(pma.files[0]) anaMusicaArquivo(pma.files[0]); pma.value = ''; });
   document.getElementById('an-pf').addEventListener('click', ()=>{ if(document.fullscreenElement) document.exitFullscreen(); else ov.requestFullscreen && ov.requestFullscreen().catch(()=>{}); });
   document.addEventListener('keydown', teclas); try{ if(ov.requestFullscreen) await ov.requestFullscreen(); }catch(e){}
   setTimeout(()=>ir(0), 400);
