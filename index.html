@@ -452,7 +452,7 @@
   .an-pcap{ position:absolute; left:48px; top:36px; max-width:min(780px,70vw); transition:opacity .3s; } .an-pcap.fade{ opacity:0; } .an-pcap i{ display:block; font-style:normal; font-family:'Inter',sans-serif; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:#32dfb6; margin-bottom:8px; }
   .an-pcap b{ display:block; font-family:'Poppins',sans-serif; font-size:clamp(26px,3.2vw,48px); line-height:1.08; } .an-pcap span{ display:block; margin-top:8px; font-size:clamp(13px,1.15vw,18px); color:rgba(200,220,232,.8); }
   .an-pkpi{ position:absolute; right:40px; top:40px; display:flex; flex-direction:column; gap:10px; } .an-pkpi div{ background:rgba(8,28,38,.82); border:1px solid #17384a; border-radius:14px; padding:10px 18px; min-width:190px; } .an-pkpi b{ display:block; font-family:'Poppins',sans-serif; font-size:clamp(24px,2.6vw,40px); color:#32dfb6; } .an-pkpi span{ font-size:12.5px; color:rgba(200,220,232,.85); }
-  .an-pfala{ position:absolute; left:50%; bottom:34px; transform:translateX(-50%); width:min(980px,86vw); text-align:center; font-size:clamp(14px,1.25vw,19px); color:rgba(225,238,245,.92); line-height:1.5; text-shadow:0 2px 12px #000; }
+  .an-pfala{ position:absolute; left:50%; bottom:24px; transform:translateX(-50%); width:min(1120px,90vw); text-align:center; font-size:clamp(13px,1.08vw,17px); color:rgba(225,238,245,.92); line-height:1.42; text-shadow:0 2px 12px #000; }
   .an-pctl{ position:absolute; right:24px; bottom:24px; display:flex; gap:8px; z-index:6; } .an-pctl select{ background:rgba(8,28,38,.85); color:#e8f1f6; border:1px solid #1e4254; border-radius:10px; height:40px; padding:0 10px; max-width:190px; font-size:12px; }
   .an-pctl button{ background:rgba(8,28,38,.85); color:#e8f1f6; border:1px solid #1e4254; border-radius:10px; min-width:40px; padding:0 12px; height:40px; font-size:13px; cursor:pointer; }
   .an-pbar{ position:absolute; left:0; right:0; bottom:0; height:4px; background:#0b1d28; } .an-pbar i{ display:block; height:100%; width:0; background:#32dfb6; transition:width .6s; }
@@ -2688,7 +2688,7 @@ const ANA_HOSP = {
   'Ipiranga Mogi':{cid:'Mogi das Cruzes',lat:-23.5229,lon:-46.1883}, 'Mário Covas':{cid:'Santo André',lat:-23.6700,lon:-46.5200}, 'Amhemed':{cid:'Sorocaba',lat:-23.4969,lon:-47.4577},
   'Prevent Sênior':{cid:'São Paulo',lat:-23.5629,lon:-46.6544}, 'Intermédica ABC':{cid:'São Bernardo do Campo',lat:-23.6667,lon:-46.5667}, 'Ipiranga Arujá':{cid:'Arujá',lat:-23.3964,lon:-46.3208},
   'Salvalus':{cid:'São Paulo',lat:-23.5558,lon:-46.5990}, 'Japonês Santa Cruz':{cid:'São Paulo',lat:-23.5967,lon:-46.6370} };
-const ANA_CIDADES_MAPA = [['São Paulo',-23.5505,-46.6333],['Santos',-23.9608,-46.3336],['Sorocaba',-23.5015,-47.4526],['Mogi das Cruzes',-23.5229,-46.1883],['ABC',-23.69,-46.55]];
+const ANA_CIDADES_MAPA = [['São Paulo',-23.5505,-46.6333],['Santos',-23.9608,-46.3336],['Sorocaba',-23.5015,-47.4526],['Mogi das Cruzes',-23.5229,-46.1883],['ABC',-23.69,-46.55],['Campinas',-22.9056,-47.0608],['Jundiaí',-23.1857,-46.8978],['São José dos Campos',-23.2237,-45.9009],['Guarulhos',-23.4543,-46.5333],['Baixada Santista',-24.0058,-46.4028]];
 const ANA_AREAS = ['Anestesia','UTI','Enfermaria'], ANA_SEM = 'Sem plantão no período';
 const ANA_IDADE = ['Até 29','30–39','40–49','50–59','60+','Sem idade'];
 const ANA_RENDA = ['Até R$ 50 mil','R$ 50–150 mil','R$ 150–300 mil','R$ 300–500 mil','R$ 500 mil+'];
@@ -2784,9 +2784,9 @@ function anaStage(host){
   }
   function project(lat, lon){ const p = S.proj; return [p.x0 + (lon - p.lon0)*p.k, p.y0 + (p.lat0 - lat)*p.k*1.0]; }
   function setProj(){
-    const lonA = -47.62, lonB = -46.05, latA = -23.22, latB = -24.04, cosL = Math.cos(23.6*Math.PI/180);
-    const wDeg = (lonB-lonA)*cosL, hDeg = (latA-latB), pad = 46; const k = Math.min((S.w-pad*2-170-170)/wDeg, (S.h-pad*2)/hDeg);
-    const kx = k*cosL; S.proj = { lon0:lonA, lat0:latA, k:kx, x0:pad+170+((S.w-pad*2-340)-wDeg*k)/2, y0:pad+((S.h-pad*2)-hDeg*k)/2, ky:k };
+    const lonA = -48.55, lonB = -45.05, latA = -22.35, latB = -24.55, cosL = Math.cos(23.4*Math.PI/180);
+    const wDeg = (lonB-lonA)*cosL, hDeg = (latA-latB), pad = 46, Hu = S.h-(S.reserva||0)-(S.topo||0); const Wu = S.w-(S.direita||0), k = Math.min((Wu-pad*2-170-170)/wDeg, (Hu-pad*2)/hDeg);
+    const kx = k*cosL; S.proj = { lon0:lonA, lat0:latA, k:kx, x0:pad+170+((Wu-pad*2-340)-wDeg*k)/2, y0:pad+((Hu-pad*2)-hDeg*k)/2, ky:k };
     S.project = (lat, lon)=>[S.proj.x0 + (lon - lonA)*kx, S.proj.y0 + (latA - lat)*k];
   }
   function buildGeo(){
@@ -2795,8 +2795,8 @@ function anaStage(host){
     ANA.geo.features.forEach(f=>{ const g = f.geometry; if(!g) return; if(g.type==='Polygon') g.coordinates.forEach(ring); else if(g.type==='MultiPolygon') g.coordinates.forEach(p=>p.forEach(ring)); });
     S.geoPath = path;
   }
-  function place(){
-    if(!ANA.rows.length) return; ensureDots(); const W = S.w, H = S.h; S.labels = [];
+  function placeInner(){
+    if(!ANA.rows.length) return; ensureDots(); const W = S.w - (S.direita||0), H = S.h - (S.reserva||0) - (S.topo||0); S.labels = [];
     // corte do que aparece: quem não tem idade (na visão de idade) ou plantão (nas visões de atuação) fica de fora
     const L0 = S.layout;
     const vis = r=>{ if(S.oculto) return false; if(L0==='idade') return r.fi!=='Sem idade'; if(L0==='area'||L0==='hospital'||L0==='renda') return r.pl>0 && (L0!=='hospital' || !!r.hosp); if(L0==='mapa') return r.pl>0 && !!ANA_HOSP[r.hosp]; return r.pl>0 || r.idade!=null; };
@@ -2817,7 +2817,7 @@ function anaStage(host){
       return;
     }
     if(FM==='pilha'){
-      const {g, ks} = agrupa(), ng = ks.length||1, x0 = W*0.08, wt = W*0.84, gap = Math.min(40, wt/ng*0.2), wb = (wt-gap*(ng-1))/ng, base = H-180, hmax = H-180-170, nmax = Math.max(1,...ks.map(k=>g.get(k).length));
+      const {g, ks} = agrupa(), ng = ks.length||1, x0 = W*0.05, wt = W*(W>900?0.8:0.9), gap = Math.min(40, wt/ng*0.2), wb = (wt-gap*(ng-1))/ng, base = H-180, hmax = H-180-170, nmax = Math.max(1,...ks.map(k=>g.get(k).length));
       let best = {sp:0, cc:4}; for(let cc=3; cc<=20; cc++){ const rows = Math.ceil(nmax/cc), sp2 = Math.min(wb/cc, hmax/rows); if(sp2>best.sp) best = {sp:sp2, cc}; }
       const sp = best.sp, cc = best.cc, dr = Math.max(1.6, sp*0.36);
       ks.forEach((k,gi)=>{ const list = g.get(k).sort((a,b)=>b.r.rf-a.r.rf), bx = x0+gi*(wb+gap)+(wb-cc*sp)/2;
@@ -2835,12 +2835,12 @@ function anaStage(host){
       return;
     }
     if(FM==='enxame'){
-      const xa = 22, xb = 70, X0 = W*0.07, X1 = W*0.93, X = v=>X0+(Math.max(xa,Math.min(xb,v))-xa)/(xb-xa)*(X1-X0), cy = H*0.53, dr = Math.max(1.8, Math.min(3.6, W/430)), step = dr*2.15;
+      const xa = 22, xb = 70, X0 = W*0.06, X1 = W*(W>900?0.84:0.93), X = v=>X0+(Math.max(xa,Math.min(xb,v))-xa)/(xb-xa)*(X1-X0), cy = H*0.53, dr = Math.max(1.8, Math.min(3.6, W/430)), step = dr*2.15;
       const L = vd.filter(d=>d.r.idade!=null).sort((a,b)=>a.r.idade-b.r.idade), bk = new Map();
       L.forEach(d=>{ const jt = (((d.r.id||0)*2654435761)%1000)/1000-0.5, x = X(d.r.idade + jt*0.9); let y = 0, k = 0; const bate = ()=>{ for(let b=Math.floor((x-step)/step); b<=Math.floor((x+step)/step); b++){ const arr = bk.get(b); if(arr) for(const q of arr){ if(Math.hypot(q.x-x, q.y-(cy+y))<step) return true; } } return false; };
         while(bate() && k<500){ k++; y = (k%2?1:-1)*Math.ceil(k/2)*step; } const b = Math.floor(x/step); if(!bk.has(b)) bk.set(b, []); bk.get(b).push({x, y:cy+y}); d.tx = x; d.ty = cy+y; d.trad = dr; });
       const cortes = [[xa,35,'Construção','até 35 anos'],[35,50,'Consolidação','35 a 50 anos'],[50,xb,'Legado','50 anos ou mais']];
-      S.zonaTop = 150; S.zonas = cortes.map(([a,b,t,sub])=>{ const lst = L.filter(d=>d.r.idade>=a && (b>=xb ? true : d.r.idade<b)), pr = lst.filter(d=>d.r.prot).length; return {x0:X(a), x1:X(b), t, s:anaN(lst.length)+' médicos · '+anaPct(pr,lst.length)+'% protegidos'}; });
+      S.zonaTop = 10; S.zonas = cortes.map(([a,b,t,sub])=>{ const lst = L.filter(d=>d.r.idade>=a && (b>=xb ? true : d.r.idade<b)), pr = lst.filter(d=>d.r.prot).length; return {x0:X(a), x1:X(b), t, s:anaN(lst.length)+' médicos · '+anaPct(pr,lst.length)+'% protegidos'}; });
       S.eixo = {y:H-178, x0:X0, x1:X1, ticks:[25,30,35,40,45,50,55,60,65,70].map(v=>({x:X(v), t:v+(v===70?'+':'')}))};
       return;
     }
@@ -2848,8 +2848,8 @@ function anaStage(host){
       S.mapa = true; setProj(); buildGeo(); const groups = new Map();
       vd.forEach(d=>{ const k = d.r.hosp && ANA_HOSP[d.r.hosp] ? d.r.hosp : null; if(!groups.has(k)) groups.set(k, []); groups.get(k).push(d); });
       const city = new Map();
-      groups.forEach((list, k)=>{ let sp = rb0*1.9, cx, cy, fr = 1;
-        if(k){ const h = ANA_HOSP[k]; [cx, cy] = S.project(h.lat, h.lon); } else { cx = 100; cy = H - 118; sp = Math.min(sp, 66/Math.sqrt(list.length)); fr = Math.min(1, sp/(rb0*1.9)+0.25); }
+      groups.forEach((list, k)=>{ let sp = rb0*1.05, cx, cy, fr = 0.7;
+        if(k){ const h = ANA_HOSP[k]; [cx, cy] = S.project(h.lat, h.lon); } else { cx = 100; cy = H - 118; sp = Math.min(sp, 66/Math.sqrt(list.length)); fr = Math.min(1, sp/(rb0*1.05)+0.25); }
         list.sort((a,b)=>b.r.rf-a.r.rf).forEach((d,i)=>{ const a = i*2.39996, rr = sp*Math.sqrt(i+0.5); d.tx = cx + rr*Math.cos(a); d.ty = cy + rr*Math.sin(a); d.trad = rOf(d.r,fr); });
         const R = sp*Math.sqrt(list.length)+rb0;
         if(!k){ S.labels.push({x:cx, y:cy + R + 14, t:ANA_SEM, s:anaN(list.length)+' médicos', al:'center'}); return; }
@@ -2868,33 +2868,35 @@ function anaStage(host){
     const maxW = W*0.92; const rows = []; let cur = {it:[], w:0, h:0};
     items.slice().sort((a,b)=>b.n-a.n).forEach(it=>{ if(cur.it.length && cur.w + it.d + 28 > maxW){ rows.push(cur); cur = {it:[], w:0, h:0}; } cur.it.push(it); cur.w += it.d + 28; cur.h = Math.max(cur.h, it.d + lab); });
     rows.push(cur); const totW = Math.max(...rows.map(r=>r.w)), totH = rows.reduce((t,r)=>t+r.h,0);
-    const f = Math.max(0.08, Math.min(W*0.92/totW, (H-30)/totH, 1.8)); let y = (H - totH*f)/2;
+    const f = Math.max(0.08, Math.min(W*0.92/totW, (H-30)/totH, 1.12)); let y = (H - totH*f)/2;
     rows.forEach(row=>{ let x = (W - row.w*f)/2; const rh = row.h*f;
       row.it.forEach(it=>{ const cx = x + it.R*f, cy = y + it.R*f; x += (it.d+28)*f;
         groups.get(it.k).sort((a,b)=>b.r.rf-a.r.rf).forEach((d,i)=>{ const a = i*2.39996, rr = sp*f*Math.sqrt(i+0.5); d.tx = cx + rr*Math.cos(a); d.ty = cy + rr*Math.sin(a); d.trad = rOf(d.r,f); });
         S.labels.push({x:cx, y:cy + it.R*f + 17, t:it.k, s:anaN(it.n)+' · '+anaPct(it.n,N)+'%', dim:S.layout, f}); });
       y += rh; });
   }
-  function frame(){
-    if(!S.alive) return; S.raf = requestAnimationFrame(frame);
+  function place(){ const T = S.topo||0; placeInner(); if(T){ S.dots.forEach(d=>{ if(d.ta>0) d.ty += T; }); S.labels.forEach(l=>{ l.y += T; }); if(S.eixo) S.eixo.y += T; if(S.zonas) S.zonaTop += T; } }
+  function paint(){
     if(!S.w) return; ctx.setTransform(S.dpr,0,0,S.dpr,0,0); ctx.clearRect(0,0,S.w,S.h);
-    if(S.mapa && S.geoPath){ ctx.save(); ctx.globalAlpha = .9; ctx.fillStyle = '#0a1a24'; ctx.fill(S.geoPath); ctx.lineWidth = .6; ctx.strokeStyle = '#1b3a4b'; ctx.stroke(S.geoPath); ctx.restore(); }
-    if(S.mapa && S.proj){ ctx.fillStyle = 'rgba(160,190,205,.45)'; ctx.font = '600 11px Inter, sans-serif'; ctx.textAlign = 'left'; ANA_CIDADES_MAPA.forEach(c=>{ const [x,y] = S.project(c[1], c[2]); ctx.fillText(c[0].toUpperCase(), x+8, y-22); }); }
+    if(S.mapa && S.geoPath){ ctx.save(); ctx.translate(0, S.topo||0); ctx.globalAlpha = .9; ctx.fillStyle = '#0d2331'; ctx.fill(S.geoPath); ctx.lineWidth = .9; ctx.strokeStyle = '#2b5a73'; ctx.stroke(S.geoPath); ctx.restore(); }
+    if(S.mapa && S.proj){ ctx.fillStyle = 'rgba(190,215,228,.38)'; ctx.font = '700 11px Inter, sans-serif'; ctx.textAlign = 'left'; ANA_CIDADES_MAPA.forEach(c=>{ const [x,y] = S.project(c[1], c[2]); ctx.fillText(c[0].toUpperCase(), x+8, y-6+(S.topo||0)); }); }
     for(const d of S.dots){
       d.x += (d.tx-d.x)*0.13; d.y += (d.ty-d.y)*0.13; d.rad += (d.trad-d.rad)*0.2; d.a += (d.ta-d.a)*0.15;
       for(let i=0;i<3;i++) d.c[i] += (d.tc[i]-d.c[i])*0.12;
       ctx.globalAlpha = d.a; ctx.fillStyle = 'rgb('+(d.c[0]|0)+','+(d.c[1]|0)+','+(d.c[2]|0)+')'; ctx.beginPath(); ctx.arc(d.x, d.y, d.rad, 0, 6.2832); ctx.fill();
     }
     ctx.globalAlpha = 1;
-    if(S.leg){ ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(160,190,205,.78)'; ctx.font = '500 12px "IBM Plex Mono", monospace'; ctx.fillText(S.leg, S.w/2, S.h-100); }
+    if(S.leg){ ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(160,190,205,.78)'; ctx.font = '500 12px "IBM Plex Mono", monospace'; ctx.fillText(S.leg, S.w/2, S.reserva ? S.h-S.reserva+16 : S.h-100); }
     if(S.eixo){ ctx.strokeStyle = 'rgba(160,190,205,.3)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(S.eixo.x0, S.eixo.y); ctx.lineTo(S.eixo.x1, S.eixo.y); ctx.stroke(); ctx.fillStyle = 'rgba(190,210,222,.82)'; ctx.font = '500 12px Inter, sans-serif'; ctx.textAlign = 'center'; S.eixo.ticks.forEach(t=>{ ctx.beginPath(); ctx.moveTo(t.x, S.eixo.y); ctx.lineTo(t.x, S.eixo.y+5); ctx.stroke(); ctx.fillText(t.t, t.x, S.eixo.y+22); }); ctx.fillText('idade (anos)', (S.eixo.x0+S.eixo.x1)/2, S.eixo.y+44); }
     if(S.zonas){ S.zonas.forEach((z,i)=>{ if(i){ ctx.setLineDash([4,6]); ctx.strokeStyle = 'rgba(160,190,205,.38)'; ctx.beginPath(); ctx.moveTo(z.x0, S.zonaTop); ctx.lineTo(z.x0, S.eixo.y); ctx.stroke(); ctx.setLineDash([]); } const cxz = (z.x0+z.x1)/2; ctx.textAlign = 'center'; ctx.fillStyle = '#e8f1f6'; ctx.font = '700 18px Inter, sans-serif'; ctx.fillText(z.t, cxz, S.zonaTop+18); ctx.fillStyle = 'rgba(190,210,222,.88)'; ctx.font = '500 13px Inter, sans-serif'; ctx.fillText(z.s, cxz, S.zonaTop+40); }); }
-    if(S.nota){ ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,185,200,.72)'; ctx.font = '500 11px Inter, sans-serif'; ctx.fillText(S.nota, 14, S.h-12); }
+    if(S.nota && !S.reserva){ ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(160,185,200,.72)'; ctx.font = '500 11px Inter, sans-serif'; ctx.fillText(S.nota, 14, S.h-12); }
     ctx.textAlign = 'center';
     S.labels.forEach(l=>{ if(l.kind==='unid'){ ctx.textAlign = 'center'; ctx.fillStyle = l.cor; ctx.font = '800 15px Inter, sans-serif'; ctx.fillText(l.t, l.x, l.y); ctx.fillStyle = '#fff'; ctx.font = '700 44px "Roboto Condensed", Inter, sans-serif'; ctx.fillText(l.big, l.x, l.y+46); ctx.fillStyle = 'rgba(190,210,222,.85)'; ctx.font = '500 13px Inter, sans-serif'; ctx.fillText(l.s, l.x, l.y+68); return; } ctx.textAlign = l.al || 'center'; const big = Math.max(12, Math.min(18, 12.5*(l.f||1)+3)); ctx.fillStyle = '#e8f1f6'; ctx.font = '700 '+big+'px Inter, sans-serif'; ctx.fillText(l.t, l.x, l.y);
       ctx.fillStyle = 'rgba(190,210,222,.8)'; ctx.font = '500 '+Math.max(11,big-3)+'px Inter, sans-serif'; ctx.fillText(l.s, l.x, l.y + big); });
     if(S.hover){ ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(S.hover.x, S.hover.y, S.hover.rad+3, 0, 6.2832); ctx.stroke(); }
   }
+  function frame(){ if(!S.alive) return; S.raf = requestAnimationFrame(frame); paint(); }
+  S.paint = paint;
   function pick(ev){ const b = cv.getBoundingClientRect(), x = ev.clientX-b.left, y = ev.clientY-b.top; let best = null, bd = 1e9; for(const d of S.dots){ const dd = (d.x-x)*(d.x-x)+(d.y-y)*(d.y-y), lim = (d.rad+4)*(d.rad+4); if(dd<lim && dd<bd){ bd = dd; best = d; } } return {d:best, x, y}; }
   const descr = r=>{ const nome = r.pid ? (ANA.nomes.get(r.pid)||'Cadastro no CRM') : 'Sem cadastro vinculado'; const L = [];
     L.push('<b>'+escapeHtml(nome)+'</b>'); L.push([r.idade!=null?r.idade+' anos':'idade não informada', r.sx!=='Sem dado'?r.sx+' (est.)':null].filter(Boolean).join(' · '));
@@ -2902,7 +2904,7 @@ function anaStage(host){
   cv.addEventListener('mousemove', ev=>{ if(S.forma==='unidades'){ tip.hidden = true; S.hover = null; return; } const p = pick(ev); S.hover = p.d; if(p.d){ tip.hidden = false; tip.innerHTML = descr(p.d.r); tip.style.left = Math.min(S.w-250, p.x+14)+'px'; tip.style.top = Math.max(6, p.y-10)+'px'; cv.style.cursor = p.d.r.pid ? 'pointer' : 'default'; } else { tip.hidden = true; cv.style.cursor = 'default'; } });
   cv.addEventListener('mouseleave', ()=>{ S.hover = null; tip.hidden = true; });
   cv.addEventListener('click', ev=>{ const p = pick(ev); if(p.d && p.d.r.pid && S.onOpen) S.onOpen(p.d.r.pid); });
-  S.set = (o)=>{ if('oculto' in o) S.oculto = !!o.oculto; if('forma' in o) S.forma = o.forma||'cluster'; if('unid' in o) S.unid = o.unid||null; if('leg' in o) S.leg = o.leg||''; if(o.layout) S.layout = o.layout; if(o.color) S.color = o.color; if('hi' in o) S.hi = o.hi; place(); };
+  S.set = (o)=>{ if('oculto' in o) S.oculto = !!o.oculto; if('reserva' in o) S.reserva = o.reserva||0; if('topo' in o) S.topo = o.topo||0; if('forma' in o) S.forma = o.forma||'cluster'; if('unid' in o) S.unid = o.unid||null; if('leg' in o) S.leg = o.leg||''; if(o.layout) S.layout = o.layout; if(o.color) S.color = o.color; if('hi' in o) S.hi = o.hi; place(); };
   S.destroy = ()=>{ S.alive = false; cancelAnimationFrame(S.raf); if(S.ro) S.ro.disconnect(); cv.remove(); tip.remove(); };
   S.ro = new ResizeObserver(()=>{ size(); place(); }); S.ro.observe(host); size(); place(); frame();
   return S;
@@ -3103,7 +3105,7 @@ function anaCenas(S){
     fala:`O plano é simples. Primeiro, ${anaN(S.alvo.length)} médicos que atuam bastante, com renda em plantões de cento e cinquenta mil reais ou mais, e nenhuma apólice ativa, destacados agora: ${anaN(S.alvoJovem.length)} têm menos de cinquenta anos. Segundo, abrir a conversa pela responsabilidade civil em anestesia e terapia intensiva, e levar a vida em seguida. Terceiro, trabalhar por hospital, para ganhar indicações dentro do mesmo grupo. E em cada conversa, adaptar a mensagem à idade: patrimônio para os mais jovens, sucessão e legado para os mais experientes.`,
     kpis:[[anaN(S.alvo.length),'fila principal'],[anaN(S.alvoJovem.length),'menos de 50 anos'],[anaPct(S.alvo.length, S.nAtivos)+'%','dos que atuam']]});
   c.forEach((q,i)=>{ if(q.k) q.k = (i+1)+' · '+q.k.replace(/^\d+ · /,''); });
-  c.push({fim:true, k:'', t:'CallMed Proteção Patrimonial', s:'Dados da própria base, atualizados quando o Analítico é recarregado', layout:'todos', color:'protecao', dur:8000,
+  c.push({fim:true, limpo:true, k:'', t:'CallMed Proteção Patrimonial', s:'Dados da própria base, atualizados quando o Analítico é recarregado', layout:'todos', color:'protecao', dur:8000,
     fala:`Resumindo: uma base jovem, concentrada em poucos hospitais, com muita gente que trabalha bastante e ainda não tem proteção. Uma oferta clara, uma meta definida e um caminho para chegar lá. CallMed Proteção Patrimonial.`, kpis:[[anaN(N),'médicos'],[anaN(S.alvo.length),'na fila principal'],[anaPct(S.nProt,N)+'%','já protegidos']]});
   return c;
 }
@@ -3200,7 +3202,7 @@ function anaViz(host){
   const FN = (px,w)=> (w||600)+' '+px+'px Inter, sans-serif', FC = px=> '700 '+px+'px "Roboto Condensed", Inter, sans-serif';
   const rr = (x,y,w,h,r)=>{ const q = Math.max(0,Math.min(r,w/2,h/2)); ctx.beginPath(); ctx.moveTo(x+q,y); ctx.arcTo(x+w,y,x+w,y+h,q); ctx.arcTo(x+w,y+h,x,y+h,q); ctx.arcTo(x,y+h,x,y,q); ctx.arcTo(x,y,x+w,y,q); ctx.closePath(); };
   const fm = (v,k)=> k==='r' ? anaMoney(v) : k==='c' ? anaCurto(v) : k==='p' ? Math.round(v)+'%' : anaN(Math.round(v));
-  const area = ()=>{ const w = V.w, h = V.h, narrow = w<900, x = narrow?24:70, y = narrow?150:Math.max(170,h*0.24), rt = V.kpi && !narrow ? 310 : (narrow?24:70); return {x, y, w:Math.max(200,w-x-rt), h:Math.max(160,h-y-(narrow?150:130))}; };
+  const area = ()=>{ const w = V.w, h = V.h, narrow = w<900, x = narrow?24:70, y = narrow?150:Math.max(170,h*0.24), rt = V.kpi && !narrow ? 310 : (narrow?24:70); return {x, y, w:Math.max(200,w-x-rt), h:Math.max(160,h-y-(narrow?175:165))}; };
   const eixo = (R, y)=>{ ctx.strokeStyle = 'rgba(160,190,205,.28)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(R.x, y); ctx.lineTo(R.x+R.w, y); ctx.stroke(); };
   const TIPOS = {
     colunas(R,p,sp){ const it = sp.itens, n = it.length, mx = Math.max(1,...it.map(i=>i.v)), gap = Math.min(46,R.w/n*0.22), bw = (R.w-gap*(n-1))/n, base = R.y+R.h-36; eixo(R, base);
@@ -3236,10 +3238,12 @@ function anaViz(host){
       pts.forEach((q,i)=>{ if(i%2===0 || i===n-1) T(q.x, X(i), base+24, FN(12,500), 'rgba(190,210,222,.85)', 'center'); });
       if(sp.hoje!=null && sp.hoje>=0 && sp.hoje<n){ const x = X(sp.hoje); ctx.setLineDash([6,5]); ctx.strokeStyle = 'rgba(255,180,84,.85)'; ctx.beginPath(); ctx.moveTo(x,R.y); ctx.lineTo(x,base); ctx.stroke(); ctx.setLineDash([]); T('hoje', x, R.y-6, FN(13,800), '#ffb454', 'center'); }
       if(p>0.92){ const q = pts[n-1]; ctx.fillStyle = '#75f5d2'; ctx.beginPath(); ctx.arc(X(n-1),Y(q.y),6,0,6.2832); ctx.fill(); T(fm(q.y,sp.fmt), X(n-1)-12, Y(q.y)-16, FC(26), '#fff', 'right'); } },
-    funil(R,p,sp){ const it = sp.etapas, n = it.length, rh = Math.min(84, R.h/n), mx = it[0].v, cx = R.x+R.w/2;
-      it.forEach((q,i)=>{ const pp = anaSeg(p,i,n,0.5), w = Math.max(R.w*0.16, R.w*0.86*(q.v/mx))*pp, y = R.y+(R.h-rh*n)/2+i*rh; ctx.fillStyle = q.cor; rr(cx-w/2, y+4, w, rh-12, 14); ctx.fill();
-        if(w>200){ T(q.l, cx-w/2+20, y+rh/2+6, FN(16,700), '#031219', 'left'); T(fm(q.v*pp,sp.fmt), cx+w/2-20, y+rh/2+9, FC(28), '#031219', 'right'); } else T(fm(q.v*pp,sp.fmt)+' '+q.l, cx, y+rh/2+6, FN(15,800), '#031219', 'center');
-        if(i>0 && pp>0.9) T('→ '+Math.round(q.v/it[i-1].v*100)+'% da etapa anterior', cx+R.w*0.43*(q.v/mx)+30, y+rh/2+5, FN(13,600), 'rgba(255,180,84,.95)', 'left'); }); },
+    funil(R,p,sp){ const it = sp.etapas, n = it.length, rh = Math.min(84, R.h/n), mx = it[0].v, lw = Math.min(250, R.w*0.26), bx = R.x+lw, bw = Math.max(160, R.w-lw-200), cx = bx+bw/2;
+      it.forEach((q,i)=>{ const pp = anaSeg(p,i,n,0.5), w = Math.max(bw*0.09, bw*(q.v/mx))*pp, y = R.y+(R.h-rh*n)/2+i*rh;
+        T(q.l, R.x, y+rh/2+6, FN(16,700), 'rgba(205,222,232,.95)', 'left');
+        ctx.fillStyle = q.cor; rr(cx-w/2, y+6, w, rh-14, 14); ctx.fill();
+        if(w>=90) T(fm(q.v*pp,sp.fmt), cx, y+rh/2+9, FC(26), '#031219', 'center'); else T(fm(q.v*pp,sp.fmt), cx+w/2+10, y+rh/2+9, FC(26), '#fff', 'left');
+        if(i>0 && pp>0.9) T(Math.round(q.v/it[i-1].v*100)+'% da etapa anterior', bx+bw+24, y+rh/2+5, FN(13,700), 'rgba(255,180,84,.95)', 'left'); }); },
     numeros(R,p,sp){ const it = sp.itens, n = it.length, gap = 28, cw = Math.min(380,(R.w-gap*(n-1))/n), x0 = R.x+(R.w-(cw*n+gap*(n-1)))/2, ch = Math.min(300,R.h*0.8), y = R.y+(R.h-ch)/2;
       it.forEach((q,i)=>{ const pp = anaSeg(p,i,n,0.5), x = x0+i*(cw+gap); ctx.globalAlpha *= pp; ctx.fillStyle = 'rgba(8,28,38,.88)'; rr(x, y+(1-pp)*30, cw, ch, 20); ctx.fill(); ctx.strokeStyle = q.cor; ctx.lineWidth = 2; ctx.stroke();
         T(q.l, x+cw/2, y+(1-pp)*30+52, FN(17,800), q.cor, 'center'); T(fm(q.v*pp,q.fmt), x+cw/2, y+(1-pp)*30+ch*0.55, FC(Math.min(64,cw*0.2)), '#fff', 'center'); T(q.s, x+cw/2, y+(1-pp)*30+ch*0.55+38, FN(13,500), 'rgba(190,210,222,.85)', 'center'); if(q.s2) T(q.s2, x+cw/2, y+(1-pp)*30+ch*0.55+60, FN(12,500), 'rgba(160,190,205,.75)', 'center'); ctx.globalAlpha /= (pp||1); }); } };
@@ -3260,8 +3264,9 @@ function anaViz(host){
 async function anaApresentar(){
   if(!ANA.loaded) await anaLoad(); if(!ANA.rows.length){ showToast('A base do Analítico ainda está vazia.'); return; }
   await anaGeo(); const S = anaStats(), cenas = anaCenas(S); const ov = document.getElementById('an-pres'); ov.hidden = false; document.body.classList.add('an-presenting');
-  ov.innerHTML = `<div class="an-pstage" id="an-pst"></div><svg class="shield an-pshield" viewBox="0 0 100 140" aria-hidden="true"><path d="M50 3 L10 12 V70 C10 101 31 122 50 134 C69 122 90 101 90 70 V12 Z"/><path d="M50 22 L27 28 V70 C27 90 39 103 50 111 C61 103 73 90 73 70 V28 Z"/></svg><div class="an-pcap" id="an-pcap"></div><div class="an-pkpi" id="an-pkpi"></div><div class="an-pfala" id="an-pfala"></div>
-    <div class="an-pctl"><select id="an-pv" title="Voz da narração"></select><button type="button" id="an-pp" title="Pausar">Pausar</button><button type="button" id="an-pm" title="Narração (voz)">Voz</button><button type="button" id="an-pmu" title="Música de fundo">Música</button><button type="button" id="an-pmf" title="Escolher um arquivo de áudio livre de direitos como trilha">Trilha…</button><input type="file" id="an-pma" accept="audio/*" hidden><button type="button" id="an-pf" title="Tela cheia">⛶</button><button type="button" id="an-px" title="Sair">✕</button></div><div class="an-pbar"><i id="an-pbar"></i></div>`;
+  ov.innerHTML = `<img class="an-pmark" src="assets/logo-branco.png" alt="">
+    <div class="an-pstage" id="an-pst"></div><svg class="shield an-pshield" viewBox="0 0 100 140" aria-hidden="true"><path d="M50 3 L10 12 V70 C10 101 31 122 50 134 C69 122 90 101 90 70 V12 Z"/><path d="M50 22 L27 28 V70 C27 90 39 103 50 111 C61 103 73 90 73 70 V28 Z"/></svg><div class="an-pcap" id="an-pcap"></div><div class="an-pkpi" id="an-pkpi"></div><div class="an-pfala" id="an-pfala"></div>
+    <div class="an-pctl"><button type="button" id="an-pp" title="Pausar (barra de espaço)">Pausar</button><button type="button" id="an-pm" title="Narração">Voz</button><button type="button" id="an-pmu" title="Música de fundo">Música</button><button type="button" id="an-pmf" title="Escolher um arquivo de áudio livre de direitos como trilha">Trilha</button><input type="file" id="an-pma" accept="audio/*" hidden><button type="button" id="an-pf" title="Tela cheia">⛶</button><button type="button" id="an-px" title="Sair (Esc)">✕</button></div><div class="an-pbar"><i id="an-pbar"></i></div>`;
   const st = anaStage(document.getElementById('an-pst')), viz = anaViz(document.getElementById('an-pst')); ANA.pres = {st, viz, i:-1, pausa:false, timer:null, alive:true, cenas};
   const P = ANA.pres; ANA_AUDIO.on = true; ANA_AUDIO.musica = true; anaSomIniciar();
   const parar = ()=>{ P.alive = false; clearTimeout(P.timer); anaFalarParar(); anaSomParar(); viz.destroy(); st.destroy(); ov.hidden = true; ov.innerHTML = ''; document.body.classList.remove('an-presenting'); if(document.fullscreenElement) document.exitFullscreen().catch(()=>{}); ANA.pres = null; document.removeEventListener('keydown', teclas); };
@@ -3270,7 +3275,8 @@ async function anaApresentar(){
   const agendar = ms=>{ clearTimeout(P.timer); P.t0 = Date.now(); P.restante = ms; P.timer = setTimeout(()=>{ if(P.alive && !P.pausa) ir(P.i+1); }, ms); };
   const ir = i=>{
     if(!P.alive) return; if(i>=cenas.length){ parar(); return; } i = Math.max(0,i); P.i = i; const c = cenas[i]; anaFalarParar();
-    if(c.viz){ st.set({oculto:true, layout:c.layout||'todos', color:c.color||'area', hi:null, forma:'cluster', unid:null, leg:''}); viz.show(c.viz, {kpi:(c.kpis||[]).length>0}); } else { viz.hide(); st.set({oculto:false, layout:c.layout, color:c.color, hi:c.hi||null, forma:c.forma||'cluster', unid:c.unid||null, leg:c.leg||''}); } anaSomTransicao(!!c.fim);
+    st.topo = Math.round(Math.max(120, Math.min(215, st.h*0.2))); st.reserva = Math.round(Math.max(150, Math.min(190, st.h*0.16))); st.direita = (c.kpis && c.kpis.length && st.w>1000) ? Math.round(Math.min(290, st.w*0.19)) : 0;
+    if(c.limpo){ viz.hide(); st.set({oculto:true, layout:'todos', color:'area', hi:null, forma:'cluster', unid:null, leg:''}); } else if(c.viz){ st.set({oculto:true, layout:c.layout||'todos', color:c.color||'area', hi:null, forma:'cluster', unid:null, leg:''}); viz.show(c.viz, {kpi:(c.kpis||[]).length>0}); } else { viz.hide(); st.set({oculto:false, layout:c.layout, color:c.color, hi:c.hi||null, forma:c.forma||'cluster', unid:c.unid||null, leg:c.leg||''}); } anaSomTransicao(!!c.fim);
     ov.classList.toggle('fim', !!c.fim); const cap = document.getElementById('an-pcap'); cap.classList.add('fade');
     setTimeout(()=>{ cap.innerHTML = (c.k?`<i>${escapeHtml(c.k)}</i>`:'')+`<b>${escapeHtml(c.t)}</b><span>${escapeHtml(c.s)}</span>`; cap.classList.remove('fade'); }, 280);
     document.getElementById('an-pkpi').innerHTML = (c.kpis||[]).map(k=>`<div><b>${escapeHtml(String(k[0]))}</b><span>${escapeHtml(k[1])}</span></div>`).join('');
@@ -3278,10 +3284,7 @@ async function anaApresentar(){
     let acabou = false; const avancar = ()=>{ if(acabou || !P.alive || P.pausa) return; acabou = true; setTimeout(()=>{ if(P.alive && !P.pausa) ir(i+1); }, 900); };
     const u = anaFalar(c.fala, avancar); if(u){ P.timer = setTimeout(avancar, Math.max(c.dur, c.fala.length*95)+4000); } else agendar(Math.max(c.dur, 6000));
   };
-  const pvSel = document.getElementById('an-pv');
-  const povoar = ()=>{ const vs = anaVozes(); const at = anaVozAtual(); pvSel.innerHTML = vs.length ? vs.map(v=>`<option value="${escapeHtml(v.voiceURI)}" ${at&&at.voiceURI===v.voiceURI?'selected':''}>${escapeHtml(v.name.replace(/^Microsoft\s+/,'').slice(0,34))}</option>`).join('') : '<option>voz do sistema</option>'; };
-  povoar(); try{ speechSynthesis.onvoiceschanged = povoar; }catch(e){}
-  pvSel.addEventListener('change', ()=>{ try{ localStorage.setItem(ANA_VOZ_KEY, pvSel.value); }catch(e){} ir(P.i); });
+  ov.onmousemove = ()=>{ ov.classList.add('mov'); clearTimeout(P.mv); P.mv = setTimeout(()=>ov.classList.remove('mov'), 2600); };
   document.getElementById('an-px').addEventListener('click', parar); document.getElementById('an-pp').addEventListener('click', pausa);
   document.getElementById('an-pm').addEventListener('click', e=>{ ANA_AUDIO.on = !ANA_AUDIO.on; e.target.textContent = ANA_AUDIO.on?'Voz':'Sem voz'; if(!ANA_AUDIO.on){ anaFalarParar(); agendar(Math.max(cenas[P.i].dur,6000)); } else { ir(P.i); } });
   document.getElementById('an-pmu').addEventListener('click', e=>{ anaMusicaLigar(!ANA_AUDIO.musica); e.target.textContent = ANA_AUDIO.musica?'Música':'Sem música'; });
@@ -7523,6 +7526,7 @@ checkSession();
   #login-screen .login-card{ position:relative; z-index:2; margin:0 auto; }
   #login-screen .login-shield{ position:absolute; z-index:1; right:4vw; top:5vh; width:min(23vw,330px); opacity:.35; }
   @media (max-width:900px){ .login-hero, #login-screen .login-shield{ display:none; } #login-screen{ justify-content:center; padding:24px; } }
+  #an-pres .an-pmark{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:min(44vw,760px); height:auto; opacity:.085; pointer-events:none; user-select:none; }
   #an-pres .an-pshield{ display:none; } #an-pres.fim .an-pshield{ display:block; position:absolute; right:7vw; top:50%; transform:translateY(-50%); height:min(54vh,460px); width:auto; opacity:.3; }
 
   /* ---- cabeçalho como faixa de marca ---- */
@@ -7541,6 +7545,17 @@ checkSession();
   header .who #btn-backup{ background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.3); color:#fff; } header .who #btn-backup:hover{ background:rgba(255,255,255,.24); border-color:rgba(255,255,255,.55); }
   header .hdr-title{ margin-left:8px; }
   @media (max-width:760px){ .hdr-brand small, .hdr-navy{ display:none; } .hdr-brand b{ font-size:17px; } header .who{ color:var(--ink-soft); } header .who button, header .who #btn-backup{ background:var(--surface-2); border-color:var(--border); color:var(--ink-soft); } }
+
+  /* ---- apresentação: painel de números sem corte, narração acima dos controles, controles discretos ---- */
+  #an-pres .an-pkpi{ right:24px; top:24px; gap:8px; width:min(260px,18vw); }
+  #an-pres .an-pkpi div{ min-width:0; width:100%; padding:9px 14px; box-sizing:border-box; overflow:hidden; }
+  #an-pres .an-pkpi b{ font-size:clamp(22px,2.1vw,34px); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #an-pres .an-pkpi span{ font-size:12px; display:block; line-height:1.3; }
+  #an-pres .an-pfala{ bottom:46px; }
+  #an-pres .an-pctl{ right:14px; bottom:8px; gap:6px; opacity:.22; transition:opacity .35s; }
+  #an-pres .an-pctl:hover, #an-pres.mov .an-pctl{ opacity:1; }
+  #an-pres .an-pctl button{ background:rgba(8,28,38,.5); border:1px solid rgba(255,255,255,.16); height:28px; min-width:28px; padding:0 9px; font-size:11px; border-radius:7px; color:rgba(232,241,246,.9); }
+  #an-pres.fim .an-pcap b{ font-size:clamp(34px,4.4vw,64px); }
 </style>
 </body>
 </html>
