@@ -331,9 +331,10 @@
 
     <div id="view-comercial" class="view">
       <div class="pg">
-        <div class="pg-head"><h2>Módulo Comercial</h2><span class="sub">Meta de vendas por mês, produto e ticket médio — contra o que já foi vendido.</span></div>
-        <div class="pv-tabs" id="com-tabs" style="margin:6px 0 10px"><button class="pv-tab on" data-ct="metas">Metas e vendas</button><button class="pv-tab" data-ct="carlas">Mais Carlas (pontes e indicações)</button></div>
-        <div id="com-body"><div class="op-more">Carregando...</div></div>
+        <div class="pg-head"><h2>Módulo Comercial</h2><span class="sub">Orçamento de receita: prêmio e comissão por mês e produto, contra a meta travada.</span></div>
+        <div class="pv-tabs" id="com-tabs" style="margin:6px 0 10px"><button class="pv-tab on" data-ct="orc">Orçamento de receita</button><button class="pv-tab" data-ct="par">Parâmetros</button><button class="pv-tab" data-ct="metas">Funil e estratégias</button><button class="pv-tab" data-ct="carlas">Mais Carlas (pontes e indicações)</button></div>
+        <div id="orc-body"></div><div id="par-body" style="display:none"></div>
+        <div id="com-body" style="display:none"><div class="op-more">Carregando...</div></div>
         <div id="mc2-body" style="display:none"></div>
       </div>
     </div>
@@ -1028,11 +1029,204 @@ function opSetHeaderTitle(btn){
   document.getElementById('hdr-title').textContent = label; document.getElementById('hdr-title').style.display = (btn.dataset.view === 'operacao') ? 'none' : '';
   document.getElementById('hdr-info').style.display = (btn.dataset.view === 'operacao') ? '' : 'none';
 }
+// ============ COMERCIAL · ORÇAMENTO DE RECEITA E PARÂMETROS ============
+// Linhas de prêmio e de comissão mês a mês (vida, saúde, RC, indicação e RX), comparadas com a meta travada. Os parâmetros ficam na aba ao lado.
+// Cálculo (igual ao do restante do módulo): carteira = carteira anterior × (1 − cancelamento mensal) + prêmio novo; comissão recorrente = carteira × %;
+// carregamento = prêmio novo × múltiplo (recebido uma vez); receita do produto = recorrente + carregamento.
+const ORC = { rows:[], basal:[], P:{}, M:{}, real:{}, ok:false, calc:[], timers:{} };
+const ORC_DEF = { churn_vida:15, churn_saude:15, churn_rc:15, orc_fator:100, orc_vida_ticket:500, orc_rc_ticket:300, orc_imposto:8, orc_comissao_esp:0, orc_custo_fixo:0 };
+const ORC_COR = { V:'#0a9b78', S:'#2f56ff', R:'#e59a24', ind:'#8b5cf6', rx:'#64748b' };
+const orcM = v=>{ v = Math.round(Number(v)||0); return (v<0?'−':'')+'R$ '+Math.abs(v).toLocaleString('pt-BR'); };
+const orcN = v=> (Math.round((Number(v)||0)*10)/10).toLocaleString('pt-BR');
+const orcYm = r=> String(r.mes).slice(0,7);
+const orcNum = (v,d)=>{ const n = Number(v); return v==null || v==='' || isNaN(n) ? d : n; };
+async function orcCarregar(force){
+  if(ORC.ok && !force) return;
+  const [a, b, c, apo] = await Promise.all([ sb.from('crm_meta_comercial').select('*').order('mes'), sb.from('crm_meta_basal').select('*').order('mes'), sb.from('crm_metas').select('chave,valor'),
+    opFetchAll('crm_apolices','id,tipo_seguro,valor_premio,data_emissao,created_at,origem_apolice,vinculo_comercial,status',['id']) ]);
+  if(a.error) throw a.error;
+  ORC.rows = a.data||[]; ORC.basal = b.data||[]; const M = {}; (c.data||[]).forEach(m=>{ M[m.chave] = Number(m.valor); }); ORC.M = M;
+  ORC.P = {...ORC_DEF}; if(M.churn_anual!=null && !isNaN(M.churn_anual)){ ORC.P.churn_vida = ORC.P.churn_saude = ORC.P.churn_rc = M.churn_anual; }
+  Object.keys(ORC_DEF).forEach(k=>{ if(M[k]!=null && !isNaN(M[k])) ORC.P[k] = M[k]; });
+  const real = {}; (apo||[]).filter(x=>x.origem_apolice==='nova' && x.vinculo_comercial==='CallMed' && x.status!=='cancelada').forEach(x=>{ const ym = String(x.data_emissao||x.created_at||'').slice(0,7); if(!ym) return;
+    const r = real[ym] = real[ym] || {vida:0, saude:0, rc:0, n:0}; const prem = (Number(x.valor_premio)||0)/12, t = x.tipo_seguro||''; if(/sa[úu]de/i.test(t)) r.saude += prem; else if(/responsabilidade|\brc\b/i.test(t)) r.rc += prem; else if(/vida/i.test(t)) r.vida += prem; r.n++; });
+  ORC.real = real; ORC.ok = true;
+}
+function orcCalcular(){
+  const P = ORC.P, fator = orcNum(P.orc_fator,100)/100, ch = an=> 1-Math.pow(1-(Number(an)||0)/100, 1/12), bas = {};
+  ORC.basal.forEach(x=>{ bas[orcYm(x)] = (Number(x.vida_receita)||0)+(Number(x.saude_receita)||0)+(Number(x.indicacao_receita)||0)+(Number(x.rx_receita)||0); });
+  let cv = 0, cs = 0, cr = 0, ac = 0, am = 0; const out = [];
+  ORC.rows.forEach(r=>{
+    const ym = orcYm(r), nv = (Number(r.vida_premio_novo)||0)*fator, pv = orcNum(r.vida_com_pct,30)/100, av = orcNum(r.vida_agen,1);
+    const ts = orcNum(r.saude_ticket,500), vs = (Number(r.saude_vidas)||0)*fator, ns = vs*ts, ps = orcNum(r.saude_com_pct,5)/100, as = orcNum(r.saude_agen,2);
+    const nr = (Number(r.rc_premio_novo)||0)*fator, pr = orcNum(r.rc_com_pct,20)/100, ar = orcNum(r.rc_agen,0);
+    cv = cv*(1-ch(P.churn_vida)) + nv; cs = cs*(1-ch(P.churn_saude)) + ns; cr = cr*(1-ch(P.churn_rc)) + nr;
+    const V = {novo:nv, apol:nv/(P.orc_vida_ticket||500), cart:cv, rec:cv*pv, car:nv*av}; V.tot = V.rec+V.car;
+    const S = {vidas:vs, novo:ns, cart:cs, rec:cs*ps, car:ns*as}; S.tot = S.rec+S.car;
+    const R = {novo:nr, apol:nr/(P.orc_rc_ticket||300), cart:cr, rec:cr*pr, car:nr*ar}; R.tot = R.rec+R.car;
+    const ind = Number(r.indicacao_receita)||0, rx = Number(r.rx_receita)||0, tot = V.tot+S.tot+R.tot+ind+rx, meta = bas[ym]||0; ac += tot; am += meta;
+    const imp = tot*(Number(P.orc_imposto)||0)/100, com = tot*(Number(P.orc_comissao_esp)||0)/100, cus = Number(P.orc_custo_fixo)||0, re = ORC.real[ym] || {vida:0, saude:0, rc:0, n:0};
+    out.push({ym, V, S, R, ind, rx, novoTot:V.novo+S.novo+R.novo, cartTot:cv+cs+cr, recTot:V.rec+S.rec+R.rec, carTot:V.car+S.car+R.car, tot, meta, dif:tot-meta, ac, am, difac:ac-am, imp, com, cus, res:tot-imp-com-cus, realTot:re.vida+re.saude+re.rc, realDif:(re.vida+re.saude+re.rc)-(V.novo+S.novo+R.novo)});
+  });
+  ORC.calc = out; return out;
+}
+const orcGet = (o,k)=> k.split('.').reduce((a,p)=>a==null?a:a[p], o);
+// linhas da tabela: k = caminho no cálculo; ed = coluna editável em crm_meta_comercial; agg = como somar na coluna Total
+const ORC_LINHAS = [
+  {sec:'Seguro de Vida', cor:ORC_COR.V},
+  {k:'V.novo', l:'Prêmio mensal novo vendido', ed:'vida_premio_novo', f:'m', agg:'sum'},
+  {k:'V.apol', l:'Apólices novas (prêmio ÷ ticket)', f:'n', agg:'sum', dim:1},
+  {k:'V.cart', l:'Carteira de prêmio mensal (após cancelamentos)', f:'m', agg:'last'},
+  {k:'V.rec', l:'Comissão recorrente (carteira × %)', f:'m', agg:'sum'},
+  {k:'V.car', l:'Carregamento de entrada (prêmio novo × múltiplo)', f:'m', agg:'sum'},
+  {k:'V.tot', l:'Receita de Vida', f:'m', agg:'sum', b:1},
+  {sec:'Seguro Saúde', cor:ORC_COR.S},
+  {k:'S.vidas', l:'Vidas novas', ed:'saude_vidas', f:'n', agg:'sum'},
+  {k:'S.novo', l:'Prêmio mensal novo (vidas × ticket)', f:'m', agg:'sum'},
+  {k:'S.cart', l:'Carteira de prêmio mensal (após cancelamentos)', f:'m', agg:'last'},
+  {k:'S.rec', l:'Comissão recorrente (carteira × %)', f:'m', agg:'sum'},
+  {k:'S.car', l:'Carregamento de entrada (prêmio novo × múltiplo)', f:'m', agg:'sum'},
+  {k:'S.tot', l:'Receita de Saúde', f:'m', agg:'sum', b:1},
+  {sec:'Responsabilidade Civil (RC)', cor:ORC_COR.R},
+  {k:'R.novo', l:'Prêmio mensal novo vendido', ed:'rc_premio_novo', f:'m', agg:'sum'},
+  {k:'R.apol', l:'Apólices novas (prêmio ÷ ticket)', f:'n', agg:'sum', dim:1},
+  {k:'R.cart', l:'Carteira de prêmio mensal (após cancelamentos)', f:'m', agg:'last'},
+  {k:'R.rec', l:'Comissão recorrente (carteira × %)', f:'m', agg:'sum'},
+  {k:'R.car', l:'Carregamento de entrada (prêmio novo × múltiplo)', f:'m', agg:'sum'},
+  {k:'R.tot', l:'Receita de RC', f:'m', agg:'sum', b:1},
+  {sec:'Indicação e RX Vantage', cor:ORC_COR.ind},
+  {k:'ind', l:'Receita de indicação', ed:'indicacao_receita', f:'m', agg:'sum'},
+  {k:'rx', l:'Receita RX Vantage', ed:'rx_receita', f:'m', agg:'sum'},
+  {sec:'Totais do mês', cor:'#00125e'},
+  {k:'novoTot', l:'Prêmio mensal novo (todos os produtos)', f:'m', agg:'sum'},
+  {k:'cartTot', l:'Carteira de prêmio mensal (todos os produtos)', f:'m', agg:'last'},
+  {k:'recTot', l:'Comissão recorrente (todos os produtos)', f:'m', agg:'sum'},
+  {k:'carTot', l:'Carregamento de entrada (todos os produtos)', f:'m', agg:'sum'},
+  {k:'tot', l:'RECEITA TOTAL PROJETADA', f:'m', agg:'sum', b:1, tot:1},
+  {sec:'Contra a meta travada', cor:'#b45630'},
+  {k:'meta', l:'Meta de receita (travada)', f:'m', agg:'sum'},
+  {k:'dif', l:'Projeção − meta (mês)', f:'m', agg:'sum', sinal:1},
+  {k:'ac', l:'Receita projetada acumulada', f:'m', agg:'last'},
+  {k:'am', l:'Meta acumulada', f:'m', agg:'last'},
+  {k:'difac', l:'Projeção − meta (acumulado)', f:'m', agg:'last', sinal:1, b:1},
+  {sec:'Prêmio realizado (apólices novas CallMed já registradas)', cor:'#64748b'},
+  {k:'realTot', l:'Prêmio mensal novo realizado', f:'m', agg:'sum'},
+  {k:'realDif', l:'Realizado − projetado', f:'m', agg:'sum', sinal:1},
+  {sec:'Resultado estimado (parâmetros de impostos, comissão e custos)', cor:'#0f7a53'},
+  {k:'imp', l:'Impostos', f:'m', agg:'sum'},
+  {k:'com', l:'Comissão do especialista', f:'m', agg:'sum'},
+  {k:'cus', l:'Custos fixos', f:'m', agg:'sum'},
+  {k:'res', l:'RESULTADO ESTIMADO', f:'m', agg:'sum', b:1, sinal:1} ];
+const orcFmt = (v,f,sinal)=>{ const s = f==='n' ? orcN(v) : orcM(v); return sinal && v>0.5 ? '+'+s : s; };
+function orcGrafico(calc){
+  const W = 1000, H = 230, ml = 56, mb = 28, mt = 14, n = calc.length || 1, bw = (W-ml-12)/n, mx = Math.max(1, ...calc.map(c=>Math.max(c.tot, c.meta)))*1.1, Y = v=> mt + (H-mt-mb)*(1-v/mx);
+  const ticks = [0,.25,.5,.75,1].map(t=>{ const v = mx*t; return `<line x1="${ml}" x2="${W-6}" y1="${Y(v)}" y2="${Y(v)}" stroke="currentColor" stroke-opacity="${t?0.12:0.3}"/><text x="${ml-6}" y="${Y(v)+4}" text-anchor="end" font-size="10" fill="currentColor" fill-opacity=".6">${anaCurto(v)}</text>`; }).join('');
+  const bars = calc.map((c,i)=>{ const x = ml + i*bw + bw*0.16, w = bw*0.68; let y0 = Y(0); const seg = [['V',c.V.tot],['S',c.S.tot],['R',c.R.tot],['ind',c.ind],['rx',c.rx]]; const tip = comMesLabel(c.ym)+': '+orcM(c.tot)+' (meta '+orcM(c.meta)+')';
+    return `<g><title>${tip}</title>${seg.map(([k,v])=>{ const h = (Y(0)-Y(v)); y0 -= h; return h>0.4 ? `<rect x="${x}" y="${y0}" width="${w}" height="${h}" fill="${ORC_COR[k]}" rx="2"/>` : ''; }).join('')}<text x="${x+w/2}" y="${H-10}" text-anchor="middle" font-size="10" fill="currentColor" fill-opacity=".7">${comMesLabel(c.ym)}</text></g>`; }).join('');
+  const linha = calc.map((c,i)=>`${i?'L':'M'}${ml+i*bw+bw/2},${Y(c.meta)}`).join(' ');
+  const leg = [['V','Vida'],['S','Saúde'],['R','RC'],['ind','Indicação'],['rx','RX']].map(([k,l],i)=>`<g transform="translate(${ml+i*92},${H+14})"><rect width="11" height="11" rx="3" fill="${ORC_COR[k]}"/><text x="16" y="10" font-size="11" fill="currentColor">${l}</text></g>`).join('')+`<g transform="translate(${ml+5*92},${H+14})"><line x2="22" y1="5.5" y2="5.5" stroke="#b45630" stroke-width="2.5" stroke-dasharray="5 3"/><text x="28" y="10" font-size="11" fill="currentColor">Meta travada</text></g>`;
+  return `<svg viewBox="0 0 ${W} ${H+34}" style="width:100%;height:auto;color:var(--ink)" role="img" aria-label="Receita projetada por mês e produto contra a meta travada">${ticks}${bars}<path d="${linha}" fill="none" stroke="#b45630" stroke-width="2.5" stroke-dasharray="6 4"/>${leg}</svg>`;
+}
+function orcKpis(calc){
+  if(!calc.length) return '';
+  const L = calc[calc.length-1], tot = calc.reduce((t,c)=>t+c.tot,0), meta = calc.reduce((t,c)=>t+c.meta,0), novo = calc.reduce((t,c)=>t+c.novoTot,0), res = calc.reduce((t,c)=>t+c.res,0), dif = tot-meta;
+  const kp = (v,l,s,cor)=>`<div class="an-kpi"><b${cor?` style="color:${cor}"`:''}>${v}</b><span>${l}</span>${s?`<small>${s}</small>`:''}</div>`;
+  return `<div class="an-kpis">${kp(orcM(tot),'receita projetada no período','Set/26 a Dez/27 · '+comMesLabel(calc[0].ym)+' a '+comMesLabel(L.ym))}${kp(orcM(meta),'meta de receita (travada)','não é alterada; tudo é comparado com ela')}${kp((dif>=0?'+':'')+orcM(dif),'projeção − meta',meta?Math.round(dif/meta*100)+'% da meta':'', dif>=0?'#0f7a53':'#c23636')}${kp(orcM(novo),'prêmio mensal novo a vender no período','soma das vendas novas, todos os produtos')}${kp(orcM(L.cartTot),'carteira de prêmio mensal em '+comMesLabel(L.ym),'depois dos cancelamentos')}${kp(orcM(L.recTot),'comissão recorrente por mês em '+comMesLabel(L.ym),'carteira × % de comissão')}${kp(orcM(res),'resultado estimado no período','antes de custos que não estejam nos parâmetros', res>=0?'#0f7a53':'#c23636')}</div>`;
+}
+function orcTabela(calc){
+  const hoje = new Date().toISOString().slice(0,7);
+  const th = calc.map(c=>`<th class="${c.ym===hoje?'hoje':''}">${comMesLabel(c.ym)}</th>`).join('');
+  const corpo = ORC_LINHAS.map(L=>{
+    if(L.sec) return `<tr class="sec"><td class="c1" colspan="${calc.length+2}" style="border-left:5px solid ${L.cor}">${escapeHtml(L.sec)}</td></tr>`;
+    const tds = calc.map((c,i)=>{ const v = orcGet(c, L.k), cl = (c.ym===hoje?'hoje ':'')+(L.sinal ? (v>0.5?'pos':v<-0.5?'neg':'') : '');
+      if(L.ed) return `<td class="${cl}"><input class="orc-in" type="number" step="any" min="0" data-ym="${c.ym}" data-col="${L.ed}" data-ck="${L.k}" value="${ORC.rows[i][L.ed]==null?0:ORC.rows[i][L.ed]}"></td>`;
+      return `<td class="${cl}" data-ck="${L.k}" data-ci="${i}">${orcFmt(v,L.f,L.sinal)}</td>`; }).join('');
+    const vals = calc.map(c=>orcGet(c,L.k)), tv = L.agg==='last' ? vals[vals.length-1] : vals.reduce((t,x)=>t+x,0);
+    return `<tr class="${L.b?'b ':''}${L.tot?'tot ':''}${L.dim?'dim':''}"><td class="c1">${escapeHtml(L.l)}</td>${tds}<td class="tt ${L.sinal?(tv>0.5?'pos':tv<-0.5?'neg':''):''}" data-ck="${L.k}" data-ci="t">${orcFmt(tv,L.f,L.sinal)}</td></tr>`; }).join('');
+  return `<div class="orc-wrap"><table class="orc-t"><thead><tr><th class="c1">Linha</th>${th}<th class="tt">Total / último mês</th></tr></thead><tbody>${corpo}</tbody></table></div>`;
+}
+function orcRepintar(host){
+  const calc = orcCalcular(); const cel = {}; host.querySelectorAll('[data-ck][data-ci]').forEach(td=>{ (cel[td.dataset.ck] = cel[td.dataset.ck]||[]).push(td); });
+  ORC_LINHAS.forEach(L=>{ if(!L.k || !cel[L.k]) return; const vals = calc.map(c=>orcGet(c,L.k)); cel[L.k].forEach(td=>{ const i = td.dataset.ci==='t' ? -1 : +td.dataset.ci; const v = i<0 ? (L.agg==='last' ? vals[vals.length-1] : vals.reduce((t,x)=>t+x,0)) : vals[i];
+    td.textContent = orcFmt(v, L.f, L.sinal); if(L.sinal){ td.classList.toggle('pos', v>0.5); td.classList.toggle('neg', v<-0.5); } }); });
+  const k = host.querySelector('#orc-kpis'); if(k) k.innerHTML = orcKpis(calc); const g = host.querySelector('#orc-graf'); if(g) g.innerHTML = orcGrafico(calc);
+}
+function orcSalvarMes(ym, col, v){
+  const st = document.getElementById('orc-status'); if(st) st.textContent = 'Salvando…';
+  clearTimeout(ORC.timers[ym+col]); ORC.timers[ym+col] = setTimeout(async ()=>{
+    const { error } = await sb.from('crm_meta_comercial').upsert({mes:ym+'-01', [col]:v, atualizado_em:new Date().toISOString()}, {onConflict:'mes'});
+    const s2 = document.getElementById('orc-status'); if(s2) s2.textContent = error ? 'Erro ao salvar: '+error.message : 'Salvo ✓'; if(error) showToast('Erro: '+error.message); }, 500);
+}
+async function renderOrcamento(){
+  const host = document.getElementById('orc-body'); if(!host) return;
+  host.innerHTML = '<div class="op-more">Carregando o orçamento…</div>';
+  try{ await orcCarregar(true); }catch(e){ host.innerHTML = '<div class="om-err">Não consegui carregar o orçamento: '+escapeHtml(e.message||String(e))+'</div>'; return; }
+  if(!ORC.rows.length){ host.innerHTML = '<div class="es-box"><div class="hint">Ainda não há meses cadastrados no orçamento (tabela crm_meta_comercial).</div></div>'; return; }
+  const calc = orcCalcular();
+  host.innerHTML = `<div class="orc-head"><div><b>Orçamento de receita · Set/26 a Dez/27</b><div class="hint" style="margin:3px 0 0">Digite as vendas novas de cada mês nas células destacadas; o resto é calculado. Comissão, carregamento, ticket e cancelamento ficam em <a href="#" id="orc-ir-par">Parâmetros</a>.</div></div>
+      <div class="orc-ctl"><label class="fl" title="Multiplica todas as vendas novas digitadas, sem alterar os valores salvos"><span>Volume de vendas (%)</span><input id="orc-fator" type="number" step="5" min="0" value="${orcNum(ORC.P.orc_fator,100)}" style="width:88px;text-align:right"></label><span id="orc-status" class="hint" style="margin:0 0 4px"></span></div></div>
+    <div id="orc-kpis">${orcKpis(calc)}</div>
+    <div class="es-box" style="margin:12px 0"><div class="ql">Receita projetada por produto × meta travada</div><div id="orc-graf">${orcGrafico(calc)}</div></div>
+    <div class="es-box"><div class="ql">Linhas de prêmio e de comissão, mês a mês</div>${orcTabela(calc)}
+      <div class="hint" style="margin-top:8px">Prêmio mensal novo = o que é contratado naquele mês (R$ por mês de prêmio). A carteira acumula as vendas e perde o cancelamento mensal. A comissão recorrente vem da carteira; o carregamento entra uma vez, no mês da venda. "Realizado" usa as apólices novas CallMed já registradas no sistema.</div></div>`;
+  host.querySelector('#orc-ir-par').addEventListener('click', e=>{ e.preventDefault(); const t = document.querySelector('#com-tabs [data-ct="par"]'); if(t) t.click(); });
+  host.querySelectorAll('.orc-in').forEach(inp=>inp.addEventListener('input', ()=>{
+    const v = inp.value===''?0:Number(inp.value); if(isNaN(v)) return; const r = ORC.rows.find(x=>orcYm(x)===inp.dataset.ym); if(!r) return; r[inp.dataset.col] = v; orcRepintar(host); orcSalvarMes(inp.dataset.ym, inp.dataset.col, v); }));
+  host.querySelector('#orc-fator').addEventListener('change', async e=>{ const v = Number(e.target.value); if(isNaN(v) || v<0){ showToast('Volume inválido.'); return; } ORC.P.orc_fator = v; orcRepintar(host);
+    const { error } = await sb.from('crm_metas').upsert({chave:'orc_fator', valor:v, atualizado_em:new Date().toISOString()}, {onConflict:'chave'}); document.getElementById('orc-status').textContent = error ? 'Erro: '+error.message : 'Volume salvo ✓'; });
+}
+// ---- Parâmetros ----
+const orcYmNum = ym=> { const [y,m] = String(ym).split('-'); return (+y)*12 + (+m) - 1; };
+async function renderParametros(){
+  const host = document.getElementById('par-body'); if(!host) return;
+  host.innerHTML = '<div class="op-more">Carregando os parâmetros…</div>';
+  try{ await orcCarregar(true); }catch(e){ host.innerHTML = '<div class="om-err">Não consegui carregar: '+escapeHtml(e.message||String(e))+'</div>'; return; }
+  const P = ORC.P, M = ORC.M, rows = ORC.rows, r0 = rows.find(r=>Number(r.vida_premio_novo)>0) || rows[0] || {}, s0 = rows.find(r=>Number(r.saude_vidas)>0) || r0, rc0 = rows.find(r=>Number(r.rc_premio_novo)>0) || r0;
+  const ymNum = (k, d)=>{ const n = M[k]; if(n==null || isNaN(n)) return d; return String(Math.floor(n/100))+'-'+String(n%100).padStart(2,'0'); };
+  const V = { pct:orcNum(r0.vida_com_pct,30), agen:orcNum(r0.vida_agen,1), ticket:P.orc_vida_ticket, churn:P.churn_vida, ini:ymNum('orc_vida_ini', rows.length?orcYm(rows.find(r=>Number(r.vida_premio_novo)>0)||rows[0]):'2026-10'), val:orcNum(M.orc_vida_val, Number(r0.vida_premio_novo)||0), inc:orcNum(M.orc_vida_inc,0), teto:orcNum(M.orc_vida_teto,0) };
+  const S = { pct:orcNum(s0.saude_com_pct,5), agen:orcNum(s0.saude_agen,2), ticket:orcNum(s0.saude_ticket,500), churn:P.churn_saude, ini:ymNum('orc_saude_ini', orcYm(rows.find(r=>Number(r.saude_vidas)>0)||rows[0]||{mes:'2027-01-01'})), val:orcNum(M.orc_saude_val, Number(s0.saude_vidas)||0), inc:orcNum(M.orc_saude_inc,0), teto:orcNum(M.orc_saude_teto,0) };
+  const R = { pct:orcNum(rc0.rc_com_pct,20), agen:orcNum(rc0.rc_agen,0), ticket:P.orc_rc_ticket, churn:P.churn_rc, ini:ymNum('orc_rc_ini','2026-11'), val:orcNum(M.orc_rc_val,0), inc:orcNum(M.orc_rc_inc,0), teto:orcNum(M.orc_rc_teto,0) };
+  const num = (id,l,v,h,st)=>`<label class="fl" title="${escapeHtml(h||'')}"><span>${l}</span><input class="par-i" id="par-${id}" type="number" step="${st||'any'}" value="${v}"></label>`;
+  const mes = (id,l,v)=>`<label class="fl"><span>${l}</span><input class="par-i" id="par-${id}" type="month" value="${v}"></label>`;
+  const bloco = (cor,t,sub,corpo)=>`<div class="es-box" style="border-left:5px solid ${cor}"><div class="ql">${t}</div><div class="hint" style="margin:2px 0 8px">${sub}</div><div class="par-g">${corpo}</div></div>`;
+  host.innerHTML = `<div class="orc-head"><div><b>Parâmetros do orçamento de receita</b><div class="hint" style="margin:3px 0 0">Defina as premissas uma vez e aplique a todos os meses. Depois ajuste mês a mês na aba Orçamento. A meta de receita travada não muda.</div></div></div>
+    ${bloco(ORC_COR.V,'Seguro de Vida','Produto-âncora. Prêmio mensal novo = quanto de prêmio por mês é contratado a cada mês.',
+      num('v-pct','Comissão recorrente (%)',V.pct,'Percentual da carteira de prêmio pago todo mês')+num('v-agen','Carregamento de entrada (× prêmio novo)',V.agen,'Múltiplo do prêmio novo recebido uma vez, no mês da venda')+num('v-ticket','Ticket médio (R$/mês por apólice)',V.ticket)+num('v-churn','Cancelamento anual da carteira (%)',V.churn)+
+      mes('v-ini','Começa a vender em',V.ini)+num('v-val','Prêmio novo no 1º mês (R$)',V.val)+num('v-inc','Aumento por mês (R$)',V.inc)+num('v-teto','Teto do prêmio novo/mês (0 = sem teto)',V.teto))}
+    ${bloco(ORC_COR.S,'Seguro Saúde','Venda por vidas. O prêmio novo = vidas novas × ticket.',
+      num('s-pct','Comissão recorrente (%)',S.pct)+num('s-agen','Carregamento de entrada (× prêmio novo)',S.agen)+num('s-ticket','Ticket médio (R$/mês por vida)',S.ticket)+num('s-churn','Cancelamento anual da carteira (%)',S.churn)+
+      mes('s-ini','Começa a vender em',S.ini)+num('s-val','Vidas novas no 1º mês',S.val)+num('s-inc','Aumento por mês (vidas)',S.inc)+num('s-teto','Teto de vidas novas/mês (0 = sem teto)',S.teto))}
+    ${bloco(ORC_COR.R,'Responsabilidade Civil (RC)','Porta de entrada. O ticket de RC ainda não foi definido: o valor abaixo é uma hipótese.',
+      num('r-pct','Comissão recorrente (%)',R.pct)+num('r-agen','Carregamento de entrada (× prêmio novo)',R.agen)+num('r-ticket','Ticket médio (R$/mês por apólice)',R.ticket)+num('r-churn','Cancelamento anual da carteira (%)',R.churn)+
+      mes('r-ini','Começa a vender em',R.ini)+num('r-val','Prêmio novo no 1º mês (R$)',R.val)+num('r-inc','Aumento por mês (R$)',R.inc)+num('r-teto','Teto do prêmio novo/mês (0 = sem teto)',R.teto))}
+    ${bloco('#00125e','Cenário e resultado','Opcional. Entram na linha "Resultado estimado" do orçamento.',
+      num('fator','Volume de vendas (%)',orcNum(P.orc_fator,100),'Multiplica todas as vendas novas; 100 = como digitado')+num('imposto','Impostos sobre a receita (%)',orcNum(P.orc_imposto,8),'Simples Nacional: faixa de referência de 8%')+num('comesp','Comissão do especialista (% da receita)',orcNum(P.orc_comissao_esp,0))+num('custo','Custos fixos por mês (R$)',orcNum(P.orc_custo_fixo,0),'Folha, rateio e despesas do Grupo que pesam nesta frente'))}
+    <div class="es-box"><div class="ql">Aplicar</div>
+      <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0 10px;font-size:13px"><input id="par-gerar" type="checkbox" style="margin-top:3px"><span><b>Gerar também as vendas novas de cada mês</b> a partir do mês de início, do valor do 1º mês, do aumento por mês e do teto de cada produto. Isso <b>substitui</b> os valores de venda digitados nos meses (indicação e RX não mudam).</span></label>
+      <button class="om-save" id="par-salvar">Salvar parâmetros e aplicar a todos os meses</button> <span id="par-status" class="hint" style="margin-left:8px"></span></div>`;
+  const val = id=> Number(host.querySelector('#par-'+id).value), mval = id=> host.querySelector('#par-'+id).value;
+  host.querySelector('#par-salvar').addEventListener('click', async ()=>{
+    const st = host.querySelector('#par-status'); const ids = ['v-pct','v-agen','v-ticket','v-churn','v-val','v-inc','v-teto','s-pct','s-agen','s-ticket','s-churn','s-val','s-inc','s-teto','r-pct','r-agen','r-ticket','r-churn','r-val','r-inc','r-teto','fator','imposto','comesp','custo'];
+    if(ids.some(i=>isNaN(val(i)) || host.querySelector('#par-'+i).value==='' || val(i)<0)){ st.textContent = 'Há campo vazio, negativo ou inválido.'; return; }
+    if(['v-pct','s-pct','r-pct','v-churn','s-churn','r-churn','imposto','comesp'].some(i=>val(i)>100)){ st.textContent = 'Percentuais não podem passar de 100.'; return; }
+    const gerar = host.querySelector('#par-gerar').checked; if(gerar && !confirm('Isto substitui as vendas novas digitadas em todos os meses (vida, saúde e RC). Continuar?')) return;
+    st.textContent = 'Salvando…'; const ym2n = id=>{ const v = mval(id); return v ? Number(v.replace('-','')) : 0; };
+    const metas = [['churn_vida',val('v-churn')],['churn_saude',val('s-churn')],['churn_rc',val('r-churn')],['orc_fator',val('fator')],['orc_vida_ticket',val('v-ticket')],['orc_rc_ticket',val('r-ticket')],['orc_imposto',val('imposto')],['orc_comissao_esp',val('comesp')],['orc_custo_fixo',val('custo')],
+      ['orc_vida_ini',ym2n('v-ini')],['orc_vida_val',val('v-val')],['orc_vida_inc',val('v-inc')],['orc_vida_teto',val('v-teto')],['orc_saude_ini',ym2n('s-ini')],['orc_saude_val',val('s-val')],['orc_saude_inc',val('s-inc')],['orc_saude_teto',val('s-teto')],['orc_rc_ini',ym2n('r-ini')],['orc_rc_val',val('r-val')],['orc_rc_inc',val('r-inc')],['orc_rc_teto',val('r-teto')]]
+      .map(([chave,valor])=>({chave, valor, atualizado_em:new Date().toISOString()}));
+    const e1 = (await sb.from('crm_metas').upsert(metas, {onConflict:'chave'})).error; if(e1){ st.textContent = 'Erro: '+e1.message; return; }
+    const gen = (ini, v0, inc, teto, ym)=>{ if(!ini || orcYmNum(ym) < orcYmNum(ini)) return 0; const k = orcYmNum(ym)-orcYmNum(ini); let x = v0 + inc*k; if(teto>0) x = Math.min(x, teto); return Math.max(0, x); };
+    const linhas = ORC.rows.map(r=>{ const ym = orcYm(r), o = {mes:ym+'-01', vida_com_pct:val('v-pct'), vida_agen:val('v-agen'), saude_ticket:val('s-ticket'), saude_com_pct:val('s-pct'), saude_agen:val('s-agen'), rc_com_pct:val('r-pct'), rc_agen:val('r-agen'), atualizado_em:new Date().toISOString()};
+      if(gerar){ o.vida_premio_novo = gen(mval('v-ini'), val('v-val'), val('v-inc'), val('v-teto'), ym); o.saude_vidas = gen(mval('s-ini'), val('s-val'), val('s-inc'), val('s-teto'), ym); o.rc_premio_novo = gen(mval('r-ini'), val('r-val'), val('r-inc'), val('r-teto'), ym); } return o; });
+    const e2 = (await sb.from('crm_meta_comercial').upsert(linhas, {onConflict:'mes'})).error; if(e2){ st.textContent = 'Erro: '+e2.message; return; }
+    ORC.ok = false; st.textContent = 'Salvo e aplicado a '+linhas.length+' meses ✓'; showToast('Parâmetros aplicados'); });
+}
+
 document.querySelectorAll('#com-tabs [data-ct]').forEach(t=>t.addEventListener('click', ()=>{
   document.querySelectorAll('#com-tabs [data-ct]').forEach(x=>x.classList.toggle('on', x===t));
-  const carlas = t.dataset.ct==='carlas';
-  document.getElementById('com-body').style.display = carlas?'none':''; document.getElementById('mc2-body').style.display = carlas?'':'none';
-  if(carlas) renderMaisCarlas(); else renderComercial();
+  const k = t.dataset.ct, show = (id,on)=>{ document.getElementById(id).style.display = on?'':'none'; };
+  show('orc-body', k==='orc'); show('par-body', k==='par'); show('com-body', k==='metas'); show('mc2-body', k==='carlas');
+  if(k==='orc') renderOrcamento(); else if(k==='par') renderParametros(); else if(k==='carlas') renderMaisCarlas(); else renderComercial();
 }));
 document.querySelectorAll('.nav-btn').forEach(btn=>{
   btn.addEventListener('click', ()=>{
@@ -1044,7 +1238,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'operacao') renderOperacao();
     if(btn.dataset.view === 'central') renderCentral();
     if(btn.dataset.view === 'indicadores') renderIndicadores();
-    if(btn.dataset.view === 'comercial'){ const t0 = document.querySelector('#com-tabs [data-ct="metas"]'); if(t0) t0.click(); else renderComercial(); }
+    if(btn.dataset.view === 'comercial'){ const t0 = document.querySelector('#com-tabs [data-ct="orc"]'); if(t0) t0.click(); else renderOrcamento(); }
     if(btn.dataset.view === 'reunioes') renderReunioes();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'agenda') renderCalendar();
@@ -7556,6 +7750,30 @@ checkSession();
   #an-pres .an-pctl:hover, #an-pres.mov .an-pctl{ opacity:1; }
   #an-pres .an-pctl button{ background:rgba(8,28,38,.5); border:1px solid rgba(255,255,255,.16); height:28px; min-width:28px; padding:0 9px; font-size:11px; border-radius:7px; color:rgba(232,241,246,.9); }
   #an-pres.fim .an-pcap b{ font-size:clamp(34px,4.4vw,64px); }
+
+  /* ---- Comercial: orçamento de receita ---- */
+  .orc-head{ display:flex; justify-content:space-between; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+  .orc-head b{ font-family:'Poppins',sans-serif; font-size:17px; color:var(--navy-deep); }
+  .orc-ctl{ display:flex; align-items:flex-end; gap:12px; }
+  .orc-wrap{ overflow:auto; max-height:72vh; border:1px solid var(--border); border-radius:10px; margin-top:8px; }
+  table.orc-t{ border-collapse:separate; border-spacing:0; width:100%; font-size:12px; font-variant-numeric:tabular-nums; }
+  table.orc-t th, table.orc-t td{ padding:5px 9px; text-align:right; white-space:nowrap; border-bottom:1px solid var(--border); background:var(--surface); }
+  table.orc-t thead th{ position:sticky; top:0; z-index:3; background:var(--navy); color:#fff; font-weight:600; }
+  table.orc-t .c1{ position:sticky; left:0; z-index:2; text-align:left; min-width:300px; max-width:340px; background:var(--surface); border-right:1px solid var(--border); }
+  table.orc-t thead th.c1{ z-index:4; background:var(--navy); }
+  table.orc-t th.hoje{ background:var(--brand); }
+  table.orc-t td.hoje{ background:rgba(0,24,252,.05); }
+  table.orc-t td.tt, table.orc-t th.tt{ font-weight:700; border-left:2px solid var(--border); }
+  table.orc-t tr.sec td{ background:var(--bg,#f3f6f8); font-weight:700; text-align:left; color:var(--navy-deep); font-size:12.5px; padding-top:9px; }
+  table.orc-t tr.sec .c1{ background:var(--bg,#f3f6f8); }
+  table.orc-t tr.b td{ font-weight:700; }
+  table.orc-t tr.tot td{ background:rgba(15,122,83,.09); } table.orc-t tr.tot .c1{ background:#e3f1ec; }
+  table.orc-t tr.dim td{ color:var(--ink-faint); }
+  table.orc-t .pos{ color:#0f7a53; } table.orc-t .neg{ color:#c23636; }
+  table.orc-t input.orc-in{ width:92px; text-align:right; padding:3px 6px; border:1px solid var(--brand); border-radius:6px; background:#fff; font:inherit; color:var(--ink); }
+  table.orc-t input.orc-in:focus{ outline:2px solid rgba(0,24,252,.25); }
+  .par-g{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; }
+  .par-g input.par-i{ padding:7px 9px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
 </style>
 </body>
 </html>
