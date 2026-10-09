@@ -332,7 +332,7 @@
     <div id="view-comercial" class="view">
       <div class="pg">
         <div class="pg-head"><h2>Módulo Comercial</h2><span class="sub">Orçamento de receita: prêmio e comissão por mês e produto, contra a meta travada.</span></div>
-        <div class="pv-tabs" id="com-tabs" style="margin:6px 0 10px"><button class="pv-tab on" data-ct="orc">Orçamento de receita</button><button class="pv-tab" data-ct="par">Parâmetros</button><button class="pv-tab" data-ct="metas">Funil e estratégias</button><button class="pv-tab" data-ct="carlas">Mais Carlas (pontes e indicações)</button></div>
+        <div class="pv-tabs" id="com-tabs" style="margin:6px 0 10px"><button class="pv-tab on" data-ct="orc">Orçamento de receita</button><button class="pv-tab" data-ct="par">Parâmetros</button><button class="pv-tab" data-ct="metas">Funil</button><button class="pv-tab" data-ct="carlas">Mais Carlas</button></div>
         <div id="orc-body"></div><div id="par-body" style="display:none"></div>
         <div id="com-body" style="display:none"><div class="op-more">Carregando...</div></div>
         <div id="mc2-body" style="display:none"></div>
@@ -1001,11 +1001,11 @@ async function renderComercial(){
       ${card('<span style="color:'+(difProj>=0?'#0f7a53':'#c23636')+'">'+(difProj>=0?'+':'−')+fmtMoney(Math.abs(difProj))+'</span>','Projeção × meta', difProj>=0?'projeção acima da meta':'falta para alcançar a meta')}
       ${card(cm?fmtMoney(metaTot(cm)):'—','Meta de receita do mês atual', cm?comMesLabel(cm.ym)+' · prêmio novo a vender '+fmtMoney(bn(cm,'vida_premio_novo')+bn(cm,'saude_premio'))+' ('+mixMeta+')':'')}
     </div>
-    <div class="es-box"><div class="ql">Calculadora comercial por produto</div>
+    <details class="es-box par-det"><summary>Calculadora comercial por produto <small>(clique para editar)</small></summary>
       <div class="hint" style="margin-bottom:8px">Para cada produto: parte da <b>comissão alvo</b> (quanto a empresa precisa faturar) → calcula o <b>prêmio necessário</b> (comissão ÷ % comissão) → o <b>volume de apólices/vidas</b> (prêmio ÷ ticket médio) → e o <b>funil necessário</b> (contatos/semana × agendamento × efetivação × proposta × fechamento) para entregar isso. Todos os campos são editáveis; o que não editar fica com o padrão.</div>
       <style>.com-pf,.com-pf:focus{border:1px solid var(--border);border-radius:6px;padding:3px 5px;font:inherit}</style>
       ${produtos.map(pcard).join('')}
-    </div>`;
+    </details>`;
   const sc = host.querySelector('.com-scroll'); if(sc) sc.scrollLeft = scrollX;
   await comRenderEstrategias(host, { rows, cm, cur, bn, tkVida, M, fmtNum, fmtMoney });
   host.querySelectorAll('.com-pf').forEach(i=>i.addEventListener('change', async ()=>{
@@ -1014,9 +1014,9 @@ async function renderComercial(){
     const { error } = await sb.from('crm_comercial_produtos').update({[i.dataset.col]:v, atualizado_em:new Date().toISOString()}).eq('produto', i.dataset.produto);
     if(error){ showToast('Erro: '+error.message); return; }
     showToast('Salvo'); renderComercial(); }));
-  host.insertAdjacentHTML('beforeend', `<div class="es-box"><div class="ql">Padrões gerais</div>
+  host.insertAdjacentHTML('beforeend', `<details class="es-box par-det"><summary>Padrões gerais <small>(clique para editar)</small></summary>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:6px">${COM_PADROES.map(([k,l])=>`<label class="fl"><span>${l}</span><input class="com-par" data-k="${k}" type="number" step="any" value="${PAD[k]}"></label>`).join('')}</div>
-      <div style="margin-top:10px"><button class="om-save" id="com-par-save">Salvar padrões e recalcular</button> <small style="color:var(--ink-faint)">Usado no cálculo de "Necessário hoje/fim" das Estratégias, abaixo.</small></div></div>`);
+      <div style="margin-top:10px"><button class="om-save" id="com-par-save">Salvar padrões e recalcular</button> <small style="color:var(--ink-faint)">Usado no cálculo de "Necessário hoje/fim" das Estratégias, abaixo.</small></div></details>`);
   host.querySelector('#com-par-save').addEventListener('click', async ()=>{
     const upserts = [...host.querySelectorAll('.com-par')].map(i=>({chave:i.dataset.k, valor:String(i.value===''?0:Number(i.value)), atualizado_em:new Date().toISOString()}));
     const { error } = await sb.from('crm_metas').upsert(upserts, {onConflict:'chave'});
@@ -1186,24 +1186,23 @@ async function renderParametros(){
   const V = { pct:orcNum(r0.vida_com_pct,30), agen:orcNum(r0.vida_agen,1), ticket:P.orc_vida_ticket, churn:P.churn_vida, ini:ymNum('orc_vida_ini', rows.length?orcYm(rows.find(r=>Number(r.vida_premio_novo)>0)||rows[0]):'2026-10'), val:orcNum(M.orc_vida_val, Number(r0.vida_premio_novo)||0), inc:orcNum(M.orc_vida_inc,0), teto:orcNum(M.orc_vida_teto,0) };
   const S = { pct:orcNum(s0.saude_com_pct,5), agen:orcNum(s0.saude_agen,2), ticket:orcNum(s0.saude_ticket,500), churn:P.churn_saude, ini:ymNum('orc_saude_ini', orcYm(rows.find(r=>Number(r.saude_vidas)>0)||rows[0]||{mes:'2027-01-01'})), val:orcNum(M.orc_saude_val, Number(s0.saude_vidas)||0), inc:orcNum(M.orc_saude_inc,0), teto:orcNum(M.orc_saude_teto,0) };
   const R = { pct:orcNum(rc0.rc_com_pct,20), agen:orcNum(rc0.rc_agen,0), ticket:P.orc_rc_ticket, churn:P.churn_rc, ini:ymNum('orc_rc_ini','2026-11'), val:orcNum(M.orc_rc_val,0), inc:orcNum(M.orc_rc_inc,0), teto:orcNum(M.orc_rc_teto,0) };
-  const num = (id,l,v,h,st)=>`<label class="fl" title="${escapeHtml(h||'')}"><span>${l}</span><input class="par-i" id="par-${id}" type="number" step="${st||'any'}" value="${v}"></label>`;
-  const mes = (id,l,v)=>`<label class="fl"><span>${l}</span><input class="par-i" id="par-${id}" type="month" value="${v}"></label>`;
-  const bloco = (cor,t,sub,corpo)=>`<div class="es-box" style="border-left:5px solid ${cor}"><div class="ql">${t}</div><div class="hint" style="margin:2px 0 8px">${sub}</div><div class="par-g">${corpo}</div></div>`;
-  host.innerHTML = `<div class="orc-head"><div><b>Parâmetros do orçamento de receita</b><div class="hint" style="margin:3px 0 0">Defina as premissas uma vez e aplique a todos os meses. Depois ajuste mês a mês na aba Orçamento. A meta de receita travada não muda.</div></div></div>
-    ${bloco(ORC_COR.V,'Seguro de Vida','Produto-âncora. Prêmio mensal novo = quanto de prêmio por mês é contratado a cada mês.',
-      num('v-pct','Comissão recorrente (%)',V.pct,'Percentual da carteira de prêmio pago todo mês')+num('v-agen','Carregamento de entrada (× prêmio novo)',V.agen,'Múltiplo do prêmio novo recebido uma vez, no mês da venda')+num('v-ticket','Ticket médio (R$/mês por apólice)',V.ticket)+num('v-churn','Cancelamento anual da carteira (%)',V.churn)+
-      mes('v-ini','Começa a vender em',V.ini)+num('v-val','Prêmio novo no 1º mês (R$)',V.val)+num('v-inc','Aumento por mês (R$)',V.inc)+num('v-teto','Teto do prêmio novo/mês (0 = sem teto)',V.teto))}
-    ${bloco(ORC_COR.S,'Seguro Saúde','Venda por vidas. O prêmio novo = vidas novas × ticket.',
-      num('s-pct','Comissão recorrente (%)',S.pct)+num('s-agen','Carregamento de entrada (× prêmio novo)',S.agen)+num('s-ticket','Ticket médio (R$/mês por vida)',S.ticket)+num('s-churn','Cancelamento anual da carteira (%)',S.churn)+
-      mes('s-ini','Começa a vender em',S.ini)+num('s-val','Vidas novas no 1º mês',S.val)+num('s-inc','Aumento por mês (vidas)',S.inc)+num('s-teto','Teto de vidas novas/mês (0 = sem teto)',S.teto))}
-    ${bloco(ORC_COR.R,'Responsabilidade Civil (RC)','Porta de entrada. O ticket de RC ainda não foi definido: o valor abaixo é uma hipótese.',
-      num('r-pct','Comissão recorrente (%)',R.pct)+num('r-agen','Carregamento de entrada (× prêmio novo)',R.agen)+num('r-ticket','Ticket médio (R$/mês por apólice)',R.ticket)+num('r-churn','Cancelamento anual da carteira (%)',R.churn)+
-      mes('r-ini','Começa a vender em',R.ini)+num('r-val','Prêmio novo no 1º mês (R$)',R.val)+num('r-inc','Aumento por mês (R$)',R.inc)+num('r-teto','Teto do prêmio novo/mês (0 = sem teto)',R.teto))}
-    ${bloco('#00125e','Cenário e resultado','Opcional. Entram na linha "Resultado estimado" do orçamento.',
-      num('fator','Volume de vendas (%)',orcNum(P.orc_fator,100),'Multiplica todas as vendas novas; 100 = como digitado')+num('imposto','Impostos sobre a receita (%)',orcNum(P.orc_imposto,8),'Simples Nacional: faixa de referência de 8%')+num('comesp','Comissão do especialista (% da receita)',orcNum(P.orc_comissao_esp,0))+num('custo','Custos fixos por mês (R$)',orcNum(P.orc_custo_fixo,0),'Folha, rateio e despesas do Grupo que pesam nesta frente'))}
-    <div class="es-box"><div class="ql">Aplicar</div>
-      <label style="display:flex;gap:8px;align-items:flex-start;margin:6px 0 10px;font-size:13px"><input id="par-gerar" type="checkbox" style="margin-top:3px"><span><b>Gerar também as vendas novas de cada mês</b> a partir do mês de início, do valor do 1º mês, do aumento por mês e do teto de cada produto. Isso <b>substitui</b> os valores de venda digitados nos meses (indicação e RX não mudam).</span></label>
-      <button class="om-save" id="par-salvar">Salvar parâmetros e aplicar a todos os meses</button> <span id="par-status" class="hint" style="margin-left:8px"></span></div>`;
+  const ce = (id,v,st)=>`<td><input class="par-i" id="par-${id}" type="number" step="${st||'any'}" value="${v}"></td>`;
+  const cm = (id,v)=>`<td><input class="par-i" id="par-${id}" type="month" value="${v}"></td>`;
+  const num = (id,l,v,h)=>`<label class="fl" title="${escapeHtml(h||'')}"><span>${l}</span><input class="par-i" id="par-${id}" type="number" step="any" value="${v}"></label>`;
+  const linha = (cor,nome,pre,D)=>`<tr><td class="n"><i style="background:${cor}"></i>${nome}</td>${ce(pre+'-pct',D.pct)}${ce(pre+'-agen',D.agen)}${ce(pre+'-ticket',D.ticket)}${ce(pre+'-churn',D.churn)}</tr>`;
+  const lrampa = (cor,nome,pre,D)=>`<tr><td class="n"><i style="background:${cor}"></i>${nome}</td>${cm(pre+'-ini',D.ini)}${ce(pre+'-val',D.val)}${ce(pre+'-inc',D.inc)}${ce(pre+'-teto',D.teto)}</tr>`;
+  host.innerHTML = `<div class="orc-head"><div><b>Parâmetros</b><div class="hint" style="margin:3px 0 0">Defina as premissas e salve: elas valem para todos os meses. O ajuste fino mês a mês é na aba Orçamento. A meta travada não muda.</div></div></div>
+    <div class="es-box"><div class="ql">Premissas por produto</div>
+      <div class="orc-wrap" style="max-height:none"><table class="par-t"><thead><tr><th></th><th>Comissão recorrente (%)</th><th>Carregamento (× prêmio novo)</th><th>Ticket médio (R$/mês)</th><th>Cancelamento anual (%)</th></tr></thead><tbody>
+        ${linha(ORC_COR.V,'Vida','v',V)}${linha(ORC_COR.S,'Saúde (ticket por vida)','s',S)}${linha(ORC_COR.R,'RC','r',R)}</tbody></table></div>
+      <div class="hint" style="margin-top:8px">Carregamento = quantas vezes o prêmio novo é recebido de uma vez, no mês da venda. O ticket de RC ainda não foi definido: o valor é uma hipótese.</div></div>
+    <div class="es-box"><div class="ql">Cenário e resultado</div><div class="par-g">
+      ${num('fator','Volume de vendas (%)',orcNum(P.orc_fator,100),'Multiplica todas as vendas novas; 100 = como digitado')}${num('imposto','Impostos (%)',orcNum(P.orc_imposto,8))}${num('comesp','Comissão do especialista (%)',orcNum(P.orc_comissao_esp,0))}${num('custo','Custos fixos por mês (R$)',orcNum(P.orc_custo_fixo,0))}</div></div>
+    <details class="es-box par-det"><summary>Gerar as vendas mês a mês automaticamente <small>(opcional)</small></summary>
+      <div class="orc-wrap" style="max-height:none;margin:10px 0"><table class="par-t"><thead><tr><th></th><th>Começa em</th><th>1º mês (R$ / vidas)</th><th>Aumento por mês</th><th>Teto por mês (0 = sem)</th></tr></thead><tbody>
+        ${lrampa(ORC_COR.V,'Vida','v',V)}${lrampa(ORC_COR.S,'Saúde (vidas)','s',S)}${lrampa(ORC_COR.R,'RC','r',R)}</tbody></table></div>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:13px"><input id="par-gerar" type="checkbox" style="margin-top:3px"><span>Ao salvar, <b>substituir as vendas novas</b> de todos os meses por esta rampa (indicação e RX não mudam).</span></label></details>
+    <div style="margin-top:4px"><button class="om-save" id="par-salvar">Salvar parâmetros</button> <span id="par-status" class="hint" style="margin-left:8px"></span></div>`;
   const val = id=> Number(host.querySelector('#par-'+id).value), mval = id=> host.querySelector('#par-'+id).value;
   host.querySelector('#par-salvar').addEventListener('click', async ()=>{
     const st = host.querySelector('#par-status'); const ids = ['v-pct','v-agen','v-ticket','v-churn','v-val','v-inc','v-teto','s-pct','s-agen','s-ticket','s-churn','s-val','s-inc','s-teto','r-pct','r-agen','r-ticket','r-churn','r-val','r-inc','r-teto','fator','imposto','comesp','custo'];
@@ -7774,6 +7773,14 @@ checkSession();
   table.orc-t input.orc-in:focus{ outline:2px solid rgba(0,24,252,.25); }
   .par-g{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:12px; }
   .par-g input.par-i{ padding:7px 9px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
+
+  details.par-det > summary{ cursor:pointer; font-weight:600; color:var(--navy-deep); font-size:14px; list-style:none; } details.par-det > summary::-webkit-details-marker{ display:none; }
+  details.par-det > summary::before{ content:'▸'; display:inline-block; margin-right:8px; transition:transform .15s; } details.par-det[open] > summary::before{ transform:rotate(90deg); }
+  details.par-det > summary small{ font-weight:400; color:var(--ink-faint); font-size:12px; margin-left:6px; }
+  details.par-det[open] > summary{ margin-bottom:10px; }
+  table.par-t{ width:100%; border-collapse:collapse; font-size:13px; } table.par-t th{ text-align:left; font-size:11px; text-transform:uppercase; color:var(--ink-faint); font-weight:600; padding:4px 8px; }
+  table.par-t td{ padding:5px 8px; border-top:1px solid var(--border); } table.par-t td.n{ font-weight:600; white-space:nowrap; } table.par-t td.n i{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:8px; }
+  table.par-t input.par-i{ width:100%; min-width:84px; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
 </style>
 </body>
 </html>
