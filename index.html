@@ -210,8 +210,8 @@
 
 <div id="app">
   <header>
-    <div class="brand"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><span class="dot"></span><span class="hdr-title" id="hdr-title">Aliança</span><span class="info-ico" id="hdr-info" tabindex="0" title="Cada médico é um parceiro da CallMed — toda a jornada dele numa linha do tempo: faixa do funil comercial + uma linha por produto. Clique na faixa do funil para marcar/desmarcar uma etapa na data; clique no nome para abrir o cadastro completo.">ⓘ</span></div>
-    <div class="who"><span id="who-email"></span><button id="btn-backup" title="Baixar uma cópia de todos os dados">Backup</button><button id="btn-logout">Sair</button></div>
+    <div class="brand"><img src="assets/logo-azul.png" alt="CallMed Proteção Patrimonial"><div class="hdr-brand"><b>CRM Aliança</b><small>Carreira, renda, patrimônio e legado.</small></div><span class="hdr-title" id="hdr-title" style="display:none">Aliança</span><span class="info-ico" id="hdr-info" tabindex="0" title="Cada médico é um parceiro da CallMed — toda a jornada dele numa linha do tempo: faixa do funil comercial + uma linha por produto. Clique na faixa do funil para marcar/desmarcar uma etapa na data; clique no nome para abrir o cadastro completo.">ⓘ</span></div>
+    <div class="hdr-navy"><svg class="shield" viewBox="0 0 100 140" aria-hidden="true"><path d="M50 3 L10 12 V70 C10 101 31 122 50 134 C69 122 90 101 90 70 V12 Z"/><path d="M50 22 L27 28 V70 C27 90 39 103 50 111 C61 103 73 90 73 70 V28 Z"/></svg></div><div class="who"><span id="who-email"></span><button id="btn-backup" title="Baixar uma cópia de todos os dados">Backup</button><button id="btn-logout">Sair</button></div>
   </header>
 
   <nav id="rail">
@@ -231,8 +231,6 @@
 
     <div id="view-operacao" class="view active">
       <div class="op-top">
-        <div class="brand-banner" id="brand-banner"><div class="bb-t"><h2>CRM Aliança</h2><p>Carreira, renda, patrimônio e legado.</p></div><div class="acc"><i></i><b></b></div><div class="bb-navy"><svg class="shield" viewBox="0 0 100 140" aria-hidden="true"><path d="M50 3 L10 12 V70 C10 101 31 122 50 134 C69 122 90 101 90 70 V12 Z"/><path d="M50 22 L27 28 V70 C27 90 39 103 50 111 C61 103 73 90 73 70 V28 Z"/></svg></div><button type="button" class="bb-x" title="Esconder nesta sessão" aria-label="Esconder" onclick="this.parentElement.style.display='none';try{sessionStorage.setItem('bb_off','1')}catch(e){}">✕</button></div>
-        <script>try{ if(sessionStorage.getItem('bb_off')==='1') document.getElementById('brand-banner').style.display='none'; }catch(e){}</script>
         <div class="op-filters">
           <div class="op-kpis" id="op-kpis"></div>
           <input id="op-search" placeholder="Buscar por nome, CPF, CRM ou telefone...">
@@ -1027,7 +1025,7 @@ async function renderComercial(){
 // ---------- NAV RAIL ----------
 function opSetHeaderTitle(btn){
   const label = btn.querySelector('span') ? btn.querySelector('span').textContent : btn.textContent;
-  document.getElementById('hdr-title').textContent = label;
+  document.getElementById('hdr-title').textContent = label; document.getElementById('hdr-title').style.display = (btn.dataset.view === 'operacao') ? 'none' : '';
   document.getElementById('hdr-info').style.display = (btn.dataset.view === 'operacao') ? '' : 'none';
 }
 document.querySelectorAll('#com-tabs [data-ct]').forEach(t=>t.addEventListener('click', ()=>{
@@ -7525,16 +7523,23 @@ checkSession();
   #login-screen .login-card{ position:relative; z-index:2; margin:0 auto; }
   #login-screen .login-shield{ position:absolute; z-index:1; right:4vw; top:5vh; width:min(23vw,330px); opacity:.35; }
   @media (max-width:900px){ .login-hero, #login-screen .login-shield{ display:none; } #login-screen{ justify-content:center; padding:24px; } }
-  .brand-banner{ position:relative; display:flex; align-items:center; gap:0; min-height:98px; border-radius:16px; overflow:hidden; background:var(--surface); border:1px solid var(--border); padding:0 0 0 30px; }
-  .brand-banner .bb-t{ position:relative; z-index:1; padding:12px 0; } .brand-banner h2{ font-family:'Poppins',sans-serif; font-weight:700; font-size:clamp(30px,3.3vw,48px); line-height:1; letter-spacing:-.025em; color:var(--navy-deep); margin:0; }
-  .brand-banner .bb-t p{ margin:8px 0 0; color:var(--ink-soft); font-size:13.5px; }
-  .brand-banner .acc{ margin:0 auto 0 7%; gap:8px; } .brand-banner .acc i{ width:46px; height:5px; } .brand-banner .acc b{ width:92px; }
-  .brand-banner .bb-navy{ position:absolute; right:0; top:0; bottom:0; width:36%; background:var(--navy); clip-path:polygon(17% 0,100% 0,100% 100%,0 100%); }
-  .brand-banner .bb-navy .shield{ position:absolute; right:9%; top:50%; height:76%; width:auto; transform:translateY(-50%); }
-  .brand-banner .bb-x{ position:absolute; right:10px; top:8px; z-index:2; width:24px; height:24px; border:0; border-radius:8px; background:rgba(255,255,255,.14); color:#fff; font-size:11px; cursor:pointer; }
-  .brand-banner .bb-x:hover{ background:rgba(255,255,255,.28); }
-  @media (max-width:760px){ .brand-banner .acc, .brand-banner .bb-navy{ display:none; } .brand-banner{ min-height:76px; padding-left:18px; } }
   #an-pres .an-pshield{ display:none; } #an-pres.fim .an-pshield{ display:block; position:absolute; right:7vw; top:50%; transform:translateY(-50%); height:min(54vh,460px); width:auto; opacity:.3; }
+
+  /* ---- cabeçalho como faixa de marca ---- */
+  header{ position:relative; overflow:hidden; }
+  header .brand{ position:relative; z-index:1; }
+  .hdr-brand{ display:flex; flex-direction:column; gap:3px; padding-left:16px; border-left:1px solid var(--border); margin-left:2px; }
+  .hdr-brand b{ font-family:'Poppins',sans-serif; font-weight:700; font-size:clamp(20px,2.1vw,30px); line-height:1; letter-spacing:-.02em; color:var(--navy-deep); }
+  .hdr-brand small{ font-size:12px; color:var(--ink-soft); font-weight:500; letter-spacing:.01em; }
+  .hdr-navy{ position:absolute; right:0; top:0; bottom:0; width:max(36%,470px); background:var(--navy); clip-path:polygon(14% 0,100% 0,100% 100%,0 100%); }
+  .hdr-navy .shield{ position:absolute; left:20%; top:50%; height:70%; width:auto; transform:translateY(-50%); opacity:.55; }
+  header .who{ position:relative; z-index:1; color:var(--on-navy-soft); }
+  header #who-email{ color:#fff; opacity:.88; }
+  header .who button{ background:rgba(255,255,255,.12); border-color:rgba(255,255,255,.3); color:#fff; }
+  header .who button:hover{ background:rgba(255,255,255,.24); border-color:rgba(255,255,255,.55); color:#fff; }
+  header .who #btn-backup{ background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.3); color:#fff; } header .who #btn-backup:hover{ background:rgba(255,255,255,.24); border-color:rgba(255,255,255,.55); }
+  header .hdr-title{ margin-left:8px; }
+  @media (max-width:760px){ .hdr-brand small, .hdr-navy{ display:none; } .hdr-brand{ padding-left:10px; } .hdr-brand b{ font-size:17px; } header .who{ color:var(--ink-soft); } header .who button, header .who #btn-backup{ background:var(--surface-2); border-color:var(--border); color:var(--ink-soft); } }
 </style>
 </body>
 </html>
