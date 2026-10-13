@@ -304,6 +304,15 @@
             <button id="btn-copy-ics">Copiar</button>
           </div>
         </div>
+        <div class="ics-box" id="teams-box">
+          <b>Teams / Outlook da CallMed</b>
+          Mostra aqui as reuniões do seu Teams. No Outlook na web: Configurações → Calendário → Calendários compartilhados → Publicar um calendário → Calendário → Pode ver todos os detalhes → Publicar → copie o link ICS e cole abaixo.
+          <div class="url-row">
+            <input id="teams-url" placeholder="Link ICS do calendário publicado">
+            <button id="teams-save" type="button">Salvar</button>
+          </div>
+          <div id="teams-status" class="hint" style="margin:6px 0 0"></div>
+        </div>
         <h4 style="font-size:.9rem; margin-bottom:10px;">Novo compromisso</h4>
         <form class="add-form" id="agenda-form" style="grid-template-columns:1fr;">
           <input name="pessoa_busca" id="agenda-pessoa-busca" placeholder="Buscar médico/cliente (opcional — deixe em branco para compromisso sem cadastro)" autocomplete="off">
@@ -2768,7 +2777,8 @@ async function fetchMonthEvents(monthDate){
   const { data, error } = await sb.from('crm_agenda').select('id,titulo,tipo,data_inicio,data_fim,local,status,notas,pessoa_id,participantes,crm_pessoas(nome)')
     .gte('data_inicio', start.toISOString()).lt('data_inicio', end.toISOString()).order('data_inicio');
   if(error){ showToast('Erro na agenda: ' + error.message); return []; }
-  return data;
+  const tm = await agTeamsMonth(start, end);
+  return tm.length ? data.concat(tm).sort((a,b)=> new Date(a.data_inicio)-new Date(b.data_inicio)) : data;
 }
 
 async function renderCalendar(){
@@ -2798,7 +2808,7 @@ async function renderCalendar(){
     cell.className = 'cal-cell' + (c.other?' other-month':'') + (key===todayStr?' today':'') + (key===ymd(selectedDay)?' selected':'');
     let evHtml = `<div class="dnum">${c.d}</div>`;
     (byDay[key]||[]).slice(0,3).forEach(ev=>{
-      evHtml += `<div class="cal-evt ${ev.status}">${escapeHtml(ev.titulo)}</div>`;
+      evHtml += `<div class="cal-evt ${ev.status}${ev.teams?' teams':''}" title="${ev.teams?'Teams · ':''}${escapeHtml(ev.titulo)}">${escapeHtml(ev.titulo)}</div>`;
     });
     if((byDay[key]||[]).length > 3) evHtml += `<div style="font-size:10px;color:var(--ink-faint);">+${byDay[key].length-3} mais</div>`;
     cell.innerHTML = evHtml;
@@ -2847,8 +2857,8 @@ document.getElementById('agenda-form').addEventListener('submit', async (e)=>{
   if(error){ showToast('Erro: ' + error.message); return; }
   showToast('Compromisso agendado!');
   if(novo && (novo.participantes||[]).length){
-    dlgOpen(`<h3 style="margin:0 0 6px">Enviar convite aos participantes?</h3><div class="hint" style="margin-bottom:10px">Compromisso salvo. Para os participantes receberem o convite (aceitar/recusar e adicionar à própria agenda), envie pelo Google Agenda — abre já preenchido com os e-mails; é só clicar em <b>Salvar</b> lá e o Google envia.<br><b>Participantes:</b> ${escapeHtml(novo.participantes.join(', '))}</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><a class="om-save" style="text-decoration:none" href="${agGcalUrl(novo)}" target="_blank" rel="noopener">Abrir no Google Agenda</a><button class="om-cancel" id="ag-ics">Baixar convite (.ics)</button><button class="om-cancel" data-close>Agora não</button></div>`);
+    dlgOpen(`<h3 style="margin:0 0 6px">Enviar convite aos participantes?</h3><div class="hint" style="margin-bottom:10px">Compromisso salvo. Para os participantes receberem o convite (aceitar/recusar e adicionar à própria agenda), envie pelo Outlook / Teams — abre já preenchido com os e-mails; é só clicar em <b>Enviar</b> lá (ative “Reunião do Teams” se for online).<br><b>Participantes:</b> ${escapeHtml(novo.participantes.join(', '))}</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><a class="om-save" style="text-decoration:none" href="${agOutlookUrl(novo)}" target="_blank" rel="noopener">Abrir no Outlook / Teams</a><a class="om-cancel" style="text-decoration:none" href="${agGcalUrl(novo)}" target="_blank" rel="noopener">Google Agenda</a><button class="om-cancel" id="ag-ics">Baixar convite (.ics)</button><button class="om-cancel" data-close>Agora não</button></div>`);
     document.getElementById('ag-ics').addEventListener('click', ()=> agDownloadIcs(novo));
   }
   e.target.reset();
@@ -5014,6 +5024,50 @@ function agGcalUrl(ev){
   const ini = new Date(ev.data_inicio), fim = ev.data_fim ? new Date(ev.data_fim) : new Date(ini.getTime()+3600000);
   return 'https://calendar.google.com/calendar/render?action=TEMPLATE&text='+encodeURIComponent(ev.titulo||'Compromisso')+'&dates='+z(ini)+'/'+z(fim)+'&details='+encodeURIComponent((ev.notas||'')+'\n\nAgendado pelo CRM CallMed Proteção Patrimonial')+'&location='+encodeURIComponent(ev.local||'')+'&add='+encodeURIComponent((ev.participantes||[]).join(','));
 }
+function agOutlookUrl(ev){
+  const ini = new Date(ev.data_inicio), fim = ev.data_fim ? new Date(ev.data_fim) : new Date(ini.getTime()+3600000);
+  const q = { path:'/calendar/action/compose', rru:'addevent', subject: ev.titulo||'Compromisso', startdt: ini.toISOString(), enddt: fim.toISOString(),
+    body: (ev.notas||'')+(ev.notas?'\n\n':'')+'Agendado pelo CRM CallMed Proteção Patrimonial', location: ev.local||'' };
+  const to = (ev.participantes||[]).join(';');
+  return 'https://outlook.office.com/calendar/0/deeplink/compose?'+Object.entries(q).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&')+(to?'&to='+encodeURIComponent(to):'');
+}
+// ---- Teams / Outlook: calendário publicado (ICS) exibido na Agenda, só leitura ----
+const AG_TEAMS = { url:null, loaded:false, events:[], at:0, err:'' };
+async function agTeamsLoadCfg(){
+  if(AG_TEAMS.loaded) return;
+  AG_TEAMS.loaded = true;
+  try{ const { data } = await sb.from('crm_config').select('valor').eq('chave','teams_ics:'+(window._userEmail||'')).maybeSingle(); AG_TEAMS.url = data && data.valor || null; }catch(e){}
+  const inp = document.getElementById('teams-url'); if(inp && AG_TEAMS.url) inp.value = AG_TEAMS.url;
+}
+async function agTeamsFetch(force){
+  await agTeamsLoadCfg();
+  const st = document.getElementById('teams-status');
+  if(!AG_TEAMS.url){ AG_TEAMS.events = []; if(st) st.textContent = ''; return; }
+  if(!force && Date.now()-AG_TEAMS.at < 300000) return;
+  try{
+    const { data, error } = await sb.functions.invoke('agenda-teams', { body:{ url: AG_TEAMS.url } });
+    if(error) throw error; if(data && data.error) throw new Error(data.error);
+    AG_TEAMS.events = (data.events||[]).map(e=>({ id:'teams:'+e.uid, teams:true, status:'teams', titulo:e.titulo, data_inicio:e.inicio, data_fim:e.fim, local:e.local, dia_inteiro:e.diaInteiro, teams_link:e.teams }));
+    AG_TEAMS.at = Date.now(); AG_TEAMS.err = '';
+    if(st) st.textContent = 'Teams conectado · '+AG_TEAMS.events.length+' evento(s) lidos.';
+  }catch(e){
+    AG_TEAMS.err = (e && e.message) || String(e); AG_TEAMS.events = [];
+    if(st) st.textContent = 'Não consegui ler o calendário do Teams: '+AG_TEAMS.err;
+  }
+}
+async function agTeamsMonth(start, end){
+  await agTeamsFetch(false);
+  return AG_TEAMS.events.filter(e=>{ const d = new Date(e.data_inicio); return d>=start && d<end; });
+}
+document.getElementById('teams-save').addEventListener('click', async ()=>{
+  const v = document.getElementById('teams-url').value.trim(), st = document.getElementById('teams-status');
+  if(v && !/^(https?|webcal):\/\//i.test(v)){ st.textContent = 'Cole o link completo do calendário publicado.'; return; }
+  st.textContent = 'Salvando…';
+  const { error } = await sb.from('crm_config').upsert({ chave:'teams_ics:'+(window._userEmail||''), valor: v||null, atualizado_em:new Date().toISOString() }, { onConflict:'chave' });
+  if(error){ st.textContent = 'Erro: '+error.message; return; }
+  AG_TEAMS.url = v||null; AG_TEAMS.loaded = true; AG_TEAMS.at = 0;
+  await agTeamsFetch(true); renderCalendar();
+});
 function agIcs(ev){
   const z = d => new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
   const ini = new Date(ev.data_inicio), fim = ev.data_fim ? new Date(ev.data_fim) : new Date(ini.getTime()+3600000);
@@ -5039,7 +5093,7 @@ async function agEdit(id){
       <div id="ae-err" class="om-err"></div></div>
     <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between">
       <button class="om-cancel" id="ae-del" style="color:var(--red)">Apagar</button>
-      <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="ae-inv">Enviar convite</button><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ae-save">Salvar</button></span></div>`, true);
+      <span style="display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="ae-inv-o">Convite pelo Outlook / Teams</button><button class="om-cancel" id="ae-inv">Google Agenda</button><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="ae-save">Salvar</button></span></div>`, true);
   const g = id => document.getElementById(id).value.trim();
   const collect = () => ({ titulo:g('ae-tit'), tipo:g('ae-tipo'), data_inicio: g('ae-ini')?new Date(g('ae-ini')).toISOString():null, data_fim: g('ae-fim')?new Date(g('ae-fim')).toISOString():null, local:g('ae-loc')||null, notas:g('ae-notas')||null, participantes: agEmails(g('ae-part')) });
   document.getElementById('ae-maps').addEventListener('click', e=>{ e.preventDefault(); if(g('ae-loc')) window.open(agMapsUrl(g('ae-loc')),'_blank'); });
@@ -5048,6 +5102,7 @@ async function agEdit(id){
     const { error } = await sb.from('crm_agenda').update(c).eq('id', id); if(error){ document.getElementById('ae-err').textContent = error.message; return; }
     dlgClose(); showToast('Compromisso atualizado'); renderCalendar(); });
   document.getElementById('ae-inv').addEventListener('click', ()=>{ const c = collect(); if(!c.participantes.length){ document.getElementById('ae-err').textContent = 'Inclua ao menos um e-mail de participante.'; return; } window.open(agGcalUrl({...ev, ...c}), '_blank'); });
+  document.getElementById('ae-inv-o').addEventListener('click', ()=>{ const c = collect(); if(!c.titulo || !c.data_inicio){ document.getElementById('ae-err').textContent = 'Informe título e início.'; return; } window.open(agOutlookUrl({...ev, ...c}), '_blank'); });
   document.getElementById('ae-del').addEventListener('click', async ()=>{
     if(!confirm('Apagar este compromisso?')) return;
     const { error } = await sb.from('crm_agenda').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; }
@@ -5057,7 +5112,7 @@ function renderDayEvents(events, date){
   const el = document.getElementById('day-events');
   el.innerHTML = `<h4>${date.toLocaleDateString('pt-BR',{weekday:'long', day:'2-digit', month:'long'})}</h4>` +
     (events.length===0 ? '<div class="no-rec">Nenhum compromisso.</div>' :
-      events.map(ev=>`<div class="evt-card"><div class="t">${escapeHtml(ev.titulo)} <a href="#" data-agedit="${ev.id}" title="Editar ou apagar" style="float:right;font-size:12px">editar</a></div><div class="m">${fmtDateTime(ev.data_inicio)}${ev.crm_pessoas?.nome?(' · '+escapeHtml(ev.crm_pessoas.nome)):''}${agLocalHtml(ev.local)}${(ev.participantes||[]).length?'<br>'+escapeHtml(ev.participantes.join(', ')):''}</div></div>`).join(''));
+      events.map(ev=> ev.teams ? `<div class="evt-card" style="border-left:3px solid #5059c9"><div class="t">${escapeHtml(ev.titulo)} <span style="float:right;font-size:11px;color:#5059c9;font-weight:700">Teams</span></div><div class="m">${ev.dia_inteiro?'Dia inteiro':fmtDateTime(ev.data_inicio)}${ev.local&&!/^https?:/i.test(ev.local)?agLocalHtml(ev.local):''}${ev.teams_link?` · <a href="${escapeHtml(ev.teams_link)}" target="_blank" rel="noopener">Entrar na reunião</a>`:''}</div></div>` : `<div class="evt-card"><div class="t">${escapeHtml(ev.titulo)} <a href="#" data-agedit="${ev.id}" title="Editar ou apagar" style="float:right;font-size:12px">editar</a></div><div class="m">${fmtDateTime(ev.data_inicio)}${ev.crm_pessoas?.nome?(' · '+escapeHtml(ev.crm_pessoas.nome)):''}${agLocalHtml(ev.local)}${(ev.participantes||[]).length?'<br>'+escapeHtml(ev.participantes.join(', ')):''}</div></div>`).join(''));
   el.querySelectorAll('[data-agedit]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); agEdit(a.dataset.agedit); }));
 }
 
@@ -7827,6 +7882,9 @@ checkSession();
   .op-per-presets button.on{ background:var(--navy); border-color:var(--navy); color:#fff; }
   .op-per-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .op-period-pop select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; font-size:13.5px; width:100%; background:var(--surface); }
+
+  .cal-evt.teams{ background:#5059c9; }
+  .cal-evt.teams::before{ content:'T '; font-weight:800; opacity:.8; }
 </style>
 </body>
 </html>
