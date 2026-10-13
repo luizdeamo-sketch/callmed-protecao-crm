@@ -238,9 +238,12 @@
           <div class="op-period-wrap" style="position:relative">
             <button id="op-period-toggle" class="om-cancel" title="Escolher o período exibido (data início e fim)"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/></svg> <span id="op-range"></span></button>
             <div class="op-period-pop" id="op-period-pop">
-              <label class="fl"><span>De</span><input type="date" id="op-period-ini"></label>
-              <label class="fl"><span>Até</span><input type="date" id="op-period-fim"></label>
-              <div class="hint" style="margin:4px 0 8px">Período curto (até ~6 semanas) abre automático em dias, ocupando a tela inteira. Período longo mostra 1 número por mês, como hoje.</div>
+              <div class="op-per-presets" id="op-per-presets">
+                <button type="button" data-p="7d">Últimos 7 dias</button><button type="button" data-p="mes">Este mês</button><button type="button" data-p="30d">Últimos 30 dias</button><button type="button" data-p="mpas">Mês passado</button><button type="button" data-p="3m">Últimos 3 meses</button><button type="button" data-p="12m">Últimos 12 meses</button><button type="button" data-p="ano">Este ano</button>
+              </div>
+              <div class="op-per-row"><label class="fl"><span>Início</span><input type="date" id="op-period-ini"></label><label class="fl"><span>Fim</span><input type="date" id="op-period-fim"></label></div>
+              <label class="fl"><span>Visualizar por</span><select id="op-period-by"><option value="dias">Dias</option><option value="meses">Meses</option></select></label>
+              <div class="hint" id="op-period-info" style="margin:0"></div>
               <button class="om-save" id="op-period-apply" style="width:100%">Aplicar</button>
             </div>
           </div>
@@ -4092,7 +4095,7 @@ function opRenderAll(prevShown){
   const now = new Date();
   host.style.setProperty('--opgrid', opGridCss());
   const lastM = new Date(OP.start.getFullYear(), OP.start.getMonth()+OP.monthsCount-1, 1);
-  document.getElementById('op-range').textContent = `${OP_MESES[OP.start.getMonth()]}/${String(OP.start.getFullYear()).slice(2)}–${OP_MESES[lastM.getMonth()]}/${String(lastM.getFullYear()).slice(2)}`;
+  document.getElementById('op-range').textContent = OP.rangeIni && OP.rangeFim ? `${opDmy(OP.rangeIni)} – ${opDmy(OP.rangeFim)} · por dia` : `${OP_MESES[OP.start.getMonth()]}/${String(OP.start.getFullYear()).slice(2)}–${OP_MESES[lastM.getMonth()]}/${String(lastM.getFullYear()).slice(2)} · por mês`;
   const anyExp = OP.months.some(m=>m.exp);
   const heads = OP.months.map(mo=>{
     const days = mo.exp ? Array.from({length:mo.visDays},(_,vi)=>{ const dnum = mo.dayFrom+vi; const off = opIsNonBusinessDay(new Date(mo.s.getFullYear(), mo.s.getMonth(), dnum)); return `<span class="op-dh${off?' off':''}" style="left:${vi/mo.visDays*100}%;width:${100/mo.visDays}%">${dnum}</span>`; }).join('') : '';
@@ -4331,6 +4334,37 @@ document.getElementById('op-search').addEventListener('input', ()=>{ clearTimeou
 document.getElementById('op-fclear').addEventListener('click', ()=>{ OP_FILTER_IDS.forEach(id=> document.getElementById(id).value=''); opApplyFilters(false); });
 document.getElementById('op-ftoggle').addEventListener('click', ()=> document.getElementById('op-filters-more').classList.toggle('open'));
 // ---- Período (data início/fim) — seletor oficial único de intervalo exibido. Período curto abre em dias ocupando a tela; período longo mostra por mês ----
+function opDmy(d){ return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(2); }
+function opPerPreset(k){
+  const t = new Date(); t.setHours(0,0,0,0); const y = t.getFullYear(), m = t.getMonth();
+  if(k==='7d') return [new Date(y,m,t.getDate()-6), t];
+  if(k==='30d') return [new Date(y,m,t.getDate()-29), t];
+  if(k==='mes') return [new Date(y,m,1), new Date(y,m+1,0)];
+  if(k==='mpas') return [new Date(y,m-1,1), new Date(y,m,0)];
+  if(k==='3m') return [new Date(y,m-3,t.getDate()+1), t];
+  if(k==='12m') return [new Date(y,m-12,t.getDate()+1), t];
+  if(k==='ano') return [new Date(y,0,1), new Date(y,11,31)];
+  return null;
+}
+function opPerInfo(){
+  const i = opD(document.getElementById('op-period-ini').value), f = opD(document.getElementById('op-period-fim').value), box = document.getElementById('op-period-info');
+  if(!i || !f || f<i){ box.textContent = ''; return; }
+  const n = Math.round((f-i)/DAY)+1; box.textContent = n+' dia'+(n>1?'s':'')+' no período.';
+}
+function opPerMark(k){ document.querySelectorAll('#op-per-presets button').forEach(b=>b.classList.toggle('on', b.dataset.p===k)); }
+function opPerSet(ini, fim, preset){
+  document.getElementById('op-period-ini').value = opIso(ini); document.getElementById('op-period-fim').value = opIso(fim);
+  const n = Math.round((fim-ini)/DAY)+1; document.getElementById('op-period-by').value = n<=45 ? 'dias' : 'meses';
+  opPerMark(preset||''); opPerInfo();
+}
+function opPerOpen(){
+  let ini, fim;
+  if(OP.rangeIni && OP.rangeFim){ ini = OP.rangeIni; fim = OP.rangeFim; }
+  else { ini = new Date(OP.start.getFullYear(), OP.start.getMonth(), 1); fim = new Date(OP.start.getFullYear(), OP.start.getMonth()+OP.monthsCount, 0); }
+  document.getElementById('op-period-ini').value = opIso(ini); document.getElementById('op-period-fim').value = opIso(fim);
+  document.getElementById('op-period-by').value = (OP.rangeIni && OP.rangeFim) ? 'dias' : 'meses';
+  opPerMark(''); opPerInfo();
+}
 function opApplyPeriod(){
   const ini = document.getElementById('op-period-ini').value, fim = document.getElementById('op-period-fim').value;
   if(!ini || !fim){ showToast('Informe as duas datas.'); return; }
@@ -4340,17 +4374,20 @@ function opApplyPeriod(){
   const endExclusive = new Date(dFim.getFullYear(), dFim.getMonth()+1, 1);
   const monthsCount = Math.max(1, (endExclusive.getFullYear()-start.getFullYear())*12 + (endExclusive.getMonth()-start.getMonth()));
   const totalDays = Math.round((dFim-dIni)/DAY)+1;
+  let porDia = document.getElementById('op-period-by').value === 'dias';
+  if(porDia && totalDays > 62){ showToast('Por dia aceita até 62 dias; mostrando por mês.'); porDia = false; }
   OP.start = start; OP.monthsCount = monthsCount; OP.sumFilter = null;
-  const shortRange = totalDays <= 45;
-  OP.rangeIni = shortRange ? dIni : null; OP.rangeFim = shortRange ? dFim : null;
+  OP.rangeIni = porDia ? dIni : null; OP.rangeFim = porDia ? dFim : null;
   for(let i=0;i<monthsCount;i++){
     const key = opMKey(new Date(start.getFullYear(), start.getMonth()+i, 1));
-    if(shortRange) OP.expanded.add(key); else OP.expanded.delete(key);
+    if(porDia) OP.expanded.add(key); else OP.expanded.delete(key);
   }
   document.getElementById('op-period-pop').classList.remove('open');
   opApplyFilters(true);
 }
-document.getElementById('op-period-toggle').addEventListener('click', e=>{ e.stopPropagation(); document.getElementById('op-period-pop').classList.toggle('open'); });
+document.getElementById('op-per-presets').addEventListener('click', e=>{ const b = e.target.closest('button[data-p]'); if(!b) return; const r = opPerPreset(b.dataset.p); if(r) opPerSet(r[0], r[1], b.dataset.p); });
+['op-period-ini','op-period-fim'].forEach(id=> document.getElementById(id).addEventListener('change', ()=>{ opPerMark(''); opPerInfo(); }));
+document.getElementById('op-period-toggle').addEventListener('click', e=>{ e.stopPropagation(); const pop = document.getElementById('op-period-pop'); if(!pop.classList.contains('open')) opPerOpen(); pop.classList.toggle('open'); });
 document.getElementById('op-period-apply').addEventListener('click', opApplyPeriod);
 document.addEventListener('click', e=>{
   if(e.target.closest('#op-period-toggle') || e.target.closest('#op-period-pop')) return;
@@ -7781,6 +7818,15 @@ checkSession();
   table.par-t{ width:100%; border-collapse:collapse; font-size:13px; } table.par-t th{ text-align:left; font-size:11px; text-transform:uppercase; color:var(--ink-faint); font-weight:600; padding:4px 8px; }
   table.par-t td{ padding:5px 8px; border-top:1px solid var(--border); } table.par-t td.n{ font-weight:600; white-space:nowrap; } table.par-t td.n i{ display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:8px; }
   table.par-t input.par-i{ width:100%; min-width:84px; padding:6px 8px; border:1px solid var(--border); border-radius:8px; font-size:13px; }
+
+  /* ---- seletor de período: atalhos, início/fim, visualizar por ---- */
+  .op-period-pop{ width:min(430px,92vw); padding:14px; gap:10px; }
+  .op-per-presets{ display:flex; flex-wrap:wrap; gap:6px; }
+  .op-per-presets button{ border:1px solid var(--border); background:var(--surface); border-radius:999px; padding:6px 12px; font-size:12.5px; font-weight:600; color:var(--ink); cursor:pointer; }
+  .op-per-presets button:hover{ border-color:var(--navy); }
+  .op-per-presets button.on{ background:var(--navy); border-color:var(--navy); color:#fff; }
+  .op-per-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .op-period-pop select{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 10px; font-size:13.5px; width:100%; background:var(--surface); }
 </style>
 </body>
 </html>
