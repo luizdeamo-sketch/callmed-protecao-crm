@@ -218,6 +218,7 @@
     <button class="nav-btn active" data-view="operacao"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.25"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5"/><circle cx="16.5" cy="9" r="2.5"/><path d="M15.5 14.2c2.6-.3 4.5 1.3 5 4.3"/></svg><span>Aliança</span></button>
     <button class="nav-btn" data-view="central" title="Central de Apólices"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5h7l4 4v13H7z"/><path d="M14 3.5v4h4"/><path d="M12.5 11.2l2.7 1v1.9c0 1.8-1.2 3.1-2.7 3.7-1.5-.6-2.7-1.9-2.7-3.7v-1.9z"/></svg><span>Apólices</span></button>
     <button class="nav-btn" data-view="comercial" title="Metas comerciais e projeção de vendas"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16"/><path d="M5 15.5l4.5-4.5 3.5 3 6-6.5"/><path d="M15 7.5h4v4"/></svg><span>Comercial</span></button>
+    <button class="nav-btn" data-view="vendas" title="Demandas, vendas realizadas e não realizadas, com relatórios em PDF"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8.5h12l-1 11H7z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/><path d="M9.5 13.5l1.7 1.7 3.3-3.4"/></svg><span>Vendas</span></button>
     <button class="nav-btn" data-view="reunioes" title="Reuniões gravadas: leitura da conversa e atualização automática do CRM"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h11a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3H4A1.5 1.5 0 0 1 2.5 13V7A1.5 1.5 0 0 1 4 5.5z"/><path d="M19 9.5h1a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5h-.5v2.5l-3-2.5h-4"/></svg><span>Reuniões</span></button>
     <button class="nav-btn" data-view="indicadores" title="Indicadores do funil e da produção"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l3.5-4.5"/><circle cx="12" cy="16" r="1.25"/><path d="M4 19.5h16"/></svg><span>Indicadores</span></button>
     <button class="nav-btn" data-view="analitico" title="Analítico: perfil da base médica, onde atuam e onde está a oportunidade"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6.5" cy="15.5" r="2"/><circle cx="11.5" cy="8.5" r="2.5"/><circle cx="17.5" cy="14" r="3"/><circle cx="16" cy="5.5" r="1.25"/><path d="M3.5 20.5h17"/></svg><span>Analítico</span></button>
@@ -348,6 +349,13 @@
         <div id="orc-body"></div><div id="par-body" style="display:none"></div>
         <div id="com-body" style="display:none"><div class="op-more">Carregando...</div></div>
         <div id="mc2-body" style="display:none"></div>
+      </div>
+    </div>
+
+    <div id="view-vendas" class="view">
+      <div class="pg">
+        <div class="pg-head"><h2>Vendas e demandas</h2><span class="sub">Demandas dos clientes, o que virou venda e o que não virou, com relatório em PDF.</span></div>
+        <div id="vd-body"><div class="op-more">Carregando...</div></div>
       </div>
     </div>
 
@@ -1233,6 +1241,242 @@ async function renderParametros(){
     ORC.ok = false; st.textContent = 'Salvo e aplicado a '+linhas.length+' meses ✓'; showToast('Parâmetros aplicados'); });
 }
 
+// ============ VENDAS E DEMANDAS ============
+// Demandas de todos os clientes, "Virou venda" / "Não virou venda", aba Vendas realizadas e Vendas não realizadas com relatório em PDF.
+const VD = { tab:'dem', dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, timers:{} };
+const VD_MOTIVOS = ['Preço','Escolheu outra corretora ou seguradora','Desistiu / sem interesse','Sem retorno do cliente','Não aprovado pela seguradora','Adiou a decisão','Outro'];
+const VD_ENC = ['Concluída','Venda fechada','Não virou venda'];
+const vdM = v => 'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+const vdD = s => s ? String(s).slice(0,10).split('-').reverse().join('/') : '—';
+const vdNorm = s => String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const vdPer = f => (f.de||f.ate) ? ('Período: '+(f.de?vdD(f.de):'início')+' a '+(f.ate?vdD(f.ate):'hoje')) : 'Todo o período';
+const vdMsg = t => { const e = document.getElementById('vd-msg'); if(e) e.textContent = t; };
+async function vdLoad(force){
+  if(VD.ok && !force) return;
+  const [d, v, n] = await Promise.all([
+    sb.from('crm_demandas').select('*, crm_pessoas(nome)').order('created_at',{ascending:false}).limit(3000),
+    sb.from('crm_vendas').select('*').order('data_venda',{ascending:false}).order('created_at',{ascending:false}).limit(3000),
+    sb.from('crm_nao_vendas').select('*').order('data_registro',{ascending:false}).order('created_at',{ascending:false}).limit(3000) ]);
+  const err = d.error || v.error || n.error; if(err) throw err;
+  VD.dem = d.data||[]; VD.vend = v.data||[]; VD.nao = n.data||[]; VD.ok = true;
+}
+async function renderVendas(force){
+  const host = document.getElementById('vd-body'); if(!host) return;
+  if(!VD.ok || force) host.innerHTML = '<div class="op-more">Carregando…</div>';
+  try{ await vdLoad(force); }catch(e){ host.innerHTML = '<div class="om-err">Não consegui carregar: '+escapeHtml(e.message||String(e))+'</div>'; return; }
+  vdDraw();
+}
+function vdDraw(){
+  const host = document.getElementById('vd-body'); if(!host) return;
+  const ab = VD.dem.filter(d=>!VD_ENC.includes(d.status)).length;
+  const tabs = [['dem','Demandas',ab],['vend','Vendas realizadas',VD.vend.length],['nao','Vendas não realizadas',VD.nao.length]];
+  const sc = host.querySelector('.vd-wrap'); const y = sc ? sc.scrollLeft : 0;
+  host.innerHTML = `<div class="pv-tabs" id="vd-tabs" style="margin:6px 0 12px">${tabs.map(([k,l,n])=>`<button class="pv-tab${VD.tab===k?' on':''}" data-vt="${k}">${l} <span class="vd-cnt">${n}</span></button>`).join('')}</div>`
+    + (VD.tab==='dem' ? vdDemHtml() : VD.tab==='vend' ? vdVendHtml() : vdNaoHtml());
+  const w = host.querySelector('.vd-wrap'); if(w) w.scrollLeft = y;
+  if(VD.foco){ const el = host.querySelector('[data-id="'+VD.foco+'"] input, [data-id="'+VD.foco+'"] textarea'); if(el){ el.focus(); const r = el.closest('tr'); if(r) r.scrollIntoView({block:'center'}); } VD.foco = null; }
+}
+// ---------- Demandas ----------
+function vdDemList(){
+  const f = VD.fDem, q = vdNorm(f.q);
+  return VD.dem.filter(d=>{
+    if(f.st==='abertas' && VD_ENC.includes(d.status)) return false;
+    if(f.st && f.st!=='abertas' && f.st!=='todas' && d.status!==f.st) return false;
+    if(q && !vdNorm([d.crm_pessoas&&d.crm_pessoas.nome, d.produto, d.acao, d.descricao, d.responsavel].join(' ')).includes(q)) return false;
+    return true; });
+}
+function vdDemHtml(){
+  const l = vdDemList(), f = VD.fDem, cont = {};
+  VD.dem.forEach(d=>{ cont[d.status] = (cont[d.status]||0)+1; });
+  const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
+  const chips = DEM_STATUS.map(s=>`<span class="vd-chip" style="border-color:${DEM_COR[s]||'var(--border)'};color:${DEM_COR[s]||'inherit'}">${escapeHtml(s)}: <b>${cont[s]||0}</b></span>`).join('');
+  const rows = l.map(d=>{
+    const enc = VD_ENC.includes(d.status);
+    return `<tr data-id="${d.id}"><td>${vdD(d.created_at)}</td><td><a href="#" data-act="abrir" data-pid="${d.pessoa_id}"><b>${escapeHtml((d.crm_pessoas&&d.crm_pessoas.nome)||'—')}</b></a></td><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td style="max-width:260px;white-space:pre-wrap">${escapeHtml(d.descricao||'—')}</td>
+      <td><select data-act="dst" data-id="${d.id}" style="border:1px solid ${DEM_COR[d.status]||'var(--border)'};color:${DEM_COR[d.status]||'inherit'};border-radius:6px;padding:3px 6px;font-weight:600">${opt(DEM_STATUS,d.status)}</select></td>
+      <td>${d.prazo?vdD(d.prazo):'—'}</td><td>${escapeHtml(d.responsavel||'—')}</td>
+      <td style="white-space:nowrap">${enc ? (d.status==='Venda fechada'?'<a href="#" data-act="ir-vend">ver em Vendas realizadas</a>':d.status==='Não virou venda'?'<a href="#" data-act="ir-nao">ver em Não realizadas</a>':'') : `<button class="om-save vd-btn" data-act="virou" data-id="${d.id}">Virou venda</button> <button class="om-cancel vd-btn" data-act="nao" data-id="${d.id}">Não virou venda</button>`}</td></tr>`; }).join('');
+  return `<div class="vd-bar"><label class="fl"><span>Mostrar</span><select id="vd-f-st"><option value="abertas"${f.st==='abertas'?' selected':''}>Em aberto</option><option value="todas"${f.st==='todas'?' selected':''}>Todas</option>${DEM_STATUS.map(s=>`<option value="${escapeHtml(s)}"${f.st===s?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
+      <label class="fl" style="flex:1;min-width:200px"><span>Buscar</span><input id="vd-f-q" value="${escapeHtml(f.q)}" placeholder="cliente, produto, ação, responsável"></label>
+      <button class="om-save" data-act="pdf-dem">Relatório de demandas (PDF)</button></div>
+    <div class="vd-chips">${chips}</div>
+    <div class="hint" style="margin:6px 0">${l.length} demanda(s) na lista. Para lançar uma demanda nova, abra o cadastro do cliente (aba Resumo → Demandas do cliente).</div>
+    <div class="vd-wrap"><table class="ca-table" style="min-width:980px"><thead><tr><th>Criada</th><th>Cliente</th><th>Produto</th><th>Ação</th><th>O que foi pedido</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="9" style="color:var(--ink-faint)">Nenhuma demanda nesta visão.</td></tr>'}</tbody></table></div>`;
+}
+// ---------- Vendas realizadas ----------
+function vdVendList(){ const f = VD.fV; return VD.vend.filter(x=>(!f.de||(x.data_venda||'')>=f.de)&&(!f.ate||(x.data_venda||'')<=f.ate)); }
+function vdVendTot(l){ const t = l.reduce((a,x)=>a+(Number(x.premio)||0),0), sem = l.filter(x=>!(Number(x.premio)>0)).length;
+  return `<span class="vd-chip ok">Vendas: <b>${l.length}</b></span><span class="vd-chip ok">Prêmio total: <b>${vdM(t)}</b></span>${l.length?`<span class="vd-chip">Prêmio médio: <b>${vdM(t/l.length)}</b></span>`:''}${sem?`<span class="vd-chip warn">${sem} sem prêmio preenchido</span>`:''}`; }
+function vdVendHtml(){
+  const l = vdVendList(), f = VD.fV;
+  const rows = l.map(x=>`<tr data-id="${x.id}"><td><input type="date" data-k="data_venda" value="${escapeHtml(x.data_venda||'')}"></td>
+      <td><input type="text" data-k="cliente" value="${escapeHtml(x.cliente||'')}" aria-label="Cliente">${x.pessoa_id?`<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>`:''}</td>
+      <td><input type="text" list="vd-prod" data-k="produto" value="${escapeHtml(x.produto||'')}" placeholder="Produto"></td>
+      <td><input type="text" data-k="seguradora" value="${escapeHtml(x.seguradora||'')}" placeholder="Seguradora"></td>
+      <td><input type="number" step="0.01" min="0" data-k="premio" value="${x.premio==null?'':x.premio}" placeholder="0,00" style="text-align:right"></td>
+      <td><textarea rows="2" data-k="obs" placeholder="Observações">${escapeHtml(x.obs||'')}</textarea></td>
+      <td style="white-space:nowrap">${x.demanda_id?`<button class="om-cancel vd-btn" data-act="reabrir-v" data-id="${x.id}">Reabrir demanda</button> `:''}<button class="om-cancel vd-btn" data-act="del-v" data-id="${x.id}" style="color:var(--red)">Excluir</button></td></tr>`).join('');
+  return `<div class="vd-bar"><label class="fl"><span>Data da venda · de</span><input type="date" id="vd-v-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-v-ate" value="${escapeHtml(f.ate)}"></label>
+      ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-v">Limpar período</button>':''}<span style="flex:1"></span><button class="om-save" data-act="pdf-v">Gerar relatório (PDF)</button></div>
+    <div class="vd-chips" id="vd-tot">${vdVendTot(l)}</div>
+    <datalist id="vd-prod">${DEM_PRODUTOS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
+    <div class="hint" style="margin:6px 0">Em Demandas ou no cadastro do cliente, clique em “Virou venda” e o cliente vem para cá. Preencha o produto e o prêmio. Tudo é salvo ao sair de cada campo. <span id="vd-msg"></span></div>
+    <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1000px"><thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Seguradora</th><th>Prêmio (R$)</th><th>Observações</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="color:var(--ink-faint)">Nenhuma venda neste período. Use “Virou venda” nas Demandas ou no cadastro do cliente.</td></tr>'}</tbody></table></div>
+    <div style="margin-top:10px"><button class="om-cancel" data-act="nova-v">＋ Adicionar venda manualmente</button></div>`;
+}
+// ---------- Vendas não realizadas ----------
+function vdNaoList(){ const f = VD.fN; return VD.nao.filter(x=>(!f.de||(x.data_registro||'')>=f.de)&&(!f.ate||(x.data_registro||'')<=f.ate)); }
+function vdNaoTot(l){ const m = {}; l.forEach(x=>{ const k = x.motivo||'Sem motivo'; m[k] = (m[k]||0)+1; }); const sj = l.filter(x=>!(x.justificativa||'').trim()).length;
+  return `<span class="vd-chip">Não realizadas: <b>${l.length}</b></span>${Object.entries(m).map(([k,v])=>`<span class="vd-chip">${escapeHtml(k)}: <b>${v}</b></span>`).join('')}${sj?`<span class="vd-chip warn">${sj} sem justificativa</span>`:''}`; }
+function vdNaoHtml(){
+  const l = vdNaoList(), f = VD.fN;
+  const rows = l.map(x=>`<tr data-id="${x.id}"><td><input type="date" data-k="data_registro" value="${escapeHtml(x.data_registro||'')}"></td>
+      <td><input type="text" data-k="cliente" value="${escapeHtml(x.cliente||'')}" aria-label="Cliente">${x.pessoa_id?`<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>`:''}</td>
+      <td><input type="text" list="vd-prod" data-k="produto" value="${escapeHtml(x.produto||'')}" placeholder="Produto"></td>
+      <td><input type="text" data-k="seguradora" value="${escapeHtml(x.seguradora||'')}" placeholder="Seguradora"></td>
+      <td><select data-k="motivo"><option value="">Escolha o motivo</option>${VD_MOTIVOS.map(m=>`<option${x.motivo===m?' selected':''}>${escapeHtml(m)}</option>`).join('')}</select></td>
+      <td><textarea rows="3" data-k="justificativa" placeholder="Justificativa: por que não virou venda?">${escapeHtml(x.justificativa||'')}</textarea></td>
+      <td style="white-space:nowrap">${x.demanda_id?`<button class="om-cancel vd-btn" data-act="reabrir-n" data-id="${x.id}">Reabrir demanda</button> `:''}<button class="om-cancel vd-btn" data-act="del-n" data-id="${x.id}" style="color:var(--red)">Excluir</button></td></tr>`).join('');
+  return `<div class="vd-bar"><label class="fl"><span>Data · de</span><input type="date" id="vd-n-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-n-ate" value="${escapeHtml(f.ate)}"></label>
+      ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-n">Limpar período</button>':''}<span style="flex:1"></span><button class="om-save" data-act="pdf-n">Gerar relatório (PDF)</button></div>
+    <div class="vd-chips" id="vd-tot">${vdNaoTot(l)}</div>
+    <datalist id="vd-prod">${DEM_PRODUTOS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
+    <div class="hint" style="margin:6px 0">Em Demandas ou no cadastro, “Não virou venda” traz o cliente para cá. Escolha o motivo e escreva a justificativa. <span id="vd-msg"></span></div>
+    <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1000px"><thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Seguradora</th><th>Motivo</th><th>Justificativa</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="color:var(--ink-faint)">Nenhum registro neste período.</td></tr>'}</tbody></table></div>
+    <div style="margin-top:10px"><button class="om-cancel" data-act="nova-n">＋ Adicionar registro manualmente</button></div>`;
+}
+// ---------- ações ----------
+function vdIrPara(tab, foco){ VD.tab = tab; VD.foco = foco||null; VD.ok = false; const b = document.querySelector('.nav-btn[data-view="vendas"]'); if(b) b.click(); else renderVendas(true); }
+async function vdVirouVendaDem(d, p){
+  try{
+    const nome = (d.crm_pessoas&&d.crm_pessoas.nome) || (p&&p.nome) || '';
+    let vid = null;
+    const { data: ex } = await sb.from('crm_vendas').select('id').eq('demanda_id', d.id).maybeSingle();
+    if(ex) vid = ex.id; else {
+      const { data, error } = await sb.from('crm_vendas').insert({ pessoa_id:d.pessoa_id, cliente:nome, produto: d.produto && d.produto!=='Geral' ? d.produto : '', demanda_id:d.id, data_venda:ymd(new Date()), criado_por:curUserName()||null }).select('id').single();
+      if(error) throw error; vid = data.id; }
+    const { error: e2 } = await sb.from('crm_demandas').update({ status:'Venda fechada', concluida_em:new Date().toISOString(), updated_at:new Date().toISOString() }).eq('id', d.id);
+    if(e2) throw e2;
+    showToast('Venda registrada. Preencha produto e prêmio.'); vdIrPara('vend', vid);
+  }catch(e){ showToast('Erro: '+(e.message||e)); }
+}
+async function vdNaoVirouDem(d, p){
+  try{
+    const nome = (d.crm_pessoas&&d.crm_pessoas.nome) || (p&&p.nome) || '';
+    let nid = null;
+    const { data: ex } = await sb.from('crm_nao_vendas').select('id').eq('demanda_id', d.id).maybeSingle();
+    if(ex) nid = ex.id; else {
+      const { data, error } = await sb.from('crm_nao_vendas').insert({ pessoa_id:d.pessoa_id, cliente:nome, produto: d.produto && d.produto!=='Geral' ? d.produto : '', demanda_id:d.id, data_registro:ymd(new Date()), criado_por:curUserName()||null }).select('id').single();
+      if(error) throw error; nid = data.id; }
+    const { error: e2 } = await sb.from('crm_demandas').update({ status:'Não virou venda', concluida_em:new Date().toISOString(), updated_at:new Date().toISOString() }).eq('id', d.id);
+    if(e2) throw e2;
+    showToast('Registrado como não realizada. Informe o motivo.'); vdIrPara('nao', nid);
+  }catch(e){ showToast('Erro: '+(e.message||e)); }
+}
+async function vdVendaPessoa(p){
+  const { data, error } = await sb.from('crm_vendas').insert({ pessoa_id:p.id, cliente:p.nome||'', data_venda:ymd(new Date()), criado_por:curUserName()||null }).select('id').single();
+  if(error){ showToast('Erro: '+error.message); return; } showToast('Venda registrada. Preencha produto e prêmio.'); vdIrPara('vend', data.id);
+}
+async function vdNaoVendaPessoa(p){
+  const { data, error } = await sb.from('crm_nao_vendas').insert({ pessoa_id:p.id, cliente:p.nome||'', data_registro:ymd(new Date()), criado_por:curUserName()||null }).select('id').single();
+  if(error){ showToast('Erro: '+error.message); return; } showToast('Registrado como não realizada. Informe o motivo.'); vdIrPara('nao', data.id);
+}
+const vdRowBtns = d => VD_ENC.includes(d.status) ? '' : `<button type="button" class="om-save vd-btn" data-vd-v="${d.id}">Virou venda</button> <button type="button" class="om-cancel vd-btn" data-vd-n="${d.id}">Não virou venda</button> `;
+async function vdSalvarCampo(tabela, id, k, v){
+  vdMsg('Salvando…');
+  clearTimeout(VD.timers[id+k]);
+  VD.timers[id+k] = setTimeout(async ()=>{
+    const { error } = await sb.from(tabela).update({ [k]: v, updated_at:new Date().toISOString() }).eq('id', id);
+    vdMsg(error ? 'Erro ao salvar: '+error.message : 'Salvo ✓'); if(error) showToast('Erro: '+error.message); }, 350);
+}
+async function vdReabrir(tabela, id){
+  const arr = tabela==='crm_vendas' ? VD.vend : VD.nao, r = arr.find(x=>x.id===id); if(!r) return;
+  if(!confirm('Reabrir a demanda? O registro sai desta lista e a demanda volta para “Em andamento”.')) return;
+  if(r.demanda_id){ const { error: e1 } = await sb.from('crm_demandas').update({ status:'Em andamento', concluida_em:null, updated_at:new Date().toISOString() }).eq('id', r.demanda_id); if(e1){ showToast('Erro: '+e1.message); return; } }
+  const { error } = await sb.from(tabela).delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; }
+  showToast('Demanda reaberta'); renderVendas(true);
+}
+async function vdExcluir(tabela, id){
+  if(!confirm('Excluir este registro? Esta ação não pode ser desfeita.')) return;
+  const { error } = await sb.from(tabela).delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; }
+  showToast('Registro excluído'); renderVendas(true);
+}
+// ---------- PDFs (mesmo molde dos PDFs por fase) ----------
+async function vdPdf(titulo, sub, resumo, head, linhas, nomeArq){
+  const esc = escapeHtml;
+  const tr = r => '<tr>'+r.map(c=>`<td${c.r?' class="r"':''}>${c.b?'<b>':''}${esc(c.t==null?'—':c.t)}${c.b?'</b>':''}</td>`).join('')+'</tr>';
+  const cost = r => 3.4 + 3.1*Math.max(...r.map((c,i)=> f5Lines(c.t, [10,22,16,16,12,34,12][i]||18)));
+  const parts = linhas.length ? f5Chunk(linhas, cost, 118, 140, 16) : [[]];
+  const pages = parts.map((chunk,i)=> f5Page(titulo, sub, (i===0?resumo:'')+`<table class="dk-t dk-f2"><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${chunk.length?chunk.map(tr).join(''):`<tr><td colspan="${head.length}">Nenhum registro no período.</td></tr>`}</tbody></table>`, ['EMITIDO EM', new Date().toLocaleDateString('pt-BR')]));
+  const html = f5Wrap(pages);
+  try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(html, nomeArq); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
+}
+function vdSoma(l, fn, val){ const m = {}; l.forEach(x=>{ const k = (fn(x)||'—').toString().trim()||'—'; m[k] = (m[k]||0)+val(x); }); return m; }
+const vdTxtSoma = (m, money) => Object.entries(m).sort((a,b)=>b[1]-a[1]).map(([k,v])=>escapeHtml(k)+': '+(money?vdM(v):v)).join(' · ')||'—';
+async function vdPdfVendas(){
+  const l = vdVendList().slice().sort((a,b)=>String(b.data_venda).localeCompare(String(a.data_venda)));
+  const tot = l.reduce((a,x)=>a+(Number(x.premio)||0),0), f = VD.fV;
+  const resumo = `<p class="dk-nt" style="color:#0b1433"><b>Vendas: ${l.length} · Prêmio total: ${vdM(tot)}${l.length?' · Prêmio médio: '+vdM(tot/l.length):''}</b></p><p class="dk-nt">Por produto: ${vdTxtSoma(vdSoma(l,x=>x.produto,x=>Number(x.premio)||0), true)}</p><p class="dk-nt">Por seguradora: ${vdTxtSoma(vdSoma(l,x=>x.seguradora,x=>Number(x.premio)||0), true)}</p>`;
+  await vdPdf('Relatório de vendas realizadas', vdPer(f), resumo, ['Data','Cliente','Produto','Seguradora','Prêmio (R$)','Observações'],
+    l.map(x=>[{t:vdD(x.data_venda)},{t:x.cliente||'—',b:1},{t:x.produto||'—'},{t:x.seguradora||'—'},{t:vdM(x.premio),r:1,b:1},{t:x.obs||''}]),
+    'Vendas_realizadas_'+(f.de||'inicio')+'_a_'+(f.ate||ymd(new Date()))+'.pdf');
+}
+async function vdPdfNao(){
+  const l = vdNaoList().slice().sort((a,b)=>String(b.data_registro).localeCompare(String(a.data_registro))), f = VD.fN;
+  const resumo = `<p class="dk-nt" style="color:#0b1433"><b>Vendas não realizadas: ${l.length}</b></p><p class="dk-nt">Por motivo: ${vdTxtSoma(vdSoma(l,x=>x.motivo||'Sem motivo',()=>1), false)}</p>`;
+  await vdPdf('Relatório de vendas não realizadas', vdPer(f), resumo, ['Data','Cliente','Produto','Seguradora','Motivo','Justificativa'],
+    l.map(x=>[{t:vdD(x.data_registro)},{t:x.cliente||'—',b:1},{t:x.produto||'—'},{t:x.seguradora||'—'},{t:x.motivo||'—'},{t:x.justificativa||''}]),
+    'Vendas_nao_realizadas_'+(f.de||'inicio')+'_a_'+(f.ate||ymd(new Date()))+'.pdf');
+}
+async function vdPdfDemandas(){
+  const l = vdDemList(), f = VD.fDem, cont = {}; l.forEach(d=>{ cont[d.status] = (cont[d.status]||0)+1; });
+  const filtro = f.st==='abertas' ? 'Demandas em aberto' : f.st==='todas' ? 'Todas as demandas' : 'Status: '+f.st;
+  const resumo = `<p class="dk-nt" style="color:#0b1433"><b>${l.length} demanda(s)</b> · ${vdTxtSoma(cont, false)}</p>`;
+  await vdPdf('Relatório de demandas', filtro+(f.q?' · busca: '+f.q:''), resumo, ['Criada','Cliente','Produto','Ação','O que foi pedido','Status','Prazo','Responsável'],
+    l.map(d=>[{t:vdD(d.created_at)},{t:(d.crm_pessoas&&d.crm_pessoas.nome)||'—',b:1},{t:d.produto},{t:d.acao},{t:d.descricao||'—'},{t:d.status,b:1},{t:d.prazo?vdD(d.prazo):'—'},{t:d.responsavel||'—'}]),
+    'Demandas_'+ymd(new Date())+'.pdf');
+}
+// ---------- eventos ----------
+(function(){
+  const host = document.getElementById('vd-body'); if(!host) return;
+  host.addEventListener('click', async e=>{
+    const t = e.target.closest('[data-act],[data-vt]'); if(!t) return;
+    if(t.dataset.vt){ VD.tab = t.dataset.vt; vdDraw(); return; }
+    const a = t.dataset.act; if(t.tagName==='A') e.preventDefault();
+    const id = t.dataset.id;
+    if(a==='abrir'){ try{ await ensurePessoas(); opOpenModal(t.dataset.pid); }catch(err){ showToast('Não consegui abrir o cadastro.'); } }
+    else if(a==='virou'){ const d = VD.dem.find(x=>x.id===id); if(d) vdVirouVendaDem(d); }
+    else if(a==='nao'){ const d = VD.dem.find(x=>x.id===id); if(d) vdNaoVirouDem(d); }
+    else if(a==='ir-vend'){ VD.tab = 'vend'; vdDraw(); } else if(a==='ir-nao'){ VD.tab = 'nao'; vdDraw(); }
+    else if(a==='pdf-dem') vdPdfDemandas(); else if(a==='pdf-v') vdPdfVendas(); else if(a==='pdf-n') vdPdfNao();
+    else if(a==='limpar-v'){ VD.fV = {de:'',ate:''}; vdDraw(); } else if(a==='limpar-n'){ VD.fN = {de:'',ate:''}; vdDraw(); }
+    else if(a==='nova-v'){ const { data, error } = await sb.from('crm_vendas').insert({ cliente:'', data_venda:ymd(new Date()), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.vend.unshift(data); VD.foco = data.id; vdDraw(); }
+    else if(a==='nova-n'){ const { data, error } = await sb.from('crm_nao_vendas').insert({ cliente:'', data_registro:ymd(new Date()), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.nao.unshift(data); VD.foco = data.id; vdDraw(); }
+    else if(a==='reabrir-v') vdReabrir('crm_vendas', id); else if(a==='reabrir-n') vdReabrir('crm_nao_vendas', id);
+    else if(a==='del-v') vdExcluir('crm_vendas', id); else if(a==='del-n') vdExcluir('crm_nao_vendas', id);
+  });
+  host.addEventListener('change', async e=>{
+    const t = e.target;
+    if(t.id==='vd-f-st'){ VD.fDem.st = t.value; vdDraw(); return; }
+    if(t.id==='vd-v-de' || t.id==='vd-v-ate'){ VD.fV[t.id==='vd-v-de'?'de':'ate'] = t.value; vdDraw(); return; }
+    if(t.id==='vd-n-de' || t.id==='vd-n-ate'){ VD.fN[t.id==='vd-n-de'?'de':'ate'] = t.value; vdDraw(); return; }
+    if(t.dataset.act==='dst'){
+      const d = VD.dem.find(x=>x.id===t.dataset.id); if(!d) return; const st = t.value;
+      if(st==='Venda fechada'){ vdVirouVendaDem(d); return; }
+      if(st==='Não virou venda'){ vdNaoVirouDem(d); return; }
+      const { error } = await sb.from('crm_demandas').update({ status:st, concluida_em: st==='Concluída'?new Date().toISOString():null, updated_at:new Date().toISOString() }).eq('id', d.id);
+      if(error){ showToast('Erro: '+error.message); vdDraw(); return; } d.status = st; showToast('Status atualizado'); vdDraw(); return;
+    }
+    const tr = t.closest('tr[data-id]'); const k = t.dataset.k; if(!tr || !k) return;
+    const vend = VD.tab==='vend', arr = vend ? VD.vend : VD.nao, r = arr.find(x=>x.id===tr.dataset.id); if(!r) return;
+    let v = t.value; if(k==='premio') v = v===''?null:Number(v); if(k==='data_venda' || k==='data_registro'){ if(!v) return; }
+    r[k] = v; vdSalvarCampo(vend?'crm_vendas':'crm_nao_vendas', r.id, k, v);
+    if(vend && k==='premio'){ const el = document.getElementById('vd-tot'); if(el) el.innerHTML = vdVendTot(vdVendList()); }
+    if(!vend && k==='motivo'){ const el = document.getElementById('vd-tot'); if(el) el.innerHTML = vdNaoTot(vdNaoList()); }
+  });
+  host.addEventListener('input', e=>{ if(e.target.id==='vd-f-q'){ VD.fDem.q = e.target.value; clearTimeout(VD.timers.q); VD.timers.q = setTimeout(()=>{ const pos = e.target.selectionStart; vdDraw(); const el = document.getElementById('vd-f-q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(x){} } }, 250); } });
+})();
+
 document.querySelectorAll('#com-tabs [data-ct]').forEach(t=>t.addEventListener('click', ()=>{
   document.querySelectorAll('#com-tabs [data-ct]').forEach(x=>x.classList.toggle('on', x===t));
   const k = t.dataset.ct, show = (id,on)=>{ document.getElementById(id).style.display = on?'':'none'; };
@@ -1250,6 +1494,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'central') renderCentral();
     if(btn.dataset.view === 'indicadores') renderIndicadores();
     if(btn.dataset.view === 'comercial'){ const t0 = document.querySelector('#com-tabs [data-ct="orc"]'); if(t0) t0.click(); else renderOrcamento(); }
+    if(btn.dataset.view === 'vendas') renderVendas();
     if(btn.dataset.view === 'reunioes') renderReunioes();
     if(btn.dataset.view === 'sugestoes') renderSugestoes();
     if(btn.dataset.view === 'agenda') renderCalendar();
@@ -3976,8 +4221,8 @@ function opGridCss(){
 // vigente no mês, quantos já tiveram ação concluída, quantos estão em andamento e quantos ainda estão pendentes (ou sem ação).
 const DEM_PRODUTOS = ['Seguro Saúde','Seguro de Vida','RC (Responsabilidade Civil)','Consórcio','Geral'];
 const DEM_ACOES = ['Contato de acompanhamento','Cotar','Refazer cotação','Comparar apólices','Montar proposta','Enviar apresentação','Alterar ou cancelar apólice','Outro'];
-const DEM_STATUS = ['Pendente','Em andamento','Aguardando seguradora','Aguardando cliente','Concluída'];
-const DEM_COR = {'Pendente':'#646b89','Em andamento':'#c8790b','Aguardando seguradora':'#00125e','Aguardando cliente':'#0018fc','Concluída':'#0f7a53'};
+const DEM_STATUS = ['Pendente','Em andamento','Aguardando seguradora','Aguardando cliente','Concluída','Venda fechada','Não virou venda'];
+const DEM_COR = {'Pendente':'#646b89','Em andamento':'#c8790b','Aguardando seguradora':'#00125e','Aguardando cliente':'#0018fc','Concluída':'#0f7a53','Venda fechada':'#0f7a53','Não virou venda':'#c23636'};
 const ACAO_LABEL = {acao_feita:'Ações do mês · concluídas', acao_andamento:'Ações do mês · em andamento', acao_pendente:'Ações do mês · pendentes'};
 // demandas da pessoa que caem no mês i do resumo (data de referência = prazo, ou a criação)
 function demDoMes(pid, mi){
@@ -3988,7 +4233,7 @@ function demDoMes(pid, mi){
 function opAcaoStatusMes(pid, mi){
   const ls = demDoMes(pid, mi);
   if(!ls.length) return 'acao_pendente';
-  if(ls.every(d=>d.status==='Concluída')) return 'acao_feita';
+  if(ls.every(d=>d.status==='Concluída' || d.status==='Venda fechada' || d.status==='Não virou venda')) return 'acao_feita';
   if(ls.some(d=>d.status!=='Pendente')) return 'acao_andamento';
   return 'acao_pendente';
 }
@@ -4010,14 +4255,15 @@ async function pvDemandas(p){
   const host = document.getElementById('pv-dem'); if(!host) return;
   const { data, error } = await sb.from('crm_demandas').select('*').eq('pessoa_id', p.id).order('created_at',{ascending:false});
   if(error){ host.innerHTML = '<div class="ql">Demandas do cliente</div><div class="om-err">Erro ao carregar: '+escapeHtml(error.message)+'</div>'; return; }
-  const rows = data || [], abertas = rows.filter(d=>d.status!=='Concluída').length;
+  const rows = data || [], abertas = rows.filter(d=>!['Concluída','Venda fechada','Não virou venda'].includes(d.status)).length;
   OP.dem.set(p.id, rows.map(d=>({id:d.id, pessoa_id:d.pessoa_id, status:d.status, prazo:d.prazo, created_at:d.created_at, produto:d.produto, acao:d.acao})));
   const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
   host.innerHTML = `<div class="ql">Demandas do cliente <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— ações e pedidos desta pessoa, com o andamento de cada um · ${abertas} em aberto</small></div>
-    ${rows.length?`<div style="overflow-x:auto"><table class="ca-table" style="min-width:760px"><thead><tr><th>Produto</th><th>Ação</th><th>O que foi pedido</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td>${escapeHtml(d.descricao||'—')}</td><td><select data-dm-st="${d.id}" style="border:1px solid ${DEM_COR[d.status]||'var(--border)'};color:${DEM_COR[d.status]||'inherit'};border-radius:6px;padding:3px 6px;font-weight:600">${opt(DEM_STATUS,d.status)}</select></td><td>${d.prazo?fmtDate(d.prazo):'—'}</td><td>${escapeHtml(d.responsavel||'—')}</td><td><a href="#" data-dm-del="${d.id}" title="Excluir demanda" style="color:var(--red)">${ICO.trash}</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="hint">Nenhuma demanda registrada ainda. Registre o contato do mês ou um pedido do cliente.</div>'}
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="om-save" id="dm-new">＋ Nova demanda</button><button type="button" class="om-cancel" id="dm-contato" title="Registra, já concluído, o contato de acompanhamento deste cliente neste mês">✔ Contato de acompanhamento feito</button></div>`;
+    ${rows.length?`<div style="overflow-x:auto"><table class="ca-table" style="min-width:760px"><thead><tr><th>Produto</th><th>Ação</th><th>O que foi pedido</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td>${escapeHtml(d.descricao||'—')}</td><td><select data-dm-st="${d.id}" style="border:1px solid ${DEM_COR[d.status]||'var(--border)'};color:${DEM_COR[d.status]||'inherit'};border-radius:6px;padding:3px 6px;font-weight:600">${opt(DEM_STATUS,d.status)}</select></td><td>${d.prazo?fmtDate(d.prazo):'—'}</td><td>${escapeHtml(d.responsavel||'—')}</td><td style="white-space:nowrap">${vdRowBtns(d)}<a href="#" data-dm-del="${d.id}" title="Excluir demanda" style="color:var(--red)">${ICO.trash}</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="hint">Nenhuma demanda registrada ainda. Registre o contato do mês ou um pedido do cliente.</div>'}
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="om-save" id="dm-new">＋ Nova demanda</button><button type="button" class="om-cancel" id="dm-contato" title="Registra, já concluído, o contato de acompanhamento deste cliente neste mês">✔ Contato de acompanhamento feito</button><span style="flex:1"></span><button type="button" class="om-save" id="vd-cli-v" title="Registra uma venda deste cliente na aba Vendas">Virou venda</button><button type="button" class="om-cancel" id="vd-cli-n" title="Registra que a venda deste cliente não aconteceu, com o motivo">Não virou venda</button></div>`;
   host.querySelectorAll('[data-dm-st]').forEach(sel=>sel.addEventListener('change', async ()=>{
     const st = sel.value;
+    if(st==='Venda fechada' || st==='Não virou venda'){ const dd = rows.find(x=>x.id===sel.dataset.dmSt); if(dd){ if(st==='Venda fechada') vdVirouVendaDem(dd, p); else vdNaoVirouDem(dd, p); return; } }
     const { error: e2 } = await sb.from('crm_demandas').update({status:st, concluida_em: st==='Concluída'?new Date().toISOString():null, updated_at:new Date().toISOString()}).eq('id', sel.dataset.dmSt);
     if(e2){ showToast('Erro: '+e2.message); return; } showToast('Status atualizado'); pvDemandas(p); }));
   host.querySelectorAll('[data-dm-del]').forEach(a=>a.addEventListener('click', async ev=>{ ev.preventDefault();
@@ -4028,6 +4274,10 @@ async function pvDemandas(p){
     const { error: e2 } = await sb.from('crm_demandas').insert({pessoa_id:p.id, produto:'Geral', acao:'Contato de acompanhamento', descricao:null, status:'Concluída', concluida_em:new Date().toISOString(), responsavel:curUserName()||null, criado_por:curUserName()||null});
     if(e2){ showToast('Erro: '+e2.message); return; } showToast('Contato de acompanhamento registrado'); pvDemandas(p); });
   host.querySelector('#dm-new').addEventListener('click', ()=>demDialog(p));
+  host.querySelectorAll('[data-vd-v]').forEach(b=>b.addEventListener('click', ()=>{ const dd = rows.find(x=>x.id===b.dataset.vdV); if(dd) vdVirouVendaDem(dd, p); }));
+  host.querySelectorAll('[data-vd-n]').forEach(b=>b.addEventListener('click', ()=>{ const dd = rows.find(x=>x.id===b.dataset.vdN); if(dd) vdNaoVirouDem(dd, p); }));
+  host.querySelector('#vd-cli-v').addEventListener('click', ()=>vdVendaPessoa(p));
+  host.querySelector('#vd-cli-n').addEventListener('click', ()=>vdNaoVendaPessoa(p));
 }
 function demDialog(p){
   const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
@@ -4035,7 +4285,7 @@ function demDialog(p){
     <div class="dlg-body"><div class="fgrid">
       <label class="fl"><span>Produto</span><select id="dm-prod">${opt(DEM_PRODUTOS,'Seguro de Vida')}</select></label>
       <label class="fl"><span>Ação</span><select id="dm-acao">${opt(DEM_ACOES,'Cotar')}</select></label>
-      <label class="fl"><span>Status</span><select id="dm-st">${opt(DEM_STATUS,'Pendente')}</select></label>
+      <label class="fl"><span>Status</span><select id="dm-st">${opt(DEM_STATUS.slice(0,5),'Pendente')}</select></label>
       <label class="fl"><span>Prazo (opcional)</span><input type="date" id="dm-prazo"></label>
       <label class="fl"><span>Responsável</span><input id="dm-resp" value="${escapeHtml(curUserName()||'')}"></label></div>
       <label class="fl" style="margin-top:8px"><span>O que foi pedido / o que fazer?</span><textarea id="dm-desc" rows="3" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
@@ -7625,7 +7875,7 @@ document.getElementById('who-email').title = 'Clique para trocar o nome exibido'
 document.getElementById('who-email').addEventListener('click', ()=>userNameDialog(false));
 
 // ---- backup ----
-const BACKUP_TABLES = ['crm_demandas','crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
+const BACKUP_TABLES = ['crm_demandas','crm_vendas','crm_nao_vendas','crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
 async function backupNow(){
   const btn = document.getElementById('btn-backup'); btn.disabled = true; const out = {exportado_em:new Date().toISOString(), tabelas:{}};
   try{
@@ -7885,6 +8135,19 @@ checkSession();
 
   .cal-evt.teams{ background:#5059c9; }
   .cal-evt.teams::before{ content:'T '; font-weight:800; opacity:.8; }
+
+  /* ---- Vendas e demandas ---- */
+  .vd-cnt{ display:inline-block; min-width:18px; padding:0 6px; border-radius:999px; background:var(--border); color:var(--ink-soft); font-size:11px; font-weight:700; text-align:center; margin-left:4px; }
+  .pv-tab.on .vd-cnt{ background:rgba(255,255,255,.22); color:#fff; }
+  .vd-bar{ display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:10px; }
+  .vd-bar input, .vd-bar select{ border:1px solid var(--border); border-radius:8px; padding:7px 9px; font-size:13px; background:var(--surface); }
+  .vd-chips{ display:flex; gap:8px; flex-wrap:wrap; }
+  .vd-chip{ border:1px solid var(--border); border-radius:999px; padding:4px 11px; font-size:12px; background:var(--surface); color:var(--ink-soft); }
+  .vd-chip b{ color:inherit; } .vd-chip.ok{ border-color:#0f7a53; color:#0f7a53; } .vd-chip.warn{ border-color:#c8790b; color:#8a5406; background:#fbeed9; }
+  .vd-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+  .vd-btn{ padding:4px 10px !important; font-size:12px !important; }
+  table.vd-edit input, table.vd-edit select, table.vd-edit textarea{ width:100%; min-width:90px; border:1px solid var(--border); border-radius:6px; padding:5px 7px; font:inherit; font-size:12.5px; background:#fff; }
+  table.vd-edit textarea{ min-width:180px; resize:vertical; }
 </style>
 </body>
 </html>
