@@ -354,7 +354,7 @@
 
     <div id="view-vendas" class="view">
       <div class="pg">
-        <div class="pg-head"><h2>Vendas e demandas</h2><span class="sub">Demandas dos clientes, o que virou venda e o que não virou, com relatório em PDF.</span></div>
+        <div class="pg-head"><h2>Prospecção e vendas</h2><span class="sub">Contatos feitos, demandas, o que virou venda e o que não virou, com relatório em PDF.</span></div>
         <div id="vd-body"><div class="op-more">Carregando...</div></div>
       </div>
     </div>
@@ -1243,7 +1243,7 @@ async function renderParametros(){
 
 // ============ VENDAS E DEMANDAS ============
 // Demandas de todos os clientes, "Virou venda" / "Não virou venda", aba Vendas realizadas e Vendas não realizadas com relatório em PDF.
-const VD = { tab:'dem', dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, timers:{} };
+const VD = { tab:'pro', pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, timers:{} };
 const VD_MOTIVOS = ['Preço','Escolheu outra corretora ou seguradora','Desistiu / sem interesse','Sem retorno do cliente','Não aprovado pela seguradora','Adiou a decisão','Outro'];
 const VD_ENC = ['Concluída','Venda fechada','Não virou venda'];
 const vdM = v => 'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1253,12 +1253,13 @@ const vdPer = f => (f.de||f.ate) ? ('Período: '+(f.de?vdD(f.de):'início')+' a 
 const vdMsg = t => { const e = document.getElementById('vd-msg'); if(e) e.textContent = t; };
 async function vdLoad(force){
   if(VD.ok && !force) return;
-  const [d, v, n] = await Promise.all([
+  const [d, v, n, pr] = await Promise.all([
     sb.from('crm_demandas').select('*, crm_pessoas(nome)').order('created_at',{ascending:false}).limit(3000),
     sb.from('crm_vendas').select('*').order('data_venda',{ascending:false}).order('created_at',{ascending:false}).limit(3000),
-    sb.from('crm_nao_vendas').select('*').order('data_registro',{ascending:false}).order('created_at',{ascending:false}).limit(3000) ]);
-  const err = d.error || v.error || n.error; if(err) throw err;
-  VD.dem = d.data||[]; VD.vend = v.data||[]; VD.nao = n.data||[]; VD.ok = true;
+    sb.from('crm_nao_vendas').select('*').order('data_registro',{ascending:false}).order('created_at',{ascending:false}).limit(3000),
+    sb.from('crm_prospeccao').select('*').order('contato_em',{ascending:false}).limit(5000) ]);
+  const err = d.error || v.error || n.error || pr.error; if(err) throw err;
+  VD.dem = d.data||[]; VD.vend = v.data||[]; VD.nao = n.data||[]; VD.pro = pr.data||[]; VD.ok = true;
 }
 async function renderVendas(force){
   const host = document.getElementById('vd-body'); if(!host) return;
@@ -1269,12 +1270,116 @@ async function renderVendas(force){
 function vdDraw(){
   const host = document.getElementById('vd-body'); if(!host) return;
   const ab = VD.dem.filter(d=>!VD_ENC.includes(d.status)).length;
-  const tabs = [['dem','Demandas',ab],['vend','Vendas realizadas',VD.vend.length],['nao','Vendas não realizadas',VD.nao.length]];
+  const tabs = [['pro','Prospecção',VD.pro.length],['dem','Demandas',ab],['vend','Vendas realizadas',VD.vend.length],['nao','Vendas não realizadas',VD.nao.length]];
   const sc = host.querySelector('.vd-wrap'); const y = sc ? sc.scrollLeft : 0;
   host.innerHTML = `<div class="pv-tabs" id="vd-tabs" style="margin:6px 0 12px">${tabs.map(([k,l,n])=>`<button class="pv-tab${VD.tab===k?' on':''}" data-vt="${k}">${l} <span class="vd-cnt">${n}</span></button>`).join('')}</div>`
-    + (VD.tab==='dem' ? vdDemHtml() : VD.tab==='vend' ? vdVendHtml() : vdNaoHtml());
+    + (VD.tab==='pro' ? vdProHtml() : VD.tab==='dem' ? vdDemHtml() : VD.tab==='vend' ? vdVendHtml() : vdNaoHtml());
   const w = host.querySelector('.vd-wrap'); if(w) w.scrollLeft = y;
   if(VD.foco){ const el = host.querySelector('[data-id="'+VD.foco+'"] input, [data-id="'+VD.foco+'"] textarea'); if(el){ el.focus(); const r = el.closest('tr'); if(r) r.scrollIntoView({block:'center'}); } VD.foco = null; }
+}
+// ---------- layout único dos relatórios (identidade CallMed Proteção Patrimonial, modelo da Amanda) ----------
+const VD_CSS2 = `<style>
+.dk2{ font-family:'Poppins','Inter',Arial,sans-serif; color:#0b1433; }
+.dk2 .dk-p{ padding:0 12mm 20mm; }
+.dk2 .v2h{ margin:0 -12mm 6mm; background:#000a61; height:30mm; display:flex; align-items:center; gap:7mm; padding:0 12mm; }
+.dk2 .v2h img{ height:14mm; width:auto; flex:none; }
+.dk2 .v2h .eb{ font-size:6.6pt; letter-spacing:2.2pt; color:#6fe6d6; font-weight:700; text-transform:uppercase; }
+.dk2 .v2h h1{ margin:1mm 0 0; font-size:20pt; color:#6fe6d6; font-weight:700; line-height:1.15; font-family:'Poppins','Inter',Arial,sans-serif; }
+.dk2 .v2h p{ margin:1mm 0 0; font-size:9.6pt; color:#dfe6ff; }
+.dk2 .v2f{ position:absolute; left:0; right:0; bottom:0; height:13mm; background:#000a61; display:flex; align-items:center; justify-content:space-between; padding:0 12mm; font-size:8.6pt; color:#fff; }
+.dk2 .v2f b{ color:#6fe6d6; font-weight:700; } .dk2 .v2f .pg{ display:flex; align-items:center; gap:4mm; } .dk2 .v2f img{ height:9mm; width:9mm; object-fit:cover; }
+.dk2 .dk-nt{ font-size:8.8pt; line-height:1.45; margin:0 0 2.4mm; } .dk2 .dk-nt b{ font-weight:700; }
+.dk2 table.dk-t{ font-size:8.8pt; } .dk2 table.dk-t th{ font-size:8pt; padding:2.2mm 2.4mm; line-height:1.25; background:#000a61; }
+.dk2 table.dk-t td{ padding:2.2mm 2.4mm; line-height:1.35; font-weight:400; word-break:normal; overflow-wrap:break-word; hyphens:none; }
+.dk2 table.dk-t tr:nth-child(even) td{ background-color:#f6f8fc; }
+.dk2 table.dk-t tr.hl-y td{ background-color:#fdeec4 !important; } .dk2 table.dk-t tr.hl-y td:first-child{ border-left:1.4mm solid #d9a400; }
+.dk2 table.dk-t tr.hl-b td{ background-color:#d9e8fb !important; } .dk2 table.dk-t tr.hl-b td:first-child{ border-left:1.4mm solid #1b5fc7; }
+.dk2 table.dk-t td.nw{ white-space:nowrap; }
+.dk2 .v2c{ display:flex; gap:2.4mm; margin-bottom:4mm; } .dk2 .v2c > div{ flex:1; min-width:0; padding:2.4mm 2.6mm; background:#f4f5f9; border-top:1.2mm solid #000a61; }
+.dk2 .v2c .t{ background:#000a61; color:#fff; border-top-color:#6fe6d6; } .dk2 .v2c small{ display:block; font-size:6.4pt; letter-spacing:.3pt; font-weight:700; color:#4a5270; } .dk2 .v2c .t small{ color:#cfe9ff; }
+.dk2 .v2c b{ display:block; font-size:19pt; line-height:1.15; font-weight:700; } .dk2 .v2c span{ font-size:6.8pt; color:#4a5270; }
+</style>`;
+function vdPage2(title, sub, body){
+  return `<div class="dk-p"><div class="v2h"><img src="assets/logo-branco.png" alt="CallMed Proteção Patrimonial"><div><div class="eb">CallMed Proteção Patrimonial</div><h1>${escapeHtml(title)}</h1>${sub?`<p>${escapeHtml(sub)}</p>`:''}</div></div>${body}@@FOOT@@</div>`;
+}
+function vdWrap2(pages){
+  return F5_CSS + VD_CSS2 + `<div class="dk dk2">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="v2f"><span><b>CallMed Proteção Patrimonial</b></span><span class="pg">${i+1} / ${pages.length}<img src="data:image/jpeg;base64,${F5_LOGO}" alt=""></span></div>`)).join('')}</div>`;
+}
+// ---------- Prospecção ----------
+const VD_ST_PRO = ['Novo','Em contato','Agendou reunião','Retornar','Cotação em andamento','Virou cliente','Sem interesse'];
+const VD_ORIGENS = ['Indicação','Instagram','WhatsApp','Site','CallMed Saúde (médicos)','Carteira de clientes','Evento','Ganhador COPA','Outro'];
+const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Agendou reunião':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Virou cliente':'#0f7a53','Sem interesse':'#8b90a3'};
+const vdHojeIso = ()=> ymd(new Date());
+const vdFechado = x => x.status==='Virou cliente' || x.status==='Sem interesse';
+const vdRetornoTipo = x => { if(vdFechado(x) || !x.retorno_data) return ''; const h = vdHojeIso(); return x.retorno_data < h ? 'atrasado' : x.retorno_data === h ? 'hoje' : ''; };
+const vdDtHora = iso => { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
+const vdHora = h => { const m = String(h||'').trim().match(/^(\d{1,2})[:h.](\d{2})$/); return m ? m[1].padStart(2,'0')+':'+m[2] : ''; };
+const vdLocalInput = iso => { if(!iso) return ''; const d = new Date(iso); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); };
+function vdProList(){
+  const f = VD.fPro, q = vdNorm(f.q), dq = String(f.q||'').replace(/\D/g,'');
+  return VD.pro.filter(x=>{
+    if(f.st==='abertos' && vdFechado(x)) return false;
+    if(f.st && f.st!=='abertos' && x.status!==f.st) return false;
+    if(f.org && (x.origem||'')!==f.org) return false;
+    if(f.por && (x.criado_por||'')!==f.por) return false;
+    const d = String(x.contato_em||'').slice(0,10); if(f.de && d<f.de) return false; if(f.ate && d>f.ate) return false;
+    if(q && !(vdNorm([x.nome,x.telefone,x.origem,x.historico].join(' ')).includes(q) || (dq.length>=3 && String(x.cpf||'').replace(/\D/g,'').includes(dq)))) return false;
+    return true; }).sort((a,b)=> String(b.contato_em).localeCompare(String(a.contato_em)));
+}
+function vdProCards(l){
+  const tot = l.length, c = {}; VD_ST_PRO.forEach(s=>c[s]=0); l.forEach(x=>{ c[x.status] = (c[x.status]||0)+1; });
+  return {tot, c, pct:n=> tot ? Math.round(n/tot*100)+'% do total' : '0% do total'};
+}
+function vdProHtml(){
+  const l = vdProList(), f = VD.fPro, K = vdProCards(l);
+  const atr = l.filter(x=>vdRetornoTipo(x)==='atrasado').length, hoje = l.filter(x=>vdRetornoTipo(x)==='hoje').length, aberto = l.filter(x=>!vdFechado(x)).length;
+  const origens = [...new Set(VD.pro.map(x=>x.origem).filter(Boolean))].sort(), quem = [...new Set(VD.pro.map(x=>x.criado_por).filter(Boolean))].sort();
+  const cards = `<div class="vd-cards"><div class="vd-card tot"><small>CONTATOS FEITOS</small><b>${K.tot}</b></div>${VD_ST_PRO.map(s=>`<div class="vd-card" style="border-top-color:${VD_PRO_COR[s]}"><small>${escapeHtml(s.toUpperCase())}</small><b>${K.c[s]}</b><span>${K.pct(K.c[s])}</span></div>`).join('')}</div>`;
+  const rows = l.map(x=>{ const rt = vdRetornoTipo(x), cls = x.status==='Agendou reunião' ? 'reu' : x.status==='Cotação em andamento' ? 'cot' : rt ? 'ret' : '';
+    return `<tr data-id="${x.id}" class="vd-pro ${cls}"><td><input type="text" data-k="nome" value="${escapeHtml(x.nome||'')}" placeholder="Nome">${x.pessoa_id?`<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>`:''}</td>
+      <td><input type="text" data-k="cpf" value="${escapeHtml(x.cpf||'')}" placeholder="CPF (opcional)" style="min-width:120px"></td>
+      <td><input type="text" data-k="telefone" value="${escapeHtml(x.telefone||'')}" placeholder="Telefone" style="min-width:120px"></td>
+      <td><input type="text" list="vd-org" data-k="origem" value="${escapeHtml(x.origem||'')}" placeholder="Origem"></td>
+      <td><input type="datetime-local" data-k="contato_em" value="${vdLocalInput(x.contato_em)}"></td>
+      <td><input type="date" data-k="retorno_data" value="${escapeHtml(x.retorno_data||'')}"><input type="time" data-k="retorno_hora" value="${escapeHtml(x.retorno_hora||'')}" style="margin-top:3px">${rt?`<div class="vd-ret ${rt}">${rt==='atrasado'?'atrasado':'hoje'}</div>`:''}</td>
+      <td><select data-k="status" style="color:${VD_PRO_COR[x.status]||'inherit'};font-weight:600">${VD_ST_PRO.map(s=>`<option${s===x.status?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></td>
+      <td><textarea rows="3" data-k="historico" placeholder="Histórico do contato">${escapeHtml(x.historico||'')}</textarea></td>
+      <td style="font-size:11px;color:var(--ink-faint);white-space:nowrap">${escapeHtml(x.criado_por||'—')}</td>
+      <td><button class="om-cancel vd-btn" data-act="del-p" data-id="${x.id}" style="color:var(--red)">Excluir</button></td></tr>`; }).join('');
+  return `${cards}
+    <div class="vd-chips" style="margin:10px 0"><span class="vd-chip ${atr?'warn':''}">Retornos atrasados: <b>${atr}</b></span><span class="vd-chip ${hoje?'warn':''}">Retornos para hoje: <b>${hoje}</b></span><span class="vd-chip">Em aberto: <b>${aberto}</b></span></div>
+    <div class="vd-bar"><label class="fl"><span>Mostrar</span><select id="vd-p-st"><option value="">Todos</option><option value="abertos"${f.st==='abertos'?' selected':''}>Em aberto</option>${VD_ST_PRO.map(s=>`<option${f.st===s?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
+      <label class="fl"><span>Origem</span><select id="vd-p-org"><option value="">Todas</option>${origens.map(o=>`<option${f.org===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label>
+      <label class="fl"><span>Quem registrou</span><select id="vd-p-por"><option value="">Todos</option>${quem.map(o=>`<option${f.por===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label>
+      <label class="fl"><span>Contato · de</span><input type="date" id="vd-p-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-p-ate" value="${escapeHtml(f.ate)}"></label>
+      <label class="fl" style="flex:1;min-width:180px"><span>Buscar</span><input id="vd-p-q" value="${escapeHtml(f.q)}" placeholder="nome, CPF, telefone, histórico"></label></div>
+    <div class="vd-bar"><button class="om-save" data-act="nova-p">＋ Novo contato</button><span style="flex:1"></span><button class="om-save" data-act="pdf-p">Baixar PDF com os números</button></div>
+    <datalist id="vd-org">${VD_ORIGENS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
+    <div class="hint" style="margin:6px 0">${l.length} contato(s) na lista, do mais recente para o mais antigo. Reunião agendada em amarelo, cotação em andamento em azul, retorno de hoje ou atrasado em laranja. Tudo é salvo ao sair do campo. <span id="vd-msg"></span></div>
+    <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1250px"><thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Origem</th><th>Contato</th><th>Retorno</th><th>Status</th><th>Histórico do contato</th><th>Por</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="10" style="color:var(--ink-faint)">Nenhum contato registrado nesta visão. Use “Novo contato”.</td></tr>'}</tbody></table></div>`;
+}
+async function vdProPdf(){
+  const l = vdProList(), K = vdProCards(l), esc = escapeHtml, hoje = new Date().toLocaleDateString('pt-BR');
+  const atr = l.filter(x=>vdRetornoTipo(x)==='atrasado').length, hj = l.filter(x=>vdRetornoTipo(x)==='hoje').length, aberto = l.filter(x=>!vdFechado(x)).length;
+  const reu = K.c['Agendou reunião'], cot = K.c['Cotação em andamento'];
+  const org = vdTxtSoma(vdSoma(l, x=>x.origem||'Sem origem', ()=>1), false);
+  const cards = `<div class="v2c">${[['CONTATOS FEITOS',K.tot,'',true]].concat(VD_ST_PRO.map(s=>[s.toUpperCase(),K.c[s],K.pct(K.c[s]),false,VD_PRO_COR[s]])).map(c=>`<div${c[3]?' class="t"':` style="border-top-color:${c[4]}"`}><small style="font-size:${String(c[0]).length>14?'5.2':'6.4'}pt">${esc(c[0])}</small><b>${c[1]}</b>${c[2]?`<span>${c[2]}</span>`:''}</div>`).join('')}</div>`;
+  const resumo = cards
+    + `<p class="dk-nt" style="color:#0b1433"><b>Retornos atrasados: ${atr} · Retornos para hoje: ${hj} · Em aberto (sem fechar nem descartar): ${aberto}</b></p>`
+    + (reu?`<p class="dk-nt" style="color:#0f7a53"><b>Reuniões agendadas: ${reu} (linhas em destaque amarelo na lista abaixo)</b></p>`:'')
+    + (cot?`<p class="dk-nt" style="color:#1b5fc7"><b>Cotações em andamento: ${cot} (linhas em destaque azul na lista abaixo)</b></p>`:'')
+    + `<p class="dk-nt">Por origem do contato: ${org}</p>`;
+  const head = ['Nome','CPF','Telefone','Origem','Contato','Retorno','Status','Histórico do contato'], W = [14,10,11,7.5,8.5,9,9,31];
+  const tr = x=>{ const rt = vdRetornoTipo(x), reuU = x.status==='Agendou reunião', cotU = x.status==='Cotação em andamento';
+    const hl = reuU?'hl-y':cotU?'hl-b':'';
+    const stTxt = reuU?'<b style="color:#0f7a53">REUNIÃO AGENDADA</b>':cotU?'<b style="color:#1b5fc7">COTAÇÃO EM ANDAMENTO</b>':esc(x.status);
+    const ret = x.retorno_data ? vdD(x.retorno_data)+(vdHora(x.retorno_hora)?' '+vdHora(x.retorno_hora):'')+(rt?` <b style="color:${rt==='atrasado'?'#c8450b':'#0b1433'}">(${rt})</b>`:'') : '—';
+    return `<tr class="${hl}"><td>${esc(x.nome||'—')}</td><td class="nw">${esc(x.cpf||'—')}</td><td class="nw">${esc(x.telefone||'—')}</td><td>${esc(x.origem||'—')}</td><td>${esc(vdDtHora(x.contato_em))}</td><td>${ret}</td><td>${stTxt}</td><td>${esc(x.historico||'')}</td></tr>`; };
+  const cost = x=> 4.2 + 3.8*Math.max(f5Lines(x.historico,33), f5Lines(x.nome,13), f5Lines(x.telefone,11), 2);
+  const parts = l.length ? f5Chunk(l, cost, 70, 128, 14) : [[]];
+  const pages = parts.map((chunk,i)=> vdPage2('Relatório de prospecção', 'Contatos realizados e situação de cada um · emitido em '+hoje,
+    (i===0?resumo:'')+`<table class="dk-t"><colgroup>${W.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${chunk.length?chunk.map(tr).join(''):`<tr><td colspan="8">Nenhum contato na visão atual.</td></tr>`}</tbody></table>`));
+  try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(vdWrap2(pages), 'Prospeccao_'+ymd(new Date())+'.pdf'); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
 }
 // ---------- Demandas ----------
 function vdDemList(){
@@ -1405,10 +1510,10 @@ async function vdExcluir(tabela, id){
 async function vdPdf(titulo, sub, resumo, head, linhas, nomeArq){
   const esc = escapeHtml;
   const tr = r => '<tr>'+r.map(c=>`<td${c.r?' class="r"':''}>${c.b?'<b>':''}${esc(c.t==null?'—':c.t)}${c.b?'</b>':''}</td>`).join('')+'</tr>';
-  const cost = r => 3.4 + 3.1*Math.max(...r.map((c,i)=> f5Lines(c.t, [10,22,16,16,12,34,12][i]||18)));
-  const parts = linhas.length ? f5Chunk(linhas, cost, 118, 140, 16) : [[]];
-  const pages = parts.map((chunk,i)=> f5Page(titulo, sub, (i===0?resumo:'')+`<table class="dk-t dk-f2"><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${chunk.length?chunk.map(tr).join(''):`<tr><td colspan="${head.length}">Nenhum registro no período.</td></tr>`}</tbody></table>`, ['EMITIDO EM', new Date().toLocaleDateString('pt-BR')]));
-  const html = f5Wrap(pages);
+  const cost = r => 4.2 + 3.8*Math.max(...r.map((c,i)=> f5Lines(c.t, [9,20,14,14,11,30,11][i]||16)));
+  const parts = linhas.length ? f5Chunk(linhas, cost, 100, 128, 16) : [[]];
+  const pages = parts.map((chunk,i)=> vdPage2(titulo, sub, (i===0?resumo:'')+`<table class="dk-t dk-f2"><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${chunk.length?chunk.map(tr).join(''):`<tr><td colspan="${head.length}">Nenhum registro no período.</td></tr>`}</tbody></table>`, ['EMITIDO EM', new Date().toLocaleDateString('pt-BR')]));
+  const html = vdWrap2(pages);
   try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(html, nomeArq); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
 }
 function vdSoma(l, fn, val){ const m = {}; l.forEach(x=>{ const k = (fn(x)||'—').toString().trim()||'—'; m[k] = (m[k]||0)+val(x); }); return m; }
@@ -1448,6 +1553,9 @@ async function vdPdfDemandas(){
     else if(a==='virou'){ const d = VD.dem.find(x=>x.id===id); if(d) vdVirouVendaDem(d); }
     else if(a==='nao'){ const d = VD.dem.find(x=>x.id===id); if(d) vdNaoVirouDem(d); }
     else if(a==='ir-vend'){ VD.tab = 'vend'; vdDraw(); } else if(a==='ir-nao'){ VD.tab = 'nao'; vdDraw(); }
+    else if(a==='nova-p'){ const { data, error } = await sb.from('crm_prospeccao').insert({ nome:'', status:'Novo', contato_em:new Date().toISOString(), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.pro.unshift(data); VD.foco = data.id; vdDraw(); }
+    else if(a==='del-p'){ if(!confirm('Excluir este contato da prospecção?')) return; const { error } = await sb.from('crm_prospeccao').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; } VD.pro = VD.pro.filter(x=>x.id!==id); vdDraw(); }
+    else if(a==='pdf-p') vdProPdf();
     else if(a==='pdf-dem') vdPdfDemandas(); else if(a==='pdf-v') vdPdfVendas(); else if(a==='pdf-n') vdPdfNao();
     else if(a==='limpar-v'){ VD.fV = {de:'',ate:''}; vdDraw(); } else if(a==='limpar-n'){ VD.fN = {de:'',ate:''}; vdDraw(); }
     else if(a==='nova-v'){ const { data, error } = await sb.from('crm_vendas').insert({ cliente:'', data_venda:ymd(new Date()), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.vend.unshift(data); VD.foco = data.id; vdDraw(); }
@@ -1458,6 +1566,8 @@ async function vdPdfDemandas(){
   host.addEventListener('change', async e=>{
     const t = e.target;
     if(t.id==='vd-f-st'){ VD.fDem.st = t.value; vdDraw(); return; }
+    const pf = {'vd-p-st':'st','vd-p-org':'org','vd-p-por':'por','vd-p-de':'de','vd-p-ate':'ate'}[t.id];
+    if(pf){ VD.fPro[pf] = t.value; vdDraw(); return; }
     if(t.id==='vd-v-de' || t.id==='vd-v-ate'){ VD.fV[t.id==='vd-v-de'?'de':'ate'] = t.value; vdDraw(); return; }
     if(t.id==='vd-n-de' || t.id==='vd-n-ate'){ VD.fN[t.id==='vd-n-de'?'de':'ate'] = t.value; vdDraw(); return; }
     if(t.dataset.act==='dst'){
@@ -1468,13 +1578,26 @@ async function vdPdfDemandas(){
       if(error){ showToast('Erro: '+error.message); vdDraw(); return; } d.status = st; showToast('Status atualizado'); vdDraw(); return;
     }
     const tr = t.closest('tr[data-id]'); const k = t.dataset.k; if(!tr || !k) return;
+    if(VD.tab==='pro'){
+      const r = VD.pro.find(x=>x.id===tr.dataset.id); if(!r) return;
+      let v = t.value;
+      if(k==='contato_em'){ if(!v) return; v = new Date(v).toISOString(); }
+      else if(k==='retorno_data') v = v || null;
+      else if(k==='retorno_hora'){ v = v ? vdHora(v) : null; }
+      else if(k==='cpf' || k==='telefone' || k==='origem' || k==='nome' || k==='historico') v = v.trim()===''?null:v;
+      r[k] = v; if(k==='nome' && v==null) r.nome = '';
+      vdSalvarCampo('crm_prospeccao', r.id, k, k==='nome'&&v==null ? '' : v);
+      if(k==='status' || k==='retorno_data'){ vdDraw(); }
+      return;
+    }
     const vend = VD.tab==='vend', arr = vend ? VD.vend : VD.nao, r = arr.find(x=>x.id===tr.dataset.id); if(!r) return;
     let v = t.value; if(k==='premio') v = v===''?null:Number(v); if(k==='data_venda' || k==='data_registro'){ if(!v) return; }
     r[k] = v; vdSalvarCampo(vend?'crm_vendas':'crm_nao_vendas', r.id, k, v);
     if(vend && k==='premio'){ const el = document.getElementById('vd-tot'); if(el) el.innerHTML = vdVendTot(vdVendList()); }
     if(!vend && k==='motivo'){ const el = document.getElementById('vd-tot'); if(el) el.innerHTML = vdNaoTot(vdNaoList()); }
   });
-  host.addEventListener('input', e=>{ if(e.target.id==='vd-f-q'){ VD.fDem.q = e.target.value; clearTimeout(VD.timers.q); VD.timers.q = setTimeout(()=>{ const pos = e.target.selectionStart; vdDraw(); const el = document.getElementById('vd-f-q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(x){} } }, 250); } });
+  host.addEventListener('input', e=>{ if(e.target.id==='vd-p-q'){ VD.fPro.q = e.target.value; clearTimeout(VD.timers.pq); VD.timers.pq = setTimeout(()=>{ const pos = e.target.selectionStart; vdDraw(); const el = document.getElementById('vd-p-q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(x){} } }, 250); return; }
+    if(e.target.id==='vd-f-q'){ VD.fDem.q = e.target.value; clearTimeout(VD.timers.q); VD.timers.q = setTimeout(()=>{ const pos = e.target.selectionStart; vdDraw(); const el = document.getElementById('vd-f-q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(x){} } }, 250); } });
 })();
 
 document.querySelectorAll('#com-tabs [data-ct]').forEach(t=>t.addEventListener('click', ()=>{
@@ -2236,7 +2359,9 @@ function f5Deck(m, X, opt){
       const cap = rows.reduce((a,x)=>a+(Number(x.cap)||0),0), prem = rows.reduce((a,x)=>a+(Number(x.prem)||0),0); const lab = x=>x.tipo==='Vitalícia'?'Vitalício':dtBR(x.vig); const labs = [...new Set(rows.map(lab))];
       const vig = labs.length===1 ? labs[0] : [...new Set(rows.map(x=>x.tipo==='Vitalícia'?'Vitalício':(x.vig||'').slice(0,4)))].filter(Boolean).sort().join(' e '); return {cap, prem, vig, rows}; };
     const melAuto = (r,a)=>{ const out = []; if(a && (Number(r.cap)||0) > a.cap*1.02) out.push('Capital maior (antes '+fm(a.cap)+').'); if(a && a.rows.every(x=>x.tipo==='Temporária') && /vital/i.test(r.prazo||'')) out.push('Passa a ser vitalícia (antes, produto temporário).'); return out.join(' '); };
-    const capN = sumCap(l), premN = sumPrem(l), capH = X.apol.reduce((a,r)=>a+(Number(r.cap)||0),0), premH = X.apol.reduce((a,r)=>a+(Number(r.prem)||0),0);
+    const subPage = (l, titulo, subt, scoped)=>{
+    const apolH = scoped ? X.apol.filter(r=>l.some(x=>x.cat===r.cat)) : X.apol;
+    const capN = sumCap(l), premN = sumPrem(l), capH = apolH.reduce((a,r)=>a+(Number(r.cap)||0),0), premH = apolH.reduce((a,r)=>a+(Number(r.prem)||0),0);
     const dc = capN-capH, dp = premN-premH, pc = capH?dc/capH*100:0, pp = premH?dp/premH*100:0, sg = v=>v<0?'–':'+';
     const up = ANL_CATS.filter(k=>l.some(r=>r.cat===k) && l.filter(r=>r.cat===k).reduce((a,r)=>a+(Number(r.cap)||0),0) > X.apol.filter(r=>r.cat===k).reduce((a,r)=>a+(Number(r.cap)||0),0)*1.02).map(k=>k.toLowerCase().replace('diária de internação hospitalar','diária').replace('assistência funeral','funeral'));
     const yrs = [...new Set(l.map(r=>(/(\d{4})/.exec(r.prazo||'')||[])[1]).filter(Boolean))].sort(), vit = l.filter(r=>/vital/i.test(r.prazo||'')).length;
@@ -2244,7 +2369,7 @@ function f5Deck(m, X, opt){
     const msgs = [['Mais capital segurado', up.length?'Capitais ampliados em '+list(up.slice(0,3))+(up.length>3?' e mais':'')+'.':'Capitais mantidos ou ajustados.'],['Mais tempo de proteção',(vit?'Coberturas vitalícias':'Coberturas')+(yrs.length?(vit?' ou estendidas':' estendidas')+' até '+list(yrs)+'.':'.')],
       Math.abs(pp)<=15?['Pouca diferença, mais proteção','Investimento próximo ao atual, com proteção bem maior.']:pp>0?['Mais proteção','Investimento '+pp.toFixed(0)+'% acima do atual, com proteção ampliada.']:['Mais proteção, menos investimento','Investimento '+Math.abs(pp).toFixed(0)+'% abaixo do atual.']];
     let anyMulti = false;
-    page('Proposta de substituição de apólices','Novas seguradoras · todas as melhorias em relação ao que você possui hoje',
+    page(titulo, subt,
       `<div class="dk-sec"><span>A nova proteção sugerida</span><small style="color:#4a5270">Cada linha mostra o valor novo e, em cinza, o que você possui hoje</small></div>
        <table class="dk-t"><thead><tr><th>COBERTURA</th><th>SEGURADORA</th><th class="r">CAPITAL SEGURADO</th><th class="r">PRÊMIO MENSAL</th><th class="r">VIGÊNCIA</th><th>MELHORIAS</th></tr></thead><tbody>
        ${l.map(r=>{ const a = antes(r); if(a && a.rows.length>1) anyMulti = true; const vv = t=>{ t = String(t||'').trim(); return /^x+$/i.test(t)?'':t; }; const mel = vv(r.motivo)||melAuto(r,a)||'', desc = vv(r.nota), det = vv(r.sub); const d = a?(Number(r.prem)||0)-a.prem:0;
@@ -2252,6 +2377,11 @@ function f5Deck(m, X, opt){
        <tr class="tot"><td colspan="2">Total</td><td class="r">${fm(capN)}<div style="font-size:6.2pt;color:#4a5270;font-weight:400">antes: ${fm(capH)}</div></td><td class="r">${fm(premN)}<div style="font-size:6.2pt;color:#4a5270;font-weight:400">antes: ${fm(premH)}</div></td><td colspan="2" style="font-weight:400;font-size:7.4pt">Capital segurado ${sg(dc)}${fm(Math.abs(dc))} (${sg(pc)}${Math.abs(pc).toFixed(0)}%) · prêmio mensal ${sg(dp)}${fm(Math.abs(dp))} (${sg(pp)}${Math.abs(pp).toFixed(1)}%)</td></tr></tbody></table>
        ${anyMulti?'<p style="font-size:6.4pt;color:#4a5270;margin:1mm 0">Nas coberturas unificadas, o valor "antes" é a soma das apólices atuais que passam a ser uma só. Os totais somam todas as coberturas, incluindo a diária hospitalar.</p>':''}
        <div class="dk-fin"><div><small>CAPITAL SEGURADO TOTAL</small><b>${fm(capN)}</b><i>hoje ${fm(capH)} · ${sg(pc)}${Math.abs(pc).toFixed(0)}%</i></div><div><small>PRÊMIO MENSAL TOTAL</small><b>${fm(premN)}</b><i>hoje ${fm(premH)} · ${sg(pp)}${Math.abs(pp).toFixed(1)}%</i></div>${msgs.map(x=>`<div class="g"><b>${esc(x[0])}</b><i>${esc(x[1])}</i></div>`).join('')}</div>`);
+    };
+    const segKey = r=>String(r.seg||'').trim().toLowerCase();
+    const segsSub = []; l.forEach(r=>{ const k = segKey(r); if(!segsSub.some(x=>x[0]===k)) segsSub.push([k, String(r.seg||'').trim()]); });
+    if(segsSub.length>1) segsSub.forEach(([k,nome])=> subPage(l.filter(r=>segKey(r)===k), nome ? 'Atual x Cotação da '+nome : 'Atual x Cotação (seguradora não informada)', 'O que você possui hoje comparado com o que a '+(nome||'cotação')+' oferece', true));
+    else subPage(l, 'Proposta de substituição de apólices', 'Novas seguradoras · todas as melhorias em relação ao que você possui hoje', false);
     // 3 · quem vai proteger
     const segs = [...new Set(l.map(r=>r.seg).filter(s=>F5_SEGS[s]))];
     page('Quem vai proteger você',(segs.length?segs.join(' e ')+' · ':'')+'marcos importantes em resumo',
@@ -2404,6 +2534,13 @@ async function pvFase4(p){
       r = ok[0].x; if(!r.motivo) r.motivo = 'Melhor custo-benefício entre '+ok.length+' cotações (R$ '+ok[0].c.toFixed(2).replace('.',',')+' de prêmio por R$ 1.000 de capital)'; }
     r.s1 = true; if(F4_MIN.includes(cat)) r.s2 = true; }); };
   const autoSubst = ()=>{ if(!apol.length) return; rows.forEach(r=>{ if(r.subst) return; const ix = apol.map((a,i)=>a.cat===r.cat?i+1:0).filter(Boolean); if(ix.length) r.subst = ix.join(','); }); };
+  // agrupamento por seguradora (maiúsculas/minúsculas contam como a mesma; sem nome fica em "Sem seguradora"). Só aparece com 2 ou mais seguradoras.
+  const f4SegKey = r=>String(r.seg||'').trim().toLowerCase();
+  const f4Grupos = ()=>{ const m = new Map(); rows.forEach((r,i)=>{ const k = f4SegKey(r); if(!m.has(k)) m.set(k,{k, nome:String(r.seg||'').trim()||'Sem seguradora', idx:[]}); m.get(k).idx.push(i); }); return [...m.values()]; };
+  const f4BandTxt = (g,n)=>{ const pr = g.idx.reduce((t,i)=>t+(Number(rows[i].prem)||0),0); return 'Cotação '+(n+1)+' · '+g.nome+' · '+g.idx.length+' cobertura(s) · prêmio mensal somado '+fm(pr); };
+  const f4Group = htmls=>{ const gs = f4Grupos(); if(gs.length<2) return htmls.join('');
+    return gs.map((g,n)=>`<tr class="f4-band" data-n="${n}"><td colspan="15">${escapeHtml(f4BandTxt(g,n))}</td></tr>`+g.idx.map(i=>htmls[i]).join('')).join(''); };
+  const f4Bandas = ()=>{ f4Grupos().forEach((g,n)=>{ const el = host.querySelector('tr.f4-band[data-n="'+n+'"] td'); if(el) el.textContent = f4BandTxt(g,n); }); };
   let tmr = null;
   const persist = async ()=>{ const { error } = await sb.from('crm_cotacoes_estudo').upsert({pessoa_id:p.id, linhas:rows, sol_sub:solSub, atualizado_por:curUserName(), atualizado_em:new Date().toISOString()}, {onConflict:'pessoa_id'}); if(error) showToast('Erro ao salvar cotações: '+error.message); };
   const saveSoon = ()=>{ clearTimeout(tmr); tmr = setTimeout(persist, 700); };
@@ -2418,7 +2555,7 @@ async function pvFase4(p){
     rows = ord; rows.forEach((r,i)=>{ r.ord = i+1; }); persist();
     if(host.isConnected) draw(); if(forca===true) showToast('Coberturas organizadas pela numeração.'); return true; };
   FLOW.f4org = ()=>{ if(host.isConnected) organizar(); };
-  const summary = ()=>{ const e = document.getElementById('f4-sum'); if(!e) return;
+  const summary = ()=>{ f4Bandas(); const e = document.getElementById('f4-sum'); if(!e) return;
     const a = sel(1), b = sel(2), hp = apol.length>0, h = sumPrem(apol), hc = sumCap(apol);
     const diff = v=> hp ? `<div class="hint">${v>=h?'+':'−'}${fm(Math.abs(v-h))} por mês em relação ao que paga hoje</div>` : '';
     const orc = pr=> investir>0 ? `<div class="hint">${pr<=investir?'Cabe no valor que o cliente pode investir ('+f0(investir)+'/mês)':'Acima do que o cliente pode investir ('+f0(investir)+'/mês) em '+fm(pr-investir)}</div>` : '';
@@ -2438,10 +2575,10 @@ async function pvFase4(p){
       ${avisos.length?`<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-bottom:8px"><b>Pontos de atenção</b><ul style="margin:4px 0 0 18px">${avisos.map(a=>`<li>${escapeHtml(a)}</li>`).join('')}</ul></div>`:''}
       <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-cancel" id="f4-org">↕ Organizar pela numeração</button><span class="hint" style="margin:0">Digite a posição de cada cobertura em <b>#</b> (é a ordem em que saem na apresentação) e tecle Enter ou clique aqui.</span></div>
       <div style="overflow-x:auto"><table class="f4-t" style="min-width:1500px;border-collapse:collapse"><thead><tr><th style="width:56px">#</th><th style="min-width:170px;text-align:left">Categoria</th><th style="width:110px">Seguradora</th><th style="min-width:170px">Cobertura (nome na proposta)</th><th style="width:130px">Detalhe do produto</th><th style="width:110px">Capital</th><th style="width:100px">Prêmio mensal</th><th style="width:100px">Prazo</th><th style="width:80px">UTI (R$/dia)</th><th style="min-width:180px">Descrição para o cliente</th><th style="min-width:160px">Melhoria / motivo</th><th style="width:50px">Sol. 1</th><th style="width:50px">Sol. 2</th><th style="width:90px">Substitui (# Fase 2)</th><th style="width:34px"></th></tr></thead><tbody>
-      ${rows.length?rows.map((r,i)=>`<tr data-i="${i}"><td><input type="number" min="1" step="1" data-f="ord" title="Posição na apresentação. Digite e tecle Enter (ou clique em Organizar pela numeração)" style="text-align:center" value="${Number(r.ord)>0?Number(r.ord):i+1}"></td><td><select data-f="cat">${ANL_CATS.map(c=>`<option ${c===r.cat?'selected':''}>${c}</option>`).join('')}</select></td><td><input type="text" data-f="seg" value="${escapeHtml(r.seg||'')}"></td><td><input type="text" data-f="cob" value="${escapeHtml(r.cob||'')}"></td><td><input type="text" data-f="sub" value="${escapeHtml(r.sub||'')}"></td>
+      ${rows.length?f4Group(rows.map((r,i)=>`<tr data-i="${i}"><td><input type="number" min="1" step="1" data-f="ord" title="Posição na apresentação. Digite e tecle Enter (ou clique em Organizar pela numeração)" style="text-align:center" value="${Number(r.ord)>0?Number(r.ord):i+1}"></td><td><select data-f="cat">${ANL_CATS.map(c=>`<option ${c===r.cat?'selected':''}>${c}</option>`).join('')}</select></td><td><input type="text" data-f="seg" value="${escapeHtml(r.seg||'')}"></td><td><input type="text" data-f="cob" value="${escapeHtml(r.cob||'')}"></td><td><input type="text" data-f="sub" value="${escapeHtml(r.sub||'')}"></td>
         <td><input type="number" step="0.01" data-f="cap" class="${r.cap===''?'unread':''}" value="${r.cap}"></td><td><input type="number" step="0.01" data-f="prem" class="${r.prem===''?'unread':''}" value="${r.prem}"></td><td><input type="text" data-f="prazo" value="${escapeHtml(r.prazo||'')}"></td><td><input type="number" step="0.01" data-f="uti" value="${r.uti===''||r.uti==null?'':r.uti}"></td>
         <td><input type="text" data-f="nota" value="${escapeHtml(r.nota||'')}"></td><td><input type="text" data-f="motivo" value="${escapeHtml(r.motivo||'')}"></td><td style="text-align:center"><input type="checkbox" data-f="s1" ${r.s1?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-f="s2" ${r.s2?'checked':''}></td>
-        <td><input type="text" data-f="subst" placeholder="ex.: 2,3" value="${escapeHtml(r.subst||'')}"></td><td><button type="button" class="om-cancel icon-btn" data-del="${i}" title="Remover">×</button></td></tr>`).join(''):'<tr><td colspan="15" style="color:var(--ink-faint)">Nenhuma cotação ainda. Use "Nova cotação" acima.</td></tr>'}
+        <td><input type="text" data-f="subst" placeholder="ex.: 2,3" value="${escapeHtml(r.subst||'')}"></td><td><button type="button" class="om-cancel icon-btn" data-del="${i}" title="Remover">×</button></td></tr>`)):'<tr><td colspan="15" style="color:var(--ink-faint)">Nenhuma cotação ainda. Use "Nova cotação" acima.</td></tr>'}
       </tbody></table></div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><button class="om-cancel" id="f4-add">＋ Adicionar linha</button><button class="om-cancel" id="f4-clear" style="color:var(--red)">Limpar cotações</button><button class="om-save" id="f4-salvar">Salvar informações</button><button class="om-cancel" id="f4-prox">Ir para a Fase 6 · Apresentação</button>
         ${apol.length?`<label class="fl" style="min-width:260px"><span>Solução usada na proposta de substituição</span><select id="f4-sol"><option value="1" ${solSub===1?'selected':''}>Solução 1</option><option value="2" ${solSub===2?'selected':''}>Solução 2</option></select></label>`:''}</div>
@@ -2453,6 +2590,7 @@ async function pvFase4(p){
       tr.querySelectorAll('[data-f]').forEach(el=>el.addEventListener(el.tagName==='SELECT'||el.type==='checkbox'?'change':'input', ()=>{
         const f = el.dataset.f; let v = el.type==='checkbox' ? el.checked : el.value; if(['cap','prem','uti','ord'].includes(f)) v = v===''?'':Number(v);
         rows[i][f] = v; if(f==='ord') lastEd = rows[i]; if(f==='cap'||f==='prem') el.classList.toggle('unread', v===''); summary(); saveSoon(); })); });
+    host.querySelectorAll('input[data-f="seg"]').forEach(el=>el.addEventListener('change', ()=>{ const mudou = f4Grupos().length>1 || new Set(rows.map(f4SegKey)).size>1; if(mudou) draw(); }));
     host.querySelectorAll('input[data-f="ord"]').forEach(el=>el.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); clearTimeout(tmr); organizar(true); } }));
     host.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{ rows.splice(+b.dataset.del,1); persist(); draw(); }));
     host.querySelector('#f4-add').addEventListener('click', ()=>{ rows.push(f4Blank()); persist(); draw(); });
@@ -7875,7 +8013,7 @@ document.getElementById('who-email').title = 'Clique para trocar o nome exibido'
 document.getElementById('who-email').addEventListener('click', ()=>userNameDialog(false));
 
 // ---- backup ----
-const BACKUP_TABLES = ['crm_demandas','crm_vendas','crm_nao_vendas','crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
+const BACKUP_TABLES = ['crm_demandas','crm_vendas','crm_nao_vendas','crm_prospeccao','crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
 async function backupNow(){
   const btn = document.getElementById('btn-backup'); btn.disabled = true; const out = {exportado_em:new Date().toISOString(), tabelas:{}};
   try{
@@ -8148,6 +8286,18 @@ checkSession();
   .vd-btn{ padding:4px 10px !important; font-size:12px !important; }
   table.vd-edit input, table.vd-edit select, table.vd-edit textarea{ width:100%; min-width:90px; border:1px solid var(--border); border-radius:6px; padding:5px 7px; font:inherit; font-size:12.5px; background:#fff; }
   table.vd-edit textarea{ min-width:180px; resize:vertical; }
+
+  .f4-t tr.f4-band td{ background:#eceef5; color:#00125e; font-weight:700; padding:7px 10px; text-align:left; border-top:2px solid #00125e; }
+
+  /* ---- Prospecção ---- */
+  .vd-cards{ display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }
+  .vd-card{ background:var(--surface); border:1px solid var(--border); border-top:4px solid var(--navy); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:2px; }
+  .vd-card small{ font-size:10px; letter-spacing:.04em; color:var(--ink-soft); font-weight:600; } .vd-card b{ font-size:24px; font-family:'Poppins',sans-serif; color:var(--navy-deep); line-height:1.1; } .vd-card span{ font-size:11px; color:var(--ink-faint); }
+  .vd-card.tot{ background:var(--navy); border-top-color:var(--teal); } .vd-card.tot small{ color:#cfe9ff; } .vd-card.tot b{ color:#fff; }
+  table.vd-edit tr.vd-pro.reu td{ background:#fdf3d2; } table.vd-edit tr.vd-pro.reu td:first-child{ box-shadow:inset 4px 0 0 #d9a400; }
+  table.vd-edit tr.vd-pro.cot td{ background:#e3eefc; } table.vd-edit tr.vd-pro.cot td:first-child{ box-shadow:inset 4px 0 0 #1b5fc7; }
+  table.vd-edit tr.vd-pro.ret td{ background:#fff3e8; }
+  .vd-ret{ font-size:11px; font-weight:700; margin-top:2px; } .vd-ret.atrasado{ color:#c8450b; } .vd-ret.hoje{ color:#8a5406; }
 </style>
 </body>
 </html>
