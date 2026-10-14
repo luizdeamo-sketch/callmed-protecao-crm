@@ -1265,6 +1265,7 @@ async function vdLoad(force){
   const err = d.error || v.error || n.error || pr.error || ac.error; if(err) throw err;
   VD.dem = d.data||[]; VD.vend = v.data||[]; VD.nao = n.data||[]; VD.pro = pr.data||[]; VD.acoes = ac.data||[];
   try{ await vdCliBuild(an.data||[], ct.data||[], es.data||[]); }catch(e){ VD.cli = []; }
+  try{ await ensurePessoas(); }catch(e){}
   VD.ok = true;
 }
 async function renderVendas(force){
@@ -1339,13 +1340,31 @@ function vdProCards(l){
   const tot = l.length, c = {}; VD_ST_PRO.forEach(s=>c[s]=0); l.forEach(x=>{ c[x.status] = (c[x.status]||0)+1; });
   return {tot, c, pct:n=> tot ? Math.round(n/tot*100)+'% do total' : '0% do total'};
 }
+const vdBaseList = ()=>`<datalist id="vd-cli">${(OP.pessoas||[]).slice(0,8000).map(x=>`<option value="${escapeHtml(x.nome||'')}">${escapeHtml(x.cpf||'')}</option>`).join('')}</datalist>`;
+const vdPessoaDe = pid => (OP.pessoas||[]).find(x=>x.id===pid);
+const vdAbrirLink = x => x.pessoa_id ? `<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>${(vdPessoaDe(x.pessoa_id)||{}).cpf?` <small style="color:var(--ink-faint)">CPF ${escapeHtml(vdPessoaDe(x.pessoa_id).cpf)}</small>`:''}` : (String(x.nome||x.cliente||'').trim() ? `<small style="color:var(--ink-faint)">sem cadastro ligado</small>` : '');
+// ao digitar nome/CPF/telefone, procura na base de contatos e liga a linha ao cadastro (CPF ou nome idêntico liga direto; parecido pergunta)
+async function vdTentaLigar(tabela, r, nome, cpf, tel){
+  if(!r || r.pessoa_id || r._lig) return;
+  const nm = String(nome||'').trim(); if(!nm && !String(cpf||'').trim()) return;
+  let f = []; try{ await ensurePessoas(); f = await findPessoas({cpf, nome:nm, telefone:tel}); }catch(e){ return; }
+  const forte = f.find(isStrong); let alvo = forte || null;
+  if(!alvo && f.length && normNome(nm).length>=2){
+    const c = f[0]; if(confirm('Achei no cadastro: '+c.nome+(c.cpf?' ('+c.cpf+')':'')+'. É a mesma pessoa? Ligar esta linha ao cadastro?')) alvo = c; else r._lig = true;
+  }
+  if(!alvo) return;
+  const upd = { pessoa_id: alvo.id, updated_at:new Date().toISOString() };
+  if(tabela==='crm_prospeccao'){ if(!String(r.cpf||'').trim() && alvo.cpf){ upd.cpf = alvo.cpf; r.cpf = alvo.cpf; } if(!String(r.telefone||'').trim() && alvo.telefone){ upd.telefone = alvo.telefone; r.telefone = alvo.telefone; } }
+  const { error } = await sb.from(tabela).update(upd).eq('id', r.id); if(error){ showToast('Erro ao ligar ao cadastro: '+error.message); return; }
+  r.pessoa_id = alvo.id; showToast('Ligado ao cadastro de '+alvo.nome); vdDraw();
+}
 function vdProHtml(){
   const l = vdProList(), f = VD.fPro, K = vdProCards(l);
   const atr = l.filter(x=>vdRetornoTipo(x)==='atrasado').length, hoje = l.filter(x=>vdRetornoTipo(x)==='hoje').length, aberto = l.filter(x=>!vdFechado(x)).length;
   const origens = [...new Set(VD.pro.map(x=>x.origem).filter(Boolean))].sort(), quem = [...new Set(VD.pro.map(x=>x.criado_por).filter(Boolean))].sort();
   const cards = `<div class="vd-cards"><div class="vd-card tot"><small>CONTATOS FEITOS</small><b>${K.tot}</b></div>${VD_ST_PRO.map(s=>`<div class="vd-card" style="border-top-color:${VD_PRO_COR[s]}"><small>${escapeHtml(s.toUpperCase())}</small><b>${K.c[s]}</b><span>${K.pct(K.c[s])}</span></div>`).join('')}</div>`;
   const rows = l.map(x=>{ const rt = vdRetornoTipo(x), cls = x.status==='Agendou reunião' ? 'reu' : x.status==='Cotação em andamento' ? 'cot' : rt ? 'ret' : '';
-    return `<tr data-id="${x.id}" class="vd-pro ${cls}"><td><input type="text" data-k="nome" value="${escapeHtml(x.nome||'')}" placeholder="Nome">${x.pessoa_id?`<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>`:''}</td>
+    return `<tr data-id="${x.id}" class="vd-pro ${cls}"><td><input type="text" list="vd-cli" data-k="nome" value="${escapeHtml(x.nome||'')}" placeholder="Nome">${vdAbrirLink(x)}</td>
       <td><input type="text" data-k="cpf" value="${escapeHtml(x.cpf||'')}" placeholder="CPF (opcional)" style="min-width:120px"></td>
       <td><input type="text" data-k="telefone" value="${escapeHtml(x.telefone||'')}" placeholder="Telefone" style="min-width:120px"></td>
       <td><input type="text" list="vd-org" data-k="origem" value="${escapeHtml(x.origem||'')}" placeholder="Origem"></td>
@@ -1363,7 +1382,7 @@ function vdProHtml(){
       <label class="fl"><span>Contato · de</span><input type="date" id="vd-p-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-p-ate" value="${escapeHtml(f.ate)}"></label>
       <label class="fl" style="flex:1;min-width:180px"><span>Buscar</span><input id="vd-p-q" value="${escapeHtml(f.q)}" placeholder="nome, CPF, telefone, histórico"></label></div>
     <div class="vd-bar"><button class="om-save" data-act="nova-p">＋ Novo contato</button><span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-p">Baixar PDF com os números</button></div>
-    <datalist id="vd-org">${VD_ORIGENS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
+    <datalist id="vd-org">${VD_ORIGENS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>${vdBaseList()}
     <div class="hint" style="margin:6px 0">${l.length} contato(s) na lista, do mais recente para o mais antigo. Reunião agendada em amarelo, cotação em andamento em azul, retorno de hoje ou atrasado em laranja. Tudo é salvo ao sair do campo. <span id="vd-msg"></span></div>
     <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1250px"><thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Origem</th><th>Contato</th><th>Retorno</th><th>Status</th><th>Histórico do contato</th><th>Por</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="10" style="color:var(--ink-faint)">Nenhum contato registrado nesta visão. Use “Novo contato”.</td></tr>'}</tbody></table></div>`;
 }
@@ -1473,7 +1492,7 @@ function vdVendTot(l){ const t = l.reduce((a,x)=>a+(Number(x.premio)||0),0), sem
 function vdVendHtml(){
   const l = vdVendList(), f = VD.fV;
   const rows = l.map(x=>`<tr data-id="${x.id}"><td><input type="date" data-k="data_venda" value="${escapeHtml(x.data_venda||'')}"></td>
-      <td><input type="text" data-k="cliente" value="${escapeHtml(x.cliente||'')}" aria-label="Cliente">${x.pessoa_id?`<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>`:''}</td>
+      <td><input type="text" list="vd-cli" data-k="cliente" value="${escapeHtml(x.cliente||'')}" aria-label="Cliente">${vdAbrirLink(x)}</td>
       <td><input type="text" list="vd-prod" data-k="produto" value="${escapeHtml(x.produto||'')}" placeholder="Produto"></td>
       <td><input type="text" data-k="seguradora" value="${escapeHtml(x.seguradora||'')}" placeholder="Seguradora"></td>
       <td><input type="number" step="0.01" min="0" data-k="premio" value="${x.premio==null?'':x.premio}" placeholder="0,00" style="text-align:right"></td>
@@ -1482,7 +1501,7 @@ function vdVendHtml(){
   return `<div class="vd-bar"><label class="fl"><span>Data da venda · de</span><input type="date" id="vd-v-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-v-ate" value="${escapeHtml(f.ate)}"></label>
       ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-v">Limpar período</button>':''}<span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-v">Gerar relatório (PDF)</button></div>
     <div class="vd-chips" id="vd-tot">${vdVendTot(l)}</div>
-    <datalist id="vd-prod">${DEM_PRODUTOS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
+    <datalist id="vd-prod">${DEM_PRODUTOS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>${vdBaseList()}
     <div class="hint" style="margin:6px 0">Em Demandas ou no cadastro do cliente, clique em “Virou venda” e o cliente vem para cá. Preencha o produto e o prêmio. Tudo é salvo ao sair de cada campo. <span id="vd-msg"></span></div>
     <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1000px"><thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Seguradora</th><th>Prêmio (R$)</th><th>Observações</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="color:var(--ink-faint)">Nenhuma venda neste período. Use “Virou venda” nas Demandas ou no cadastro do cliente.</td></tr>'}</tbody></table></div>
     <div style="margin-top:10px"><button class="om-cancel" data-act="nova-v">＋ Adicionar venda manualmente</button></div>`;
@@ -1494,7 +1513,7 @@ function vdNaoTot(l){ const m = {}; l.forEach(x=>{ const k = x.motivo||'Sem moti
 function vdNaoHtml(){
   const l = vdNaoList(), f = VD.fN;
   const rows = l.map(x=>`<tr data-id="${x.id}"><td><input type="date" data-k="data_registro" value="${escapeHtml(x.data_registro||'')}"></td>
-      <td><input type="text" data-k="cliente" value="${escapeHtml(x.cliente||'')}" aria-label="Cliente">${x.pessoa_id?`<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>`:''}</td>
+      <td><input type="text" list="vd-cli" data-k="cliente" value="${escapeHtml(x.cliente||'')}" aria-label="Cliente">${vdAbrirLink(x)}</td>
       <td><input type="text" list="vd-prod" data-k="produto" value="${escapeHtml(x.produto||'')}" placeholder="Produto"></td>
       <td><input type="text" data-k="seguradora" value="${escapeHtml(x.seguradora||'')}" placeholder="Seguradora"></td>
       <td><select data-k="motivo"><option value="">Escolha o motivo</option>${VD_MOTIVOS.map(m=>`<option${x.motivo===m?' selected':''}>${escapeHtml(m)}</option>`).join('')}</select></td>
@@ -1503,7 +1522,7 @@ function vdNaoHtml(){
   return `<div class="vd-bar"><label class="fl"><span>Data · de</span><input type="date" id="vd-n-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-n-ate" value="${escapeHtml(f.ate)}"></label>
       ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-n">Limpar período</button>':''}<span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-n">Gerar relatório (PDF)</button></div>
     <div class="vd-chips" id="vd-tot">${vdNaoTot(l)}</div>
-    <datalist id="vd-prod">${DEM_PRODUTOS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
+    <datalist id="vd-prod">${DEM_PRODUTOS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>${vdBaseList()}
     <div class="hint" style="margin:6px 0">Em Demandas ou no cadastro, “Não virou venda” traz o cliente para cá. Escolha o motivo e escreva a justificativa. <span id="vd-msg"></span></div>
     <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1000px"><thead><tr><th>Data</th><th>Cliente</th><th>Produto</th><th>Seguradora</th><th>Motivo</th><th>Justificativa</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="7" style="color:var(--ink-faint)">Nenhum registro neste período.</td></tr>'}</tbody></table></div>
     <div style="margin-top:10px"><button class="om-cancel" data-act="nova-n">＋ Adicionar registro manualmente</button></div>`;
@@ -1675,12 +1694,14 @@ async function vdPdfDemandas(){
       else if(k==='cpf' || k==='telefone' || k==='origem' || k==='nome' || k==='historico') v = v.trim()===''?null:v;
       r[k] = v; if(k==='nome' && v==null) r.nome = '';
       vdSalvarCampo('crm_prospeccao', r.id, k, k==='nome'&&v==null ? '' : v);
+      if(k==='nome' || k==='cpf' || k==='telefone') vdTentaLigar('crm_prospeccao', r, r.nome, r.cpf, r.telefone);
       if(k==='status' || k==='retorno_data'){ vdDraw(); }
       return;
     }
     const vend = VD.tab==='vend', arr = vend ? VD.vend : VD.nao, r = arr.find(x=>x.id===tr.dataset.id); if(!r) return;
     let v = t.value; if(k==='premio') v = v===''?null:Number(v); if(k==='data_venda' || k==='data_registro'){ if(!v) return; }
     r[k] = v; vdSalvarCampo(vend?'crm_vendas':'crm_nao_vendas', r.id, k, v);
+    if(k==='cliente') vdTentaLigar(vend?'crm_vendas':'crm_nao_vendas', r, r.cliente, '', '');
     if(vend && k==='premio'){ const el = document.getElementById('vd-tot'); if(el) el.innerHTML = vdVendTot(vdVendList()); }
     if(!vend && k==='motivo'){ const el = document.getElementById('vd-tot'); if(el) el.innerHTML = vdNaoTot(vdNaoList()); }
   });
@@ -2115,6 +2136,12 @@ async function pvTimeline(p){
   const q = (t,c)=>sb.from(t).select(c).eq('pessoa_id',p.id);
   const [ativ, fun, est, apo, doc, inter, trans, notasL] = await Promise.all([q('crm_atividades','*'), q('crm_funil','etapa,data_inicio,data_combinada,observacao,created_at'), q('crm_estudos','seguradora_atual,tipo_seguro,created_at'), q('crm_apolices','seguradora,tipo_seguro,data_emissao,origem_apolice,vinculo_comercial,created_at'), q('crm_documentos','nome_arquivo,categoria,created_at'), q('crm_interacoes','*'), q('crm_transcricoes','*'), q('crm_lead_notas','texto,autor,created_at')]);
   const ev = [];
+  try{
+    const [prs, vds, nvs] = await Promise.all([q('crm_prospeccao','nome,origem,contato_em,status,historico,created_at'), q('crm_vendas','data_venda,produto,seguradora,premio,created_at'), q('crm_nao_vendas','data_registro,produto,motivo,justificativa,created_at')]);
+    (prs.data||[]).forEach(r=>ev.push({d:r.contato_em||r.created_at, i:ICO.phone||ICO.note, t:`<b>Prospecção</b> — ${escapeHtml(r.status||'')}${r.origem?' · origem: '+escapeHtml(r.origem):''}${r.historico?'<br>'+escapeHtml(r.historico).replace(/\n/g,'<br>'):''}`}));
+    (vds.data||[]).forEach(r=>ev.push({d:r.data_venda||r.created_at, i:ICO.doc, t:`<b>Venda realizada</b> — ${escapeHtml(r.produto||'')} ${escapeHtml(r.seguradora||'')}${Number(r.premio)>0?' · prêmio '+vdM(Number(r.premio)):''}`}));
+    (nvs.data||[]).forEach(r=>ev.push({d:r.data_registro||r.created_at, i:ICO.note, t:`<b>Não virou venda</b> — ${escapeHtml(r.produto||'')}${r.motivo?' · '+escapeHtml(r.motivo):''}${r.justificativa?'<br>'+escapeHtml(r.justificativa):''}`}));
+  }catch(e){}
   if(p.created_at) ev.push({d:p.created_at, i:ICO.plus, t:'Cadastro criado no CRM'});
   (notasL.data||[]).forEach(n=>ev.push({d:n.created_at, i:ICO.note, t:`<b>Anotação sobre o lead</b><br>${escapeHtml(n.texto).replace(/\n/g,'<br>')}`, who:n.autor}));
   const relQ = await Promise.all(['crm_indicacoes','crm_eventos_vida','crm_pos_venda','crm_relacionamento'].map(async tb=>{ const blk = BLOCKS.find(b=>b.table===tb); const { data } = await sb.from(tb).select('*').eq(blk.pk||'pessoa_id', p.id); return {blk, rows:data||[]}; }));
