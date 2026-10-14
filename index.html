@@ -1318,6 +1318,8 @@ function vdWrap2(pages){
 // ---------- Prospecção ----------
 const VD_ST_PRO = ['Novo','Em contato','Respondeu','Agendou reunião','Desmarcou reunião','Reunião realizada','Retornar','Cotação em andamento','Apresentei cotação','Virou cliente','Sem interesse'];
 const VD_ORIGENS = ['Indicação','Instagram','WhatsApp','Site','CallMed Saúde (médicos)','Carteira de clientes','Evento','Ganhador COPA','Outro'];
+const VD_ST_ORIG = ['Novo','Em contato','Agendou reunião','Retornar','Cotação em andamento','Virou cliente','Sem interesse'];
+const vdStVis = c => VD_ST_PRO.filter(s=>VD_ST_ORIG.includes(s) || (c[s]||0)>0);
 const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Respondeu':'#0b7a8a','Agendou reunião':'#0f7a53','Desmarcou reunião':'#c8790b','Reunião realizada':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Apresentei cotação':'#6a3fc4','Virou cliente':'#0f7a53','Sem interesse':'#8b90a3'};
 const vdHojeIso = ()=> ymd(new Date());
 const vdFechado = x => x.status==='Virou cliente' || x.status==='Sem interesse';
@@ -1399,7 +1401,7 @@ function vdProHtml(){
   const l = vdProList(), f = VD.fPro, K = vdProCards(l);
   const atr = l.filter(x=>vdRetornoTipo(x)==='atrasado').length, hoje = l.filter(x=>vdRetornoTipo(x)==='hoje').length, aberto = l.filter(x=>!vdFechado(x)).length;
   const origens = [...new Set(VD.pro.map(x=>x.origem).filter(Boolean))].sort(), quem = [...new Set(VD.pro.map(x=>x.criado_por).filter(Boolean))].sort();
-  const cards = `<div class="vd-cards"><div class="vd-card tot"><small>CONTATOS FEITOS</small><b>${K.tot}</b></div>${VD_ST_PRO.map(s=>`<div class="vd-card" style="border-top-color:${VD_PRO_COR[s]}"><small>${escapeHtml(s.toUpperCase())}</small><b>${K.c[s]}</b><span>${K.pct(K.c[s])}</span></div>`).join('')}</div>`;
+  const cards = `<div class="vd-cards"><div class="vd-card tot"><small>CONTATOS FEITOS</small><b>${K.tot}</b></div>${vdStVis(K.c).map(s=>`<div class="vd-card" style="border-top-color:${VD_PRO_COR[s]}"><small>${escapeHtml(s.toUpperCase())}</small><b>${K.c[s]}</b><span>${K.pct(K.c[s])}</span></div>`).join('')}</div>`;
   const rows = l.map(x=>{ const rt = vdRetornoTipo(x), cls = x.status==='Agendou reunião' ? 'reu' : x.status==='Cotação em andamento' ? 'cot' : rt ? 'ret' : '';
     return `<tr data-id="${x.id}" class="vd-pro ${cls}"><td><input type="text" list="vd-cli" data-k="nome" value="${escapeHtml(x.nome||'')}" placeholder="Nome">${vdAbrirLink(x)}</td>
       <td><input type="text" data-k="cpf" value="${escapeHtml(x.cpf||'')}" placeholder="CPF (opcional)" style="min-width:120px"></td>
@@ -1430,16 +1432,18 @@ async function vdProPdf(){
   const atr = l.filter(x=>vdRetornoTipo(x)==='atrasado').length, hj = l.filter(x=>vdRetornoTipo(x)==='hoje').length, aberto = l.filter(x=>!vdFechado(x)).length;
   const reu = K.c['Agendou reunião'], cot = K.c['Cotação em andamento'];
   const org = vdTxtSoma(vdSoma(l, x=>x.origem||'Sem origem', ()=>1), false);
-  const cards = `<div class="v2c">${[['CONTATOS FEITOS',K.tot,'',true]].concat(VD_ST_PRO.map(s=>[s.toUpperCase(),K.c[s],K.pct(K.c[s]),false,VD_PRO_COR[s]])).map(c=>`<div${c[3]?' class="t"':` style="border-top-color:${c[4]}"`}><small style="font-size:${String(c[0]).length>14?'5.2':'6.4'}pt">${esc(c[0])}</small><b>${c[1]}</b>${c[2]?`<span>${c[2]}</span>`:''}</div>`).join('')}</div>`;
+  const cards = `<div class="v2c">${[['CONTATOS FEITOS',K.tot,'',true]].concat(vdStVis(K.c).map(s=>[s.toUpperCase(),K.c[s],K.pct(K.c[s]),false,VD_PRO_COR[s]])).map(c=>`<div${c[3]?' class="t"':` style="border-top-color:${c[4]}"`}><small style="font-size:${String(c[0]).length>14?'5.2':'6.4'}pt">${esc(c[0])}</small><b>${c[1]}</b>${c[2]?`<span>${c[2]}</span>`:''}</div>`).join('')}</div>`;
   const resumo = cards
     + `<p class="dk-nt" style="color:#0b1433"><b>Retornos atrasados: ${atr} · Retornos para hoje: ${hj} · Em aberto (sem fechar nem descartar): ${aberto}</b></p>`
     + (reu?`<p class="dk-nt" style="color:#0f7a53"><b>Reuniões agendadas: ${reu} (linhas em destaque amarelo na lista abaixo)</b></p>`:'')
     + (cot?`<p class="dk-nt" style="color:#1b5fc7"><b>Cotações em andamento: ${cot} (linhas em destaque azul na lista abaixo)</b></p>`:'')
+    + ((K.c['Reunião realizada']||K.c['Desmarcou reunião'])?`<p class="dk-nt" style="color:#0b1433"><b>Reuniões realizadas: ${K.c['Reunião realizada']||0} · Reuniões desmarcadas: ${K.c['Desmarcou reunião']||0}</b></p>`:'')
+    + (K.c['Respondeu']?`<p class="dk-nt" style="color:#0b7a8a"><b>Atendimentos correspondidos (responderam): ${K.c['Respondeu']+K.c['Agendou reunião']+K.c['Reunião realizada']+K.c['Desmarcou reunião']+K.c['Cotação em andamento']+(K.c['Apresentei cotação']||0)+K.c['Virou cliente']+K.c['Sem interesse']} de ${K.tot}</b></p>`:'')
     + `<p class="dk-nt">Por origem do contato: ${org}</p>`;
   const head = ['Nome','CPF','Telefone','Origem','Contato','Retorno','Status','Histórico do contato'], W = [14,10,11,7.5,8.5,9,9,31];
   const tr = x=>{ const rt = vdRetornoTipo(x), reuU = x.status==='Agendou reunião', cotU = x.status==='Cotação em andamento';
     const hl = reuU?'hl-y':cotU?'hl-b':'';
-    const stTxt = reuU?'<b style="color:#0f7a53">REUNIÃO AGENDADA</b>':cotU?'<b style="color:#1b5fc7">COTAÇÃO EM ANDAMENTO</b>':esc(x.status);
+    const stTxt = reuU?'<b style="color:#0f7a53">REUNIÃO AGENDADA</b>':cotU?'<b style="color:#1b5fc7">COTAÇÃO EM ANDAMENTO</b>':x.status==='Desmarcou reunião'?'<b style="color:#c8450b">REUNIÃO DESMARCADA</b>':x.status==='Reunião realizada'?'<b style="color:#0f7a53">REUNIÃO REALIZADA</b>':esc(x.status);
     const ret = x.retorno_data ? vdD(x.retorno_data)+(vdHora(x.retorno_hora)?' '+vdHora(x.retorno_hora):'')+(rt?` <b style="color:${rt==='atrasado'?'#c8450b':'#0b1433'}">(${rt})</b>`:'') : '—';
     return `<tr class="${hl}"><td>${esc(x.nome||'—')}</td><td class="nw">${esc(x.cpf||'—')}</td><td class="nw">${esc(x.telefone||'—')}</td><td>${esc(x.origem||'—')}</td><td>${esc(vdDtHora(x.contato_em))}</td><td>${ret}</td><td>${stTxt}</td><td>${esc(x.historico||'')}</td></tr>`; };
   const cost = x=> 4.2 + 3.8*Math.max(f5Lines(x.historico,33), f5Lines(x.nome,13), f5Lines(x.telefone,11), 2);
