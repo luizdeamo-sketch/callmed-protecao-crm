@@ -3472,9 +3472,11 @@ document.getElementById('agenda-form').addEventListener('submit', async (e)=>{
   if(error){ showToast('Erro: ' + error.message); return; }
   showToast('Compromisso agendado!');
   if(novo && (novo.participantes||[]).length){
-    dlgOpen(`<h3 style="margin:0 0 6px">Enviar convite aos participantes?</h3><div class="hint" style="margin-bottom:10px">Compromisso salvo. Para os participantes receberem o convite (aceitar/recusar e adicionar à própria agenda), envie pelo Outlook / Teams — abre já preenchido com os e-mails; é só clicar em <b>Enviar</b> lá (ative “Reunião do Teams” se for online).<br><b>Participantes:</b> ${escapeHtml(novo.participantes.join(', '))}</div>
+    dlgOpen(`<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px"><h3 style="margin:0 0 6px">Enviar convite aos participantes?</h3><button data-close aria-label="Fechar" style="border:0;background:none;font-size:20px;cursor:pointer;line-height:1">✕</button></div><div class="hint" style="margin-bottom:10px">Compromisso salvo. Para os participantes receberem o convite (aceitar/recusar e adicionar à própria agenda), envie pelo Outlook / Teams — abre já preenchido com os e-mails; é só clicar em <b>Enviar</b> lá (ative “Reunião do Teams” se for online).<br><b>Participantes:</b> ${escapeHtml(novo.participantes.join(', '))}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end"><a class="om-save" style="text-decoration:none" href="${agOutlookUrl(novo)}" target="_blank" rel="noopener">Abrir no Outlook / Teams</a><a class="om-cancel" style="text-decoration:none" href="${agGcalUrl(novo)}" target="_blank" rel="noopener">Google Agenda</a><button class="om-cancel" id="ag-ics">Baixar convite (.ics)</button><button class="om-cancel" data-close>Agora não</button></div>`);
-    document.getElementById('ag-ics').addEventListener('click', ()=> agDownloadIcs(novo));
+    document.getElementById('ag-ics').addEventListener('click', ()=>{ agDownloadIcs(novo); dlgClose(); });
+    // ao abrir o Outlook/Teams ou o Google em outra aba, esta janela se fecha sozinha (evita voltar e encontrá-la aberta)
+    document.querySelectorAll('#dlg .dlg-card a[target="_blank"]').forEach(a=>a.addEventListener('click', ()=> setTimeout(dlgClose, 250)));
   }
   e.target.reset();
   document.getElementById('agenda-pessoa-id').value = '';
@@ -6045,6 +6047,7 @@ function dlgOpen(html, wide){
   let box = document.getElementById('dlg');
   if(!box){ box = document.createElement('div'); box.id = 'dlg'; document.body.appendChild(box);
     box.addEventListener('click', e=>{ if(e.target.id==='dlg' || e.target.closest('[data-close]')) dlgClose(); });
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ const b = document.getElementById('dlg'); if(b && b.style.display!=='none' && b.innerHTML) dlgClose(); } });
     // qualquer diálogo do sistema que mostre um erro/aviso (classe .om-err) rola a tela até ele —
     // sem isso, uma validação que falha com o usuário rolado pra outra parte do formulário longo
     // aparenta "não fazer nada" ao clicar em Salvar (bug real reportado pela Amanda em 23/09).
