@@ -1316,9 +1316,9 @@ function vdWrap2(pages){
   return F5_CSS + VD_CSS2 + `<div class="dk dk2 rep">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="v2f"><span><b>CallMed Proteção Patrimonial</b></span><span class="pg">${i+1} / ${pages.length}<img src="data:image/jpeg;base64,${F5_LOGO}" alt=""></span></div>`)).join('')}</div>`;
 }
 // ---------- Prospecção ----------
-const VD_ST_PRO = ['Novo','Em contato','Respondeu','Agendou reunião','Retornar','Cotação em andamento','Apresentei cotação','Virou cliente','Sem interesse'];
+const VD_ST_PRO = ['Novo','Em contato','Respondeu','Agendou reunião','Desmarcou reunião','Reunião realizada','Retornar','Cotação em andamento','Apresentei cotação','Virou cliente','Sem interesse'];
 const VD_ORIGENS = ['Indicação','Instagram','WhatsApp','Site','CallMed Saúde (médicos)','Carteira de clientes','Evento','Ganhador COPA','Outro'];
-const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Respondeu':'#0b7a8a','Agendou reunião':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Apresentei cotação':'#6a3fc4','Virou cliente':'#0f7a53','Sem interesse':'#8b90a3'};
+const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Respondeu':'#0b7a8a','Agendou reunião':'#0f7a53','Desmarcou reunião':'#c8790b','Reunião realizada':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Apresentei cotação':'#6a3fc4','Virou cliente':'#0f7a53','Sem interesse':'#8b90a3'};
 const vdHojeIso = ()=> ymd(new Date());
 const vdFechado = x => x.status==='Virou cliente' || x.status==='Sem interesse';
 const vdRetornoTipo = x => { if(vdFechado(x) || !x.retorno_data) return ''; const h = vdHojeIso(); return x.retorno_data < h ? 'atrasado' : x.retorno_data === h ? 'hoje' : ''; };
@@ -1358,8 +1358,8 @@ async function vdTentaLigar(tabela, r, nome, cpf, tel){
   const { error } = await sb.from(tabela).update(upd).eq('id', r.id); if(error){ showToast('Erro ao ligar ao cadastro: '+error.message); return; }
   r.pessoa_id = alvo.id; showToast('Ligado ao cadastro de '+alvo.nome); vdDraw();
 }
-const VD_ACAO_ST = {'Novo':'Realizar primeiro contato','Em contato':'Realizar follow-up','Respondeu':'Realizar follow-up','Agendou reunião':'Confirmar reunião','Retornar':'Fazer nova tentativa','Cotação em andamento':'Apresentar proposta','Apresentei cotação':'Realizar follow-up'};
-const VD_RES_ST = {'Novo':'Outro','Em contato':'Conversou','Respondeu':'Conversou','Agendou reunião':'Agendou','Retornar':'Sem resposta','Cotação em andamento':'Enviou material','Apresentei cotação':'Enviou material','Virou cliente':'Demonstrou interesse','Sem interesse':'Sem interesse'};
+const VD_ACAO_ST = {'Novo':'Realizar primeiro contato','Em contato':'Realizar follow-up','Respondeu':'Realizar follow-up','Agendou reunião':'Confirmar reunião','Desmarcou reunião':'Fazer nova tentativa','Reunião realizada':'Preparar proposta','Retornar':'Fazer nova tentativa','Cotação em andamento':'Apresentar proposta','Apresentei cotação':'Realizar follow-up'};
+const VD_RES_ST = {'Novo':'Outro','Em contato':'Conversou','Respondeu':'Conversou','Agendou reunião':'Agendou','Desmarcou reunião':'Outro','Reunião realizada':'Conversou','Retornar':'Sem resposta','Cotação em andamento':'Enviou material','Apresentei cotação':'Enviou material','Virou cliente':'Demonstrou interesse','Sem interesse':'Sem interesse'};
 const vdAcaoPadrao = x => VD_ACAO_ST[x.status] || '';
 // "Registrar": grava o contato no histórico do cliente (atividade + próxima ação) e, se for "Sem interesse", leva para Vendas não realizadas
 async function vdRegistrar(r){
