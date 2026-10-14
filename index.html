@@ -4176,6 +4176,7 @@ async function renderAta(){
     <div class="ata-entry">
       <div class="dt">${fmtDateLong(a.data)}</div>
       <div class="dw">${escapeHtml(a.dia_semana||'')}${a.participantes?(' · '+escapeHtml(a.participantes)):''}</div>
+      ${a.comercial&&a.comercial.kpis?`<div style="margin:10px 0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--brand-soft)"><div class="ql" style="margin-bottom:8px">${escapeHtml(a.comercial.titulo||'Resultado comercial')}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">${a.comercial.kpis.map(k=>`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px"><b style="font-size:20px;display:block">${escapeHtml(String(k.v))}</b><span style="font-size:11.5px;color:var(--ink-faint)">${escapeHtml(k.l)}</span></div>`).join('')}</div>${a.comercial.nota?`<div style="font-size:12px;margin-top:8px;color:var(--ink-soft,inherit)">${escapeHtml(a.comercial.nota)}</div>`:''}</div>`:''}
       <h4 class="done-h4">Entregue &amp; decidido</h4>
       <ul>${(a.entregue||[]).map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul>
       <h4 class="open-h4">Em aberto</h4>
