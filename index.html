@@ -1243,7 +1243,7 @@ async function renderParametros(){
 
 // ============ VENDAS E DEMANDAS ============
 // Demandas de todos os clientes, "Virou venda" / "Não virou venda", aba Vendas realizadas e Vendas não realizadas com relatório em PDF.
-const VD = { tab:'pro', pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, timers:{} };
+const VD = { tab:'pro', acoes:[], cli:[], fCli:{sit:'', st:'', q:'', ord:'rec'}, pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, timers:{} };
 const VD_MOTIVOS = ['Preço','Escolheu outra corretora ou seguradora','Desistiu / sem interesse','Sem retorno do cliente','Não aprovado pela seguradora','Adiou a decisão','Outro'];
 const VD_ENC = ['Concluída','Venda fechada','Não virou venda'];
 const vdM = v => 'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1253,13 +1253,19 @@ const vdPer = f => (f.de||f.ate) ? ('Período: '+(f.de?vdD(f.de):'início')+' a 
 const vdMsg = t => { const e = document.getElementById('vd-msg'); if(e) e.textContent = t; };
 async function vdLoad(force){
   if(VD.ok && !force) return;
-  const [d, v, n, pr] = await Promise.all([
+  const [d, v, n, pr, ac, an, ct, es] = await Promise.all([
     sb.from('crm_demandas').select('*, crm_pessoas(nome)').order('created_at',{ascending:false}).limit(3000),
     sb.from('crm_vendas').select('*').order('data_venda',{ascending:false}).order('created_at',{ascending:false}).limit(3000),
     sb.from('crm_nao_vendas').select('*').order('data_registro',{ascending:false}).order('created_at',{ascending:false}).limit(3000),
-    sb.from('crm_prospeccao').select('*').order('contato_em',{ascending:false}).limit(5000) ]);
-  const err = d.error || v.error || n.error || pr.error; if(err) throw err;
-  VD.dem = d.data||[]; VD.vend = v.data||[]; VD.nao = n.data||[]; VD.pro = pr.data||[]; VD.ok = true;
+    sb.from('crm_prospeccao').select('*').order('contato_em',{ascending:false}).limit(5000),
+    sb.from('crm_acoes').select('*').order('created_at',{ascending:false}).limit(3000),
+    sb.from('crm_analise_apolices').select('*').limit(5000),
+    sb.from('crm_cotacoes_estudo').select('*').limit(5000),
+    sb.from('crm_estudos').select('id,pessoa_id,created_at').limit(5000) ]);
+  const err = d.error || v.error || n.error || pr.error || ac.error; if(err) throw err;
+  VD.dem = d.data||[]; VD.vend = v.data||[]; VD.nao = n.data||[]; VD.pro = pr.data||[]; VD.acoes = ac.data||[];
+  try{ await vdCliBuild(an.data||[], ct.data||[], es.data||[]); }catch(e){ VD.cli = []; }
+  VD.ok = true;
 }
 async function renderVendas(force){
   const host = document.getElementById('vd-body'); if(!host) return;
@@ -1270,17 +1276,17 @@ async function renderVendas(force){
 function vdDraw(){
   const host = document.getElementById('vd-body'); if(!host) return;
   const ab = VD.dem.filter(d=>!VD_ENC.includes(d.status)).length;
-  const tabs = [['pro','Prospecção',VD.pro.length],['dem','Demandas',ab],['vend','Vendas realizadas',VD.vend.length],['nao','Vendas não realizadas',VD.nao.length]];
+  const tabs = [['pro','Prospecção',VD.pro.length],['cli','Clientes trabalhados',VD.cli.length],['dem','Demandas',ab],['vend','Vendas realizadas',VD.vend.length],['nao','Vendas não realizadas',VD.nao.length]];
   const sc = host.querySelector('.vd-wrap'); const y = sc ? sc.scrollLeft : 0;
   host.innerHTML = `<div class="pv-tabs" id="vd-tabs" style="margin:6px 0 12px">${tabs.map(([k,l,n])=>`<button class="pv-tab${VD.tab===k?' on':''}" data-vt="${k}">${l} <span class="vd-cnt">${n}</span></button>`).join('')}</div>`
-    + (VD.tab==='pro' ? vdProHtml() : VD.tab==='dem' ? vdDemHtml() : VD.tab==='vend' ? vdVendHtml() : vdNaoHtml());
+    + (VD.tab==='pro' ? vdProHtml() : VD.tab==='cli' ? vdCliHtml() : VD.tab==='dem' ? vdDemHtml() : VD.tab==='vend' ? vdVendHtml() : vdNaoHtml());
   const w = host.querySelector('.vd-wrap'); if(w) w.scrollLeft = y;
   if(VD.foco){ const el = host.querySelector('[data-id="'+VD.foco+'"] input, [data-id="'+VD.foco+'"] textarea'); if(el){ el.focus(); const r = el.closest('tr'); if(r) r.scrollIntoView({block:'center'}); } VD.foco = null; }
 }
 // ---------- layout único dos relatórios (identidade CallMed Proteção Patrimonial, modelo da Amanda) ----------
 const VD_CSS2 = `<style>
 .dk2{ font-family:'Poppins','Inter',Arial,sans-serif; color:#0b1433; }
-.dk2 .dk-p{ padding:0 12mm 20mm; }
+.dk2 .dk-p{ padding:0 12mm 0; }
 .dk2 .v2h{ margin:0 -12mm 6mm; background:#000a61; height:30mm; display:flex; align-items:center; gap:7mm; padding:0 12mm; }
 .dk2 .v2h img{ height:14mm; width:auto; flex:none; }
 .dk2 .v2h .eb{ font-size:6.6pt; letter-spacing:2.2pt; color:#6fe6d6; font-weight:700; text-transform:uppercase; }
@@ -1288,13 +1294,16 @@ const VD_CSS2 = `<style>
 .dk2 .v2h p{ margin:1mm 0 0; font-size:9.6pt; color:#dfe6ff; }
 .dk2 .v2f{ position:absolute; left:0; right:0; bottom:0; height:13mm; background:#000a61; display:flex; align-items:center; justify-content:space-between; padding:0 12mm; font-size:8.6pt; color:#fff; }
 .dk2 .v2f b{ color:#6fe6d6; font-weight:700; } .dk2 .v2f .pg{ display:flex; align-items:center; gap:4mm; } .dk2 .v2f img{ height:9mm; width:9mm; object-fit:cover; }
-.dk2 .dk-nt{ font-size:8.8pt; line-height:1.45; margin:0 0 2.4mm; } .dk2 .dk-nt b{ font-weight:700; }
-.dk2 table.dk-t{ font-size:8.8pt; } .dk2 table.dk-t th{ font-size:8pt; padding:2.2mm 2.4mm; line-height:1.25; background:#000a61; }
-.dk2 table.dk-t td{ padding:2.2mm 2.4mm; line-height:1.35; font-weight:400; word-break:normal; overflow-wrap:break-word; hyphens:none; }
-.dk2 table.dk-t tr:nth-child(even) td{ background-color:#f6f8fc; }
+.dk2 .dk-nt b{ font-weight:700; } .dk2.rep .dk-nt{ font-size:8.8pt; line-height:1.45; margin:0 0 2.4mm; }
+.dk2.rep table.dk-t{ font-size:8.8pt; } .dk2.rep table.dk-t th{ font-size:8pt; padding:2.2mm 2.4mm; line-height:1.25; background:#000a61; }
+.dk2.rep table.dk-t td{ padding:2.2mm 2.4mm; line-height:1.35; font-weight:400; word-break:normal; overflow-wrap:break-word; hyphens:none; }
+.dk2.rep table.dk-t tr:nth-child(even) td{ background-color:#f6f8fc; }
 .dk2 table.dk-t tr.hl-y td{ background-color:#fdeec4 !important; } .dk2 table.dk-t tr.hl-y td:first-child{ border-left:1.4mm solid #d9a400; }
 .dk2 table.dk-t tr.hl-b td{ background-color:#d9e8fb !important; } .dk2 table.dk-t tr.hl-b td:first-child{ border-left:1.4mm solid #1b5fc7; }
 .dk2 table.dk-t td.nw{ white-space:nowrap; }
+/* decks: negrito só em títulos, cabeçalhos, valores de destaque e totais; nomes e descrições em fonte normal */
+.dk2 table.dk-t td:not(.r) b, .dk2 .dk-it .t b, .dk2 .dk-ev .n, .dk2 .dk-row .r b, .dk2 .dk-tx p b{ font-weight:400; } .dk2 table.dk-t th{ font-weight:700; }
+.dk2 .v2b{ transform-origin:top left; } .dk2 .v2h .rt{ margin-left:auto; text-align:right; color:#aab2d6; } .dk2 .v2h .rt small{ display:block; font-size:6.4pt; font-weight:700; letter-spacing:.4pt; } .dk2 .v2h .rt b{ font-size:13pt; color:#fff; }
 .dk2 .v2c{ display:flex; gap:2.4mm; margin-bottom:4mm; } .dk2 .v2c > div{ flex:1; min-width:0; padding:2.4mm 2.6mm; background:#f4f5f9; border-top:1.2mm solid #000a61; }
 .dk2 .v2c .t{ background:#000a61; color:#fff; border-top-color:#6fe6d6; } .dk2 .v2c small{ display:block; font-size:6.4pt; letter-spacing:.3pt; font-weight:700; color:#4a5270; } .dk2 .v2c .t small{ color:#cfe9ff; }
 .dk2 .v2c b{ display:block; font-size:19pt; line-height:1.15; font-weight:700; } .dk2 .v2c span{ font-size:6.8pt; color:#4a5270; }
@@ -1303,7 +1312,7 @@ function vdPage2(title, sub, body){
   return `<div class="dk-p"><div class="v2h"><img src="assets/logo-branco.png" alt="CallMed Proteção Patrimonial"><div><div class="eb">CallMed Proteção Patrimonial</div><h1>${escapeHtml(title)}</h1>${sub?`<p>${escapeHtml(sub)}</p>`:''}</div></div>${body}@@FOOT@@</div>`;
 }
 function vdWrap2(pages){
-  return F5_CSS + VD_CSS2 + `<div class="dk dk2">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="v2f"><span><b>CallMed Proteção Patrimonial</b></span><span class="pg">${i+1} / ${pages.length}<img src="data:image/jpeg;base64,${F5_LOGO}" alt=""></span></div>`)).join('')}</div>`;
+  return F5_CSS + VD_CSS2 + `<div class="dk dk2 rep">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="v2f"><span><b>CallMed Proteção Patrimonial</b></span><span class="pg">${i+1} / ${pages.length}<img src="data:image/jpeg;base64,${F5_LOGO}" alt=""></span></div>`)).join('')}</div>`;
 }
 // ---------- Prospecção ----------
 const VD_ST_PRO = ['Novo','Em contato','Agendou reunião','Retornar','Cotação em andamento','Virou cliente','Sem interesse'];
@@ -1353,7 +1362,7 @@ function vdProHtml(){
       <label class="fl"><span>Quem registrou</span><select id="vd-p-por"><option value="">Todos</option>${quem.map(o=>`<option${f.por===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label>
       <label class="fl"><span>Contato · de</span><input type="date" id="vd-p-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-p-ate" value="${escapeHtml(f.ate)}"></label>
       <label class="fl" style="flex:1;min-width:180px"><span>Buscar</span><input id="vd-p-q" value="${escapeHtml(f.q)}" placeholder="nome, CPF, telefone, histórico"></label></div>
-    <div class="vd-bar"><button class="om-save" data-act="nova-p">＋ Novo contato</button><span style="flex:1"></span><button class="om-save" data-act="pdf-p">Baixar PDF com os números</button></div>
+    <div class="vd-bar"><button class="om-save" data-act="nova-p">＋ Novo contato</button><span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-p">Baixar PDF com os números</button></div>
     <datalist id="vd-org">${VD_ORIGENS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
     <div class="hint" style="margin:6px 0">${l.length} contato(s) na lista, do mais recente para o mais antigo. Reunião agendada em amarelo, cotação em andamento em azul, retorno de hoje ou atrasado em laranja. Tudo é salvo ao sair do campo. <span id="vd-msg"></span></div>
     <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1250px"><thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Origem</th><th>Contato</th><th>Retorno</th><th>Status</th><th>Histórico do contato</th><th>Por</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="10" style="color:var(--ink-faint)">Nenhum contato registrado nesta visão. Use “Novo contato”.</td></tr>'}</tbody></table></div>`;
@@ -1379,7 +1388,7 @@ async function vdProPdf(){
   const parts = l.length ? f5Chunk(l, cost, 70, 128, 14) : [[]];
   const pages = parts.map((chunk,i)=> vdPage2('Relatório de prospecção', 'Contatos realizados e situação de cada um · emitido em '+hoje,
     (i===0?resumo:'')+`<table class="dk-t"><colgroup>${W.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${chunk.length?chunk.map(tr).join(''):`<tr><td colspan="8">Nenhum contato na visão atual.</td></tr>`}</tbody></table>`));
-  try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(vdWrap2(pages), 'Prospeccao_'+ymd(new Date())+'.pdf'); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
+  try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(vdWrap2(pages), f5NomeArq('vd-nome', 'Prospeccao_'+ymd(new Date())+'.pdf')); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
 }
 // ---------- Demandas ----------
 function vdDemList(){
@@ -1390,23 +1399,72 @@ function vdDemList(){
     if(q && !vdNorm([d.crm_pessoas&&d.crm_pessoas.nome, d.produto, d.acao, d.descricao, d.responsavel].join(' ')).includes(q)) return false;
     return true; });
 }
+const VD_ST_ACAO = ['Pendente','Em andamento','Pausada','Concluída'];
 function vdDemHtml(){
   const l = vdDemList(), f = VD.fDem, cont = {};
   VD.dem.forEach(d=>{ cont[d.status] = (cont[d.status]||0)+1; });
   const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
   const chips = DEM_STATUS.map(s=>`<span class="vd-chip" style="border-color:${DEM_COR[s]||'var(--border)'};color:${DEM_COR[s]||'inherit'}">${escapeHtml(s)}: <b>${cont[s]||0}</b></span>`).join('');
+  const ocultas = f.st==='abertas' ? VD.dem.filter(d=>VD_ENC.includes(d.status)).length : 0;
+  const aviso = ocultas ? `<div class="vd-aviso">Há <b>${ocultas}</b> demanda(s) oculta(s) (concluídas, vendas fechadas ou não realizadas). <button class="om-cancel vd-btn" data-act="ver-conc">Ver concluídas</button> <button class="om-cancel vd-btn" data-act="ver-todas">Ver todas</button></div>` : '';
   const rows = l.map(d=>{
     const enc = VD_ENC.includes(d.status);
-    return `<tr data-id="${d.id}"><td>${vdD(d.created_at)}</td><td><a href="#" data-act="abrir" data-pid="${d.pessoa_id}"><b>${escapeHtml((d.crm_pessoas&&d.crm_pessoas.nome)||'—')}</b></a></td><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td style="max-width:260px;white-space:pre-wrap">${escapeHtml(d.descricao||'—')}</td>
+    return `<tr data-id="${d.id}"><td>${vdDtHora(d.created_at)}</td><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td>${escapeHtml(d.quem_pediu||'—')}</td><td style="max-width:260px;white-space:pre-wrap">${escapeHtml(d.descricao||'—')}</td><td><a href="#" data-act="abrir" data-pid="${d.pessoa_id}"><b>${escapeHtml((d.crm_pessoas&&d.crm_pessoas.nome)||'—')}</b></a></td>
       <td><select data-act="dst" data-id="${d.id}" style="border:1px solid ${DEM_COR[d.status]||'var(--border)'};color:${DEM_COR[d.status]||'inherit'};border-radius:6px;padding:3px 6px;font-weight:600">${opt(DEM_STATUS,d.status)}</select></td>
       <td>${d.prazo?vdD(d.prazo):'—'}</td><td>${escapeHtml(d.responsavel||'—')}</td>
       <td style="white-space:nowrap">${enc ? (d.status==='Venda fechada'?'<a href="#" data-act="ir-vend">ver em Vendas realizadas</a>':d.status==='Não virou venda'?'<a href="#" data-act="ir-nao">ver em Não realizadas</a>':'') : `<button class="om-save vd-btn" data-act="virou" data-id="${d.id}">Virou venda</button> <button class="om-cancel vd-btn" data-act="nao" data-id="${d.id}">Não virou venda</button>`}</td></tr>`; }).join('');
+  const acRows = VD.acoes.map(a=>`<tr data-aid="${a.id}"><td style="white-space:nowrap">${vdDtHora(a.created_at)}</td><td><input type="text" data-ak="qual" value="${escapeHtml(a.qual||'')}" placeholder="Qual ação?"></td><td><textarea rows="2" data-ak="o_que" placeholder="O que fazer?">${escapeHtml(a.o_que||'')}</textarea></td><td><input type="date" data-ak="inicio" value="${escapeHtml(a.inicio||'')}"></td><td><textarea rows="2" data-ak="por_que" placeholder="Por quê?">${escapeHtml(a.por_que||'')}</textarea></td>
+      <td><select data-ak="status">${opt(VD_ST_ACAO,a.status)}</select></td><td><button class="om-cancel vd-btn" data-act="del-a" data-id="${a.id}" style="color:var(--red)">Excluir</button></td></tr>`).join('');
   return `<div class="vd-bar"><label class="fl"><span>Mostrar</span><select id="vd-f-st"><option value="abertas"${f.st==='abertas'?' selected':''}>Em aberto</option><option value="todas"${f.st==='todas'?' selected':''}>Todas</option>${DEM_STATUS.map(s=>`<option value="${escapeHtml(s)}"${f.st===s?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
-      <label class="fl" style="flex:1;min-width:200px"><span>Buscar</span><input id="vd-f-q" value="${escapeHtml(f.q)}" placeholder="cliente, produto, ação, responsável"></label>
+      <label class="fl" style="flex:1;min-width:200px"><span>Buscar</span><input id="vd-f-q" value="${escapeHtml(f.q)}" placeholder="cliente, produto, ação, quem pediu, responsável"></label>
+      <label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label>
       <button class="om-save" data-act="pdf-dem">Relatório de demandas (PDF)</button></div>
-    <div class="vd-chips">${chips}</div>
-    <div class="hint" style="margin:6px 0">${l.length} demanda(s) na lista. Para lançar uma demanda nova, abra o cadastro do cliente (aba Resumo → Demandas do cliente).</div>
-    <div class="vd-wrap"><table class="ca-table" style="min-width:980px"><thead><tr><th>Criada</th><th>Cliente</th><th>Produto</th><th>Ação</th><th>O que foi pedido</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="9" style="color:var(--ink-faint)">Nenhuma demanda nesta visão.</td></tr>'}</tbody></table></div>`;
+    <div class="vd-chips">${chips}</div>${aviso}
+    <div class="hint" style="margin:6px 0">${l.length} demanda(s) na lista, da mais recente para a mais antiga. Para lançar uma demanda nova, abra o cadastro do cliente (aba Resumo → Demandas do cliente).</div>
+    <div class="vd-wrap"><table class="ca-table" style="min-width:1100px"><thead><tr><th>Entrada</th><th>Produto</th><th>Ação</th><th>Quem pediu</th><th>O que?</th><th>Para quem?</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="10" style="color:var(--ink-faint)">Nenhuma demanda nesta visão.</td></tr>'}</tbody></table></div>
+    <h4 style="margin:18px 0 6px;font-size:.95rem">Ações <small style="font-weight:400;color:var(--ink-faint)">— tarefas internas, com início, motivo e andamento</small></h4>
+    <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:960px"><thead><tr><th>Entrada</th><th>Qual ação?</th><th>O que fazer?</th><th>Início da ação</th><th>Por quê?</th><th>Status</th><th></th></tr></thead><tbody>${acRows||'<tr><td colspan="7" style="color:var(--ink-faint)">Nenhuma ação registrada.</td></tr>'}</tbody></table></div>
+    <div style="margin-top:10px"><button class="om-cancel" data-act="nova-a">＋ Nova ação</button> <span id="vd-msg" class="hint"></span></div>`;
+}
+// ---------- Clientes trabalhados ----------
+async function vdCliBuild(an, ct, es){
+  const m = new Map();
+  const up = (pid, quando, k)=>{ if(!pid) return; const r = m.get(pid) || {pid, quando:'', analise:0, cot:0, est:0, comApolice:false}; if(quando && quando>r.quando) r.quando = quando; if(k) r[k]++; m.set(pid, r); return r; };
+  an.forEach(x=>{ const r = up(x.pessoa_id, x.atualizado_em||x.updated_at||x.created_at||'', 'analise'); if(r && Array.isArray(x.linhas) && x.linhas.length) r.comApolice = true; });
+  ct.forEach(x=>{ const r = up(x.pessoa_id, x.atualizado_em||x.updated_at||x.created_at||'', null); if(r && Array.isArray(x.linhas) && x.linhas.length) r.cot = x.linhas.length; });
+  es.forEach(x=>up(x.pessoa_id, x.created_at||'', 'est'));
+  const ids = [...m.keys()]; const nomes = new Map();
+  for(let i=0;i<ids.length;i+=150){ const { data } = await sb.from('crm_pessoas').select('id,nome,cpf').in('id', ids.slice(i,i+150)); (data||[]).forEach(p=>nomes.set(p.id,p)); }
+  VD.cli = ids.map(id=>Object.assign(m.get(id), {nome:(nomes.get(id)||{}).nome||'(sem nome)', cpf:(nomes.get(id)||{}).cpf||''})).filter(r=>nomes.has(r.pid));
+}
+function vdCliStatus(r){
+  if(VD.vend.some(v=>v.pessoa_id===r.pid)) return 'Venda realizada';
+  if(VD.nao.some(v=>v.pessoa_id===r.pid)) return 'Não virou venda';
+  if(r.cot) return 'Cotações lançadas';
+  if(r.analise) return 'Análise feita';
+  return 'Estudo iniciado';
+}
+function vdCliList(){
+  const f = VD.fCli, q = vdNorm(f.q), dq = String(f.q||'').replace(/\D/g,'');
+  const l = VD.cli.filter(r=>{
+    if(f.sit==='com' && !r.comApolice) return false; if(f.sit==='sem' && r.comApolice) return false;
+    if(f.st && vdCliStatus(r)!==f.st) return false;
+    if(q && !(vdNorm(r.nome).includes(q) || (dq.length>=3 && String(r.cpf||'').replace(/\D/g,'').includes(dq)))) return false;
+    return true; });
+  return l.sort((a,b)=> f.ord==='ant' ? String(a.quando).localeCompare(String(b.quando)) : String(b.quando).localeCompare(String(a.quando)));
+}
+function vdCliHtml(){
+  const l = vdCliList(), f = VD.fCli, tot = VD.cli.length, com = VD.cli.filter(r=>r.comApolice).length;
+  const STs = ['Estudo iniciado','Análise feita','Cotações lançadas','Venda realizada','Não virou venda'];
+  const rows = l.map(r=>{ const st = vdCliStatus(r);
+    return `<tr data-id="${r.pid}"><td><a href="#" data-act="abrir" data-pid="${r.pid}"><b>${escapeHtml(r.nome)}</b></a><div style="font-size:11px;color:var(--ink-faint)">${escapeHtml(r.cpf||'')}</div></td><td>${r.comApolice?'<span class="vd-chip ok">Com apólice</span>':'<span class="vd-chip">Sem apólice</span>'}</td><td>${escapeHtml(st)}</td><td>${r.cot?r.cot+' cobertura(s) cotada(s)':'—'}</td><td>${r.quando?vdDtHora(r.quando):'—'}</td>
+      <td style="white-space:nowrap"><button class="om-cancel vd-btn" data-act="abrir" data-pid="${r.pid}">Abrir</button> <button class="om-save vd-btn" data-act="cli-virou" data-pid="${r.pid}">Virou venda</button> <button class="om-cancel vd-btn" data-act="cli-nao" data-pid="${r.pid}">Não virou venda</button></td></tr>`; }).join('');
+  return `<div class="vd-bar"><label class="fl"><span>Situação</span><select id="vd-c-sit"><option value="">Todas</option><option value="com"${f.sit==='com'?' selected':''}>Com apólice</option><option value="sem"${f.sit==='sem'?' selected':''}>Sem apólice</option></select></label>
+      <label class="fl"><span>Status</span><select id="vd-c-st"><option value="">Todos</option>${STs.map(x=>`<option${f.st===x?' selected':''}>${x}</option>`).join('')}</select></label>
+      <label class="fl"><span>Ordem</span><select id="vd-c-ord"><option value="rec"${f.ord==='rec'?' selected':''}>Mais recentes</option><option value="ant"${f.ord==='ant'?' selected':''}>Mais antigos</option></select></label>
+      <label class="fl" style="flex:1;min-width:200px"><span>Buscar</span><input id="vd-c-q" value="${escapeHtml(f.q)}" placeholder="nome ou CPF"></label></div>
+    <div class="hint" style="margin:6px 0"><b>${l.length}</b> de ${tot} cliente(s) · ${com} com apólice · ${tot-com} sem apólice. Entram aqui os clientes que já passaram pela Consultoria de Proteção (análise, cotações ou estudo).</div>
+    <div class="vd-wrap"><table class="ca-table" style="min-width:900px"><thead><tr><th>Cliente</th><th>Situação</th><th>Status</th><th>Cotações</th><th>Última atividade</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="6" style="color:var(--ink-faint)">Nenhum cliente nesta visão.</td></tr>'}</tbody></table></div>`;
 }
 // ---------- Vendas realizadas ----------
 function vdVendList(){ const f = VD.fV; return VD.vend.filter(x=>(!f.de||(x.data_venda||'')>=f.de)&&(!f.ate||(x.data_venda||'')<=f.ate)); }
@@ -1422,7 +1480,7 @@ function vdVendHtml(){
       <td><textarea rows="2" data-k="obs" placeholder="Observações">${escapeHtml(x.obs||'')}</textarea></td>
       <td style="white-space:nowrap">${x.demanda_id?`<button class="om-cancel vd-btn" data-act="reabrir-v" data-id="${x.id}">Reabrir demanda</button> `:''}<button class="om-cancel vd-btn" data-act="del-v" data-id="${x.id}" style="color:var(--red)">Excluir</button></td></tr>`).join('');
   return `<div class="vd-bar"><label class="fl"><span>Data da venda · de</span><input type="date" id="vd-v-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-v-ate" value="${escapeHtml(f.ate)}"></label>
-      ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-v">Limpar período</button>':''}<span style="flex:1"></span><button class="om-save" data-act="pdf-v">Gerar relatório (PDF)</button></div>
+      ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-v">Limpar período</button>':''}<span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-v">Gerar relatório (PDF)</button></div>
     <div class="vd-chips" id="vd-tot">${vdVendTot(l)}</div>
     <datalist id="vd-prod">${DEM_PRODUTOS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
     <div class="hint" style="margin:6px 0">Em Demandas ou no cadastro do cliente, clique em “Virou venda” e o cliente vem para cá. Preencha o produto e o prêmio. Tudo é salvo ao sair de cada campo. <span id="vd-msg"></span></div>
@@ -1440,10 +1498,10 @@ function vdNaoHtml(){
       <td><input type="text" list="vd-prod" data-k="produto" value="${escapeHtml(x.produto||'')}" placeholder="Produto"></td>
       <td><input type="text" data-k="seguradora" value="${escapeHtml(x.seguradora||'')}" placeholder="Seguradora"></td>
       <td><select data-k="motivo"><option value="">Escolha o motivo</option>${VD_MOTIVOS.map(m=>`<option${x.motivo===m?' selected':''}>${escapeHtml(m)}</option>`).join('')}</select></td>
-      <td><textarea rows="3" data-k="justificativa" placeholder="Justificativa: por que não virou venda?">${escapeHtml(x.justificativa||'')}</textarea></td>
+      <td><textarea rows="3" data-k="justificativa" class="${(x.justificativa||'').trim()?'':'req'}" placeholder="Justificativa: por que não virou venda?">${escapeHtml(x.justificativa||'')}</textarea>${(x.justificativa||'').trim()?'':'<div class="vd-req">Escreva a justificativa para registrar.</div>'}</td>
       <td style="white-space:nowrap">${x.demanda_id?`<button class="om-cancel vd-btn" data-act="reabrir-n" data-id="${x.id}">Reabrir demanda</button> `:''}<button class="om-cancel vd-btn" data-act="del-n" data-id="${x.id}" style="color:var(--red)">Excluir</button></td></tr>`).join('');
   return `<div class="vd-bar"><label class="fl"><span>Data · de</span><input type="date" id="vd-n-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-n-ate" value="${escapeHtml(f.ate)}"></label>
-      ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-n">Limpar período</button>':''}<span style="flex:1"></span><button class="om-save" data-act="pdf-n">Gerar relatório (PDF)</button></div>
+      ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-n">Limpar período</button>':''}<span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-n">Gerar relatório (PDF)</button></div>
     <div class="vd-chips" id="vd-tot">${vdNaoTot(l)}</div>
     <datalist id="vd-prod">${DEM_PRODUTOS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>
     <div class="hint" style="margin:6px 0">Em Demandas ou no cadastro, “Não virou venda” traz o cliente para cá. Escolha o motivo e escreva a justificativa. <span id="vd-msg"></span></div>
@@ -1524,22 +1582,44 @@ async function vdPdfVendas(){
   const resumo = `<p class="dk-nt" style="color:#0b1433"><b>Vendas: ${l.length} · Prêmio total: ${vdM(tot)}${l.length?' · Prêmio médio: '+vdM(tot/l.length):''}</b></p><p class="dk-nt">Por produto: ${vdTxtSoma(vdSoma(l,x=>x.produto,x=>Number(x.premio)||0), true)}</p><p class="dk-nt">Por seguradora: ${vdTxtSoma(vdSoma(l,x=>x.seguradora,x=>Number(x.premio)||0), true)}</p>`;
   await vdPdf('Relatório de vendas realizadas', vdPer(f), resumo, ['Data','Cliente','Produto','Seguradora','Prêmio (R$)','Observações'],
     l.map(x=>[{t:vdD(x.data_venda)},{t:x.cliente||'—',b:1},{t:x.produto||'—'},{t:x.seguradora||'—'},{t:vdM(x.premio),r:1,b:1},{t:x.obs||''}]),
-    'Vendas_realizadas_'+(f.de||'inicio')+'_a_'+(f.ate||ymd(new Date()))+'.pdf');
+    f5NomeArq('vd-nome', 'Vendas_realizadas_'+(f.de||'inicio')+'_a_'+(f.ate||ymd(new Date()))+'.pdf'));
 }
 async function vdPdfNao(){
+  const sem = vdNaoList().filter(x=>!(x.justificativa||'').trim()).length;
+  if(sem){ showToast('Escreva a justificativa dos '+sem+' registro(s) em vermelho para gerar o relatório.'); return; }
   const l = vdNaoList().slice().sort((a,b)=>String(b.data_registro).localeCompare(String(a.data_registro))), f = VD.fN;
   const resumo = `<p class="dk-nt" style="color:#0b1433"><b>Vendas não realizadas: ${l.length}</b></p><p class="dk-nt">Por motivo: ${vdTxtSoma(vdSoma(l,x=>x.motivo||'Sem motivo',()=>1), false)}</p>`;
   await vdPdf('Relatório de vendas não realizadas', vdPer(f), resumo, ['Data','Cliente','Produto','Seguradora','Motivo','Justificativa'],
     l.map(x=>[{t:vdD(x.data_registro)},{t:x.cliente||'—',b:1},{t:x.produto||'—'},{t:x.seguradora||'—'},{t:x.motivo||'—'},{t:x.justificativa||''}]),
-    'Vendas_nao_realizadas_'+(f.de||'inicio')+'_a_'+(f.ate||ymd(new Date()))+'.pdf');
+    f5NomeArq('vd-nome', 'Vendas_nao_realizadas_'+(f.de||'inicio')+'_a_'+(f.ate||ymd(new Date()))+'.pdf'));
 }
 async function vdPdfDemandas(){
-  const l = vdDemList(), f = VD.fDem, cont = {}; l.forEach(d=>{ cont[d.status] = (cont[d.status]||0)+1; });
-  const filtro = f.st==='abertas' ? 'Demandas em aberto' : f.st==='todas' ? 'Todas as demandas' : 'Status: '+f.st;
-  const resumo = `<p class="dk-nt" style="color:#0b1433"><b>${l.length} demanda(s)</b> · ${vdTxtSoma(cont, false)}</p>`;
-  await vdPdf('Relatório de demandas', filtro+(f.q?' · busca: '+f.q:''), resumo, ['Criada','Cliente','Produto','Ação','O que foi pedido','Status','Prazo','Responsável'],
-    l.map(d=>[{t:vdD(d.created_at)},{t:(d.crm_pessoas&&d.crm_pessoas.nome)||'—',b:1},{t:d.produto},{t:d.acao},{t:d.descricao||'—'},{t:d.status,b:1},{t:d.prazo?vdD(d.prazo):'—'},{t:d.responsavel||'—'}]),
-    'Demandas_'+ymd(new Date())+'.pdf');
+  const l = vdDemList().slice().sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))), f = VD.fDem, esc = escapeHtml, hoje = new Date().toLocaleDateString('pt-BR');
+  const cont = {}; DEM_STATUS.forEach(s=>cont[s]=0); l.forEach(d=>{ cont[d.status] = (cont[d.status]||0)+1; });
+  const tot = l.length, pct = n=> tot ? Math.round(n/tot*100)+'% do total' : '0% do total';
+  const ab = l.filter(d=>!VD_ENC.includes(d.status)).length, conc = l.filter(d=>d.status==='Concluída').length;
+  const prods = new Set(l.map(d=>d.produto)).size, acs = VD.acoes.length;
+  const cards = `<div class="v2c">${[['DEMANDAS QUE ENTRARAM',tot,'',true]].concat(DEM_STATUS.map(s=>[s.toUpperCase(),cont[s],pct(cont[s]),false,DEM_COR[s]])).map(c=>`<div${c[3]?' class="t"':` style="border-top-color:${c[4]||'#000a61'}"`}><small style="font-size:${String(c[0]).length>14?'5.2':'6.4'}pt">${esc(c[0])}</small><b>${c[1]}</b>${c[2]?`<span>${c[2]}</span>`:''}</div>`).join('')}</div>`;
+  const cnt = fn=> vdTxtSoma(vdSoma(l, fn, ()=>1), false);
+  const resumo = cards + `<p class="dk-nt" style="color:#0b1433"><b>Em aberto: ${ab} · Concluídas: ${conc} · Produtos: ${prods} · Ações: ${acs}</b></p>`
+    + `<p class="dk-nt">Por produto e ação: ${cnt(d=>d.produto+' — '+d.acao)}</p><p class="dk-nt">Por ação: ${cnt(d=>d.acao)}</p><p class="dk-nt">Por quem pediu: ${cnt(d=>d.quem_pediu||'Não informado')}</p>`;
+  const head = ['Entrada','Produto','Ação','Quem pediu','O que?','Para quem?','Status'], W = [11,12,12,11,25,17,12];
+  const cor = st=> st==='Pendente' ? '#c8450b' : st==='Concluída' ? '#000a61' : '#0b1433';
+  const tr = d=>`<tr><td class="nw">${esc(vdDtHora(d.created_at))}</td><td>${esc(d.produto)}</td><td>${esc(d.acao)}</td><td>${esc(d.quem_pediu||'—')}</td><td>${esc(d.descricao||'—')}</td><td>${esc((d.crm_pessoas&&d.crm_pessoas.nome)||'—')}</td><td><b style="color:${cor(d.status)}">${esc(d.status)}</b></td></tr>`;
+  const cost = d=> 4.2 + 3.8*Math.max(f5Lines(d.descricao,28), f5Lines((d.crm_pessoas&&d.crm_pessoas.nome)||'',18), 2);
+  const parts = l.length ? f5Chunk(l, cost, 66, 128, 14) : [[]];
+  const pages = parts.map((chunk,i)=> vdPage2('Relatório de demandas', 'Soluções, cotações e ações · emitido em '+hoje,
+    (i===0?resumo:'')+`<table class="dk-t"><colgroup>${W.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${chunk.length?chunk.map(tr).join(''):`<tr><td colspan="7">Nenhuma demanda na visão atual.</td></tr>`}</tbody></table>`));
+  if(VD.acoes.length){
+    const ac = VD.acoes.slice(), ca = {}; VD_ST_ACAO.forEach(s=>ca[s]=0); ac.forEach(a=>{ ca[a.status] = (ca[a.status]||0)+1; });
+    const abertas = ac.filter(a=>a.status!=='Concluída').length;
+    const aRows = ac.map(a=>`<tr><td class="nw">${esc(vdDtHora(a.created_at))}</td><td>${esc(a.qual||'—')}</td><td>${esc(a.o_que||'—')}</td><td class="nw">${a.inicio?vdD(a.inicio):'—'}</td><td><b>${esc(a.status)}</b></td><td>${esc(a.por_que||'—')}</td></tr>`);
+    const costA = r=> 8;
+    const partsA = f5Chunk(aRows, costA, 100, 128, 14);
+    partsA.forEach((chunk,i)=> pages.push(vdPage2('Relatório de demandas · Ações', 'Soluções, cotações e ações · emitido em '+hoje,
+      (i===0?`<p class="dk-nt" style="color:#0b1433"><b>Em aberto: ${abertas}</b> · ${vdTxtSoma(ca,false)}</p>`:'')+`<table class="dk-t"><thead><tr>${['Entrada','Qual ação?','O que fazer?','Início da ação','Status da ação','Por quê?'].map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${chunk.join('')}</tbody></table>`)));
+  }
+  try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(vdWrap2(pages), f5NomeArq('vd-nome', 'Demandas_'+ymd(new Date())+'.pdf')); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
 }
 // ---------- eventos ----------
 (function(){
@@ -1556,6 +1636,11 @@ async function vdPdfDemandas(){
     else if(a==='nova-p'){ const { data, error } = await sb.from('crm_prospeccao').insert({ nome:'', status:'Novo', contato_em:new Date().toISOString(), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.pro.unshift(data); VD.foco = data.id; vdDraw(); }
     else if(a==='del-p'){ if(!confirm('Excluir este contato da prospecção?')) return; const { error } = await sb.from('crm_prospeccao').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; } VD.pro = VD.pro.filter(x=>x.id!==id); vdDraw(); }
     else if(a==='pdf-p') vdProPdf();
+    else if(a==='ver-conc'){ VD.fDem.st = 'Concluída'; vdDraw(); } else if(a==='ver-todas'){ VD.fDem.st = 'todas'; vdDraw(); }
+    else if(a==='nova-a'){ const { data, error } = await sb.from('crm_acoes').insert({ qual:'', status:'Pendente', criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.acoes.unshift(data); vdDraw(); }
+    else if(a==='del-a'){ if(!confirm('Excluir esta ação?')) return; const { error } = await sb.from('crm_acoes').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; } VD.acoes = VD.acoes.filter(x=>x.id!==id); vdDraw(); }
+    else if(a==='cli-virou'){ const r = VD.cli.find(x=>x.pid===t.dataset.pid); if(r) vdVendaPessoa({id:r.pid, nome:r.nome}); }
+    else if(a==='cli-nao'){ const r = VD.cli.find(x=>x.pid===t.dataset.pid); if(r) vdNaoVendaPessoa({id:r.pid, nome:r.nome}); }
     else if(a==='pdf-dem') vdPdfDemandas(); else if(a==='pdf-v') vdPdfVendas(); else if(a==='pdf-n') vdPdfNao();
     else if(a==='limpar-v'){ VD.fV = {de:'',ate:''}; vdDraw(); } else if(a==='limpar-n'){ VD.fN = {de:'',ate:''}; vdDraw(); }
     else if(a==='nova-v'){ const { data, error } = await sb.from('crm_vendas').insert({ cliente:'', data_venda:ymd(new Date()), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.vend.unshift(data); VD.foco = data.id; vdDraw(); }
@@ -1566,6 +1651,9 @@ async function vdPdfDemandas(){
   host.addEventListener('change', async e=>{
     const t = e.target;
     if(t.id==='vd-f-st'){ VD.fDem.st = t.value; vdDraw(); return; }
+    const cf = {'vd-c-sit':'sit','vd-c-st':'st','vd-c-ord':'ord'}[t.id];
+    if(cf){ VD.fCli[cf] = t.value; vdDraw(); return; }
+    if(t.dataset.ak){ const row = t.closest('tr[data-aid]'); const r = row && VD.acoes.find(x=>x.id===row.dataset.aid); if(!r) return; let v = t.value; if(t.dataset.ak==='inicio') v = v||null; r[t.dataset.ak] = v; vdSalvarCampo('crm_acoes', r.id, t.dataset.ak, v); return; }
     const pf = {'vd-p-st':'st','vd-p-org':'org','vd-p-por':'por','vd-p-de':'de','vd-p-ate':'ate'}[t.id];
     if(pf){ VD.fPro[pf] = t.value; vdDraw(); return; }
     if(t.id==='vd-v-de' || t.id==='vd-v-ate'){ VD.fV[t.id==='vd-v-de'?'de':'ate'] = t.value; vdDraw(); return; }
@@ -1596,7 +1684,8 @@ async function vdPdfDemandas(){
     if(vend && k==='premio'){ const el = document.getElementById('vd-tot'); if(el) el.innerHTML = vdVendTot(vdVendList()); }
     if(!vend && k==='motivo'){ const el = document.getElementById('vd-tot'); if(el) el.innerHTML = vdNaoTot(vdNaoList()); }
   });
-  host.addEventListener('input', e=>{ if(e.target.id==='vd-p-q'){ VD.fPro.q = e.target.value; clearTimeout(VD.timers.pq); VD.timers.pq = setTimeout(()=>{ const pos = e.target.selectionStart; vdDraw(); const el = document.getElementById('vd-p-q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(x){} } }, 250); return; }
+  host.addEventListener('input', e=>{ if(e.target.id==='vd-c-q'){ VD.fCli.q = e.target.value; clearTimeout(VD.timers.cq); VD.timers.cq = setTimeout(()=>{ const pos = e.target.selectionStart; vdDraw(); const el = document.getElementById('vd-c-q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(x){} } }, 250); return; }
+    if(e.target.id==='vd-p-q'){ VD.fPro.q = e.target.value; clearTimeout(VD.timers.pq); VD.timers.pq = setTimeout(()=>{ const pos = e.target.selectionStart; vdDraw(); const el = document.getElementById('vd-p-q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(x){} } }, 250); return; }
     if(e.target.id==='vd-f-q'){ VD.fDem.q = e.target.value; clearTimeout(VD.timers.q); VD.timers.q = setTimeout(()=>{ const pos = e.target.selectionStart; vdDraw(); const el = document.getElementById('vd-f-q'); if(el){ el.focus(); try{ el.setSelectionRange(pos,pos); }catch(x){} } }, 250); } });
 })();
 
@@ -2110,6 +2199,30 @@ function flowGo(i){
   if(i===1 && FLOW.autoLer){ FLOW.autoLer = false; const tentar = n=>{ const b = document.getElementById('an-ia-anex'); if(b && !b.disabled) b.click(); else if(n>0) setTimeout(()=>tentar(n-1), 600); }; setTimeout(()=>tentar(10), 500); }
 }
 // substitui o "rolar até a seção": dentro do fluxo vai para a etapa; fora dele mantém a rolagem
+// barra de rolagem horizontal também acima das tabelas largas, sincronizada com a de baixo (some quando a tabela cabe)
+(function(){
+  const SEL = '.vd-wrap, .orc-wrap, .com-scroll, div[style*="overflow-x:auto"], div[style*="overflow-x: auto"]';
+  let tmr = null;
+  function ajusta(c){
+    if(!c.querySelector('table') || c.closest('.dk, #print-report')) return;
+    let top = c._topScroll;
+    if(!top || !top.isConnected){
+      top = document.createElement('div'); top.className = 'top-scroll'; top.innerHTML = '<div></div>'; c._topScroll = top;
+      c.parentNode.insertBefore(top, c);
+      let lock = false;
+      top.addEventListener('scroll', ()=>{ if(lock) return; lock = true; c.scrollLeft = top.scrollLeft; lock = false; });
+      c.addEventListener('scroll', ()=>{ if(lock) return; lock = true; top.scrollLeft = c.scrollLeft; lock = false; });
+    }
+    const larga = c.scrollWidth > c.clientWidth + 2;
+    top.style.display = larga ? '' : 'none';
+    if(larga) top.firstChild.style.width = c.scrollWidth+'px';
+  }
+  function scan(){ document.querySelectorAll(SEL).forEach(ajusta); }
+  const mo = new MutationObserver(()=>{ clearTimeout(tmr); tmr = setTimeout(scan, 250); });
+  document.addEventListener('DOMContentLoaded', ()=>{ mo.observe(document.body, {childList:true, subtree:true}); scan(); });
+  if(document.readyState !== 'loading'){ mo.observe(document.body, {childList:true, subtree:true}); }
+  window.addEventListener('resize', ()=>{ clearTimeout(tmr); tmr = setTimeout(scan, 250); });
+})();
 function pvGotoSection(id){
   const i = FLOW_STEPS.findIndex(s=>s.host===id);
   if(FLOW.open && i>=0){ flowGo(i); return; }
@@ -2125,8 +2238,10 @@ async function flowDocs(p){
     <div class="hint" style="margin-bottom:10px">Solte aqui todas as apólices e documentos do cliente <b>de uma vez</b>. O sistema lê só o básico (nome, CPF, telefone e nascimento) e mostra o resumo da leitura; os documentos ficam mantidos neste cadastro. Depois, a <b>Fase 2</b> lê as coberturas de cada apólice. Cliente sem apólice? <a href="#" id="fl-pular">pule para o Diagnóstico (Fase 3)</a>.</div>
     <div class="dz" id="fl-dz">Arraste aqui as apólices e documentos (várias de uma vez) ou clique<input type="file" id="fl-file" accept=".pdf,image/*,.xlsx,.xls" multiple hidden></div>
     ${docs.length?`<div class="ql" style="margin-top:12px">Documentos anexados (${docs.length})</div><div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Documento</th><th>Tipo</th><th>Enviado por</th><th>Data</th><th></th></tr></thead><tbody>${docs.map(d=>`<tr><td>${escapeHtml(d.nome_arquivo||'—')}</td><td>${escapeHtml(d.categoria||'—')}</td><td>${escapeHtml(d.enviado_por||'—')}</td><td>${fmtDate(d.created_at)}</td><td>${d.path?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(d.path)}">Abrir</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-top:10px">Nenhum documento anexado ainda.</div>'}
+    <div class="es-box" id="fl-dados" style="margin-top:12px"></div>
     ${rows.length?`<div class="ql" style="margin-top:12px">Apólices registradas (${rows.length})</div><div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Seguradora</th><th>Produto</th><th>Emissão</th><th>Vigência até</th><th>Status</th><th>Documento</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${escapeHtml(a.seguradora||'—')}</td><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${fmtDate(a.data_emissao)||'—'}</td><td>${fmtDate(a.data_vencimento)||'—'}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td>${a.arquivo_apolice?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(a.arquivo_apolice)}">Abrir apólice</button>`:'<span style="color:var(--ink-faint)">sem arquivo</span>'}</td></tr>`).join('')}</tbody></table></div>`:''}`;
   host.querySelectorAll('[data-fl-doc]').forEach(b=>b.addEventListener('click', async ()=>{ try{ window.open(await docsSignedUrl(b.dataset.flDoc),'_blank'); }catch(x){ showToast('Erro ao abrir documento: '+x.message); } }));
+  flowDados(p);
   const pu = host.querySelector('#fl-pular'); if(pu) pu.addEventListener('click', e=>{ e.preventDefault(); flowGo(2); });
   const dz = host.querySelector('#fl-dz'), inp = host.querySelector('#fl-file');
   const enviar = fs=>{ fs = [...fs].filter(f=>f && f.name); if(fs.length) caFase1(fs, {id:p.id, nome:p.nome, cpf:p.cpf}); };
@@ -2135,6 +2250,30 @@ async function flowDocs(p){
   dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
   dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); enviar(e.dataTransfer.files); });
   inp.addEventListener('change', ()=>{ const fs = [...inp.files]; inp.value = ''; enviar(fs); });
+}
+// Dados do cliente: o que o cadastro ainda não tem (gênero, nascimento, telefone...), logo depois da leitura dos documentos
+async function flowDados(p){
+  const el = document.getElementById('fl-dados'); if(!el) return;
+  const { data } = await sb.from('crm_pessoas').select('sexo,data_nascimento,telefone,profissao,email,estado_civil').eq('id', p.id).maybeSingle();
+  const d = data || {}, falta = [['sexo','gênero'],['data_nascimento','data de nascimento'],['telefone','telefone']].filter(x=>!d[x[0]]).map(x=>x[1]);
+  const v = k=>escapeHtml(d[k]||'');
+  el.innerHTML = `<div class="ql">Dados do cliente <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— o que veio da leitura; complete o que faltou</small></div>
+    ${falta.length?`<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:6px 10px;margin-bottom:8px">Faltou: <b>${escapeHtml(falta.join(', '))}</b>.</div>`:'<div class="hint" style="margin-bottom:8px">Dados básicos completos.</div>'}
+    <div class="fgrid">
+      <label class="fl"><span>Gênero</span><select id="fd-sexo"><option value="">—</option><option value="M"${d.sexo==='M'?' selected':''}>Masculino</option><option value="F"${d.sexo==='F'?' selected':''}>Feminino</option></select></label>
+      <label class="fl"><span>Data de nascimento</span><input type="date" id="fd-nasc" value="${v('data_nascimento')}"></label>
+      <label class="fl"><span>Telefone</span><input id="fd-tel" value="${v('telefone')}"></label>
+      <label class="fl"><span>E-mail</span><input id="fd-email" value="${v('email')}"></label>
+      <label class="fl"><span>Profissão</span><input id="fd-prof" value="${v('profissao')}"></label></div>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-save" id="fd-go">Salvar e ir para a Fase 2 · Analisar documentos</button><span id="fd-st" class="hint" style="margin:0"></span></div>`;
+  el.querySelector('#fd-go').addEventListener('click', async ()=>{
+    const g = id=>el.querySelector('#'+id).value.trim(), st = el.querySelector('#fd-st');
+    const upd = { sexo:g('fd-sexo')||null, data_nascimento:g('fd-nasc')||null, telefone:g('fd-tel')||null, email:g('fd-email')||null, profissao:g('fd-prof')||null };
+    st.textContent = 'Salvando…';
+    const { error } = await sb.from('crm_pessoas').update(upd).eq('id', p.id);
+    if(error){ st.textContent = 'Erro: '+error.message; return; }
+    Object.assign(p, upd); try{ const o = OP.pessoas.find(x=>x.id===p.id); if(o) Object.assign(o, upd); }catch(e){}
+    st.textContent = 'Salvo ✓'; flowGo(1); });
 }
 function flowRefresh(){
   if(!FLOW.open || !FLOW.p) return; const p = FLOW.p;
@@ -2191,6 +2330,9 @@ const F5_LOGO = '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQo
 const F5_NOME = {'Morte':'Seguro de Vida (morte por qualquer causa)','Invalidez':'Invalidez por acidente','Doenças Graves':'Doenças Graves','Diária de internação hospitalar':'Diária de internação hospitalar','DIT':'DIT · Diária por incapacidade temporária','Cirurgias':'Cirurgias','Fratura óssea':'Fratura óssea','Assistência funeral':'Assistência funeral'};
 const F5_GR = {'Morte':'m','Invalidez':'m','Doenças Graves':'m','Diária de internação hospitalar':'m','Assistência funeral':'m','DIT':'c','Fratura óssea':'c','Cirurgias':'c'};
 const F5_UPTO = ['Cirurgias','Fratura óssea'];
+// Diária de internação e DIT são valores por dia: nas somas de capital contam ×30 (as linhas continuam mostrando "por dia"; o prêmio não muda).
+const capSoma = r => (Number(r && r.cap)||0) * ((r && ['Diária de internação hospitalar','DIT'].includes(r.cat)) ? 30 : 1);
+const somaCap = l => (l||[]).reduce((t,r)=>t+capSoma(r),0);
 const F5_PREKEY = {'Morte':['morte','sucess','vida'],'Invalidez':['invalid'],'Doenças Graves':['doen','grave','cancer','câncer'],'Diária de internação hospitalar':['diária','diaria','internação','internacao'],'DIT':['dit','afast','incapacid'],'Cirurgias':['cirurg'],'Fratura óssea':['fratur','osso'],'Assistência funeral':['funeral']};
 const F5_SEGS = {
   'MAG':{nome:'MAG Seguros', tag:'Empresa brasileira de 191 anos, com atuação ininterrupta no país', cards:[['+7,6 milhões','de vidas seguradas'],['+191 anos','de atuação ininterrupta no Brasil'],['+R$ 798 milhões','em benefícios pagos em 2025'],['+R$ 979 bilhões','em capital segurado']]},
@@ -2210,7 +2352,7 @@ table.dk-f2{ table-layout:fixed; } table.dk-f2 td, table.dk-f2 th{ overflow-wrap
 .dk-f b{ color:#000b3d; } .dk-f span{ color:#4a5270; }
 .dk-g2{ display:grid; grid-template-columns:1fr 1fr; gap:4mm; align-items:start; }
 .dk-bar{ display:flex; background:#f4f5f9; border-left:1mm solid #00125e; margin-bottom:4mm; }
-.dk-bar div{ padding:2mm 3mm; } .dk-bar small{ display:block; font-size:6.3pt; font-weight:700; color:#00125e; text-transform:uppercase; } .dk-bar b{ font-size:8.2pt; }
+.dk-bar div{ padding:2mm 2.4mm; } .dk-bar b{ white-space:nowrap; } .dk-bar small{ display:block; font-size:6.3pt; font-weight:700; color:#00125e; text-transform:uppercase; } .dk-bar b{ font-size:8.2pt; }
 .dk-ch{ padding:2.5mm 3mm; color:#fff; } .dk-ch b{ display:block; font-size:10.5pt; } .dk-ch small{ font-size:7.3pt; color:#aab2d6; }
 .dk-gd{ background:#000b3d; } .dk-gp{ background:#00125e; } .dk-gold{ background:#0018fc; }
 .dk-row{ display:flex; border:.4pt solid #dde1ec; border-top:0; }
@@ -2218,16 +2360,16 @@ table.dk-f2{ table-layout:fixed; } table.dk-f2 td, table.dk-f2 th{ overflow-wrap
 .dk-row .r{ padding:2mm 3mm; font-size:7.4pt; line-height:1.35; flex:1; }
 .dk-tb{ color:#fff; padding:2.5mm 3mm; } .dk-tb small{ display:block; font-size:6.5pt; font-weight:700; color:#aab2d6; } .dk-tb b{ font-size:14pt; } .dk-tb i{ display:block; font-style:normal; font-size:7.2pt; color:#aab2d6; }
 .dk-ev{ display:flex; border:.4pt solid #dde1ec; border-top:0; padding:1.6mm 3mm; gap:3mm; align-items:flex-start; } .dk-ev.pr{ background:#eef0ff; border-left:1mm solid #0018fc; }
-.dk-ev .n{ width:26mm; font-weight:700; font-size:8pt; flex:none; } .dk-ev .t{ flex:1; font-size:7.2pt; line-height:1.35; } .dk-ev .c{ text-align:right; flex:none; } .dk-ev .c b{ display:block; font-size:9.5pt; color:#000b3d; } .dk-ev.pr .c b{ color:#0018fc; } .dk-ev .c small{ font-size:6.4pt; color:#4a5270; }
+.dk-ev{ min-height:11mm; } .dk-ev .n{ width:32mm; font-weight:700; font-size:8pt; flex:none; line-height:1.25; } .dk-ev .t{ flex:1; font-size:7.2pt; line-height:1.35; } .dk-ev .c{ text-align:right; flex:none; } .dk-ev .c b{ display:block; font-size:9.5pt; color:#000b3d; } .dk-ev.pr .c b{ color:#0018fc; } .dk-ev .c small{ font-size:6.4pt; color:#4a5270; }
 .dk-lab{ background:#f4f5f9; border:.4pt solid #dde1ec; padding:1.5mm 3mm; font-size:6.6pt; font-weight:700; color:#00125e; display:flex; justify-content:space-between; }
 .dk-it{ border:.4pt solid #dde1ec; border-top:0; border-left:1mm solid #00125e; padding:2.2mm 3mm; display:flex; gap:3mm; } .dk-it.pr{ background:#eef0ff; border-left-color:#0018fc; } .dk-it.cp{ border-left-color:#32dfb6; }
 .dk-dense .dk-it{ padding:1.1mm 3mm; } .dk-dense .dk-it .t span{ font-size:6.5pt; line-height:1.22; margin-top:.5mm; } .dk-dense .dk-it .t b{ font-size:8.2pt; } .dk-dense .dk-it .t em{ font-size:5.4pt; } .dk-dense .dk-it .c b{ font-size:9pt; } .dk-dense .dk-ch{ padding:2mm 3mm; } .dk-dense .dk-sum{ margin-top:2mm; padding:2mm 3mm; }
 .dk-it .t{ flex:1; } .dk-it .t em{ font-style:normal; display:block; font-size:5.8pt; font-weight:700; color:#4a5270; } .dk-it.pr .t em{ color:#0018fc; } .dk-it .t b{ font-size:8.8pt; } .dk-it .t span{ display:block; font-size:7.2pt; margin-top:1mm; line-height:1.35; }
-.dk-it .c{ text-align:right; flex:none; } .dk-it .c small{ display:block; font-size:5.6pt; color:#4a5270; } .dk-it .c b{ font-size:10pt; color:#000b3d; } .dk-it.pr .c b{ color:#0018fc; }
+.dk-it{ min-height:11mm; align-items:flex-start; } .dk-it .c{ text-align:right; flex:none; min-width:34mm; } .dk-it .c small{ display:block; font-size:5.6pt; color:#4a5270; line-height:1.3; margin-top:.5mm; } .dk-it .c b{ font-size:10pt; color:#000b3d; } .dk-it.pr .c b{ color:#0018fc; }
 .dk-sum{ color:#fff; padding:2.5mm 3mm; display:flex; justify-content:space-between; align-items:center; margin-top:3mm; } .dk-sum small{ font-size:6.6pt; font-weight:700; color:#aab2d6; display:block; } .dk-sum b{ font-size:14pt; }
 .dk-warn{ background:#eef0ff; border-left:1mm solid #0018fc; padding:2.5mm 3mm; margin-top:3mm; font-size:7.8pt; } .dk-warn small{ display:block; font-size:6.4pt; font-weight:700; color:#0018fc; }
 .dk-inv{ background:#0018fc; color:#fff; text-align:center; padding:3mm; margin-top:3mm; } .dk-inv small{ font-size:7.5pt; display:block; color:#dfe3ff; } .dk-inv b{ font-size:26pt; } .dk-inv span{ font-size:11pt; font-weight:700; }
-table.dk-t{ width:100%; border-collapse:collapse; font-size:7.6pt; } table.dk-t th{ background:#00125e; color:#fff; font-size:6.4pt; padding:1.6mm 2mm; text-align:left; } table.dk-t td{ padding:1.6mm 2mm; border-bottom:.4pt solid #dde1ec; vertical-align:top; } table.dk-t .r{ text-align:right; } table.dk-t tr.tot td{ background:#f4f5f9; font-weight:700; border-top:1pt solid #00125e; }
+table.dk-t{ width:100%; border-collapse:collapse; font-size:7.6pt; } table.dk-t th{ background:#00125e; color:#fff; font-size:6.4pt; padding:1.6mm 2mm; text-align:left; } table.dk-t td{ padding:1.6mm 2mm; border-bottom:.4pt solid #dde1ec; vertical-align:top; } table.dk-t .r{ text-align:right; padding-left:3mm; padding-right:3mm; white-space:nowrap; } table.dk-t tr.tot td{ background:#f4f5f9; font-weight:700; border-top:1pt solid #00125e; }
 .dk-sec{ font-size:12pt; color:#000b3d; margin:3mm 0 2mm; display:flex; justify-content:space-between; align-items:baseline; } .dk-sec small{ font-size:7.4pt; color:#0018fc; }
 .dk-an{ display:grid; grid-template-columns:1fr 1fr; gap:4mm; } .dk-an>div{ border:.4pt solid #dde1ec; padding:4mm; position:relative; min-height:100mm; text-align:center; }
 .dk-an .chip{ font-size:6.5pt; font-weight:700; color:#00125e; text-align:left; } .dk-an h3{ margin:2mm 0 0; font-size:14pt; color:#000b3d; text-align:left; } .dk-an p{ margin:1mm 0; font-size:8pt; color:#4a5270; text-align:left; }
@@ -2238,6 +2380,7 @@ table.dk-t{ width:100%; border-collapse:collapse; font-size:7.6pt; } table.dk-t 
 </style>`;
 function f5Idade(nasc){ if(!nasc) return ''; const d = new Date(nasc), t = new Date(); let a = t.getFullYear()-d.getFullYear(); if(t.getMonth()<d.getMonth() || (t.getMonth()===d.getMonth() && t.getDate()<d.getDate())) a--; return a; }
 async function f5Context(p){
+  F5_CLI = p.nome || '';
   const [P, { data: e }, { data: dg }, { data: an }, { data: ct }, { data: aps }] = await Promise.all([ensureCalcParams(),
     sb.from('crm_estudos').select('*').eq('pessoa_id', p.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
     sb.from('crm_diagnostico').select('*').eq('pessoa_id', p.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
@@ -2254,10 +2397,10 @@ async function f5Context(p){
   const cli = { nome:p.nome, sexo:/^f/i.test(E.sexo||p.sexo||'')?'Feminino':'Masculino', nasc:E.data_nascimento||p.data_nascimento||'', prof:E.profissao||p.profissao||'',
     segAtual: E.seguradora_atual || [...new Set((aps||[]).filter(a=>a.status!=='cancelada').map(a=>a.seguradora).filter(Boolean))].join(' + '),
     repr: E.provedor_pct!=null?Number(E.provedor_pct):100, padrao: Number(E.renda_desejada_familia)||Number(E.gastos_mensais)||Number(E.renda_mensal)||0, pat: Number(E.patrimonio_bruto)||0, meac, pref,
-    esporte: D.pratica_esportes===true?'Sim':'Não informado', saude: D.tem_plano_saude===false?'Não':'Sim', investir: Number(D.valor_cheque_mensal)||0, deps };
+    esporte: D.pratica_esportes===true?'Sim':'Não informado', saude: D.tem_plano_saude===false?'Não':'Sim', investir: Number(D.valor_cheque_mensal)||0, deps, vidaManual: Number(E.capital_vida_manual)||0 };
   const apol = ((an&&an.linhas)||[]).filter(r=>ANL_CATS.includes(r.cat));
   const cot = ((ct&&ct.linhas)||[]).map((r,i)=>({r, o:Number(r.ord)>0?Number(r.ord):i+1, i})).sort((a,b)=>a.o-b.o || a.i-b.i).map(x=>x.r); const solSub = (ct&&ct.sol_sub)||1;
-  return {P, prem, cli, apol, cot, solSub, hasPol: apol.length>0};
+  return {P, prem, cli, apol, cot, solSub, hasPol: apol.length>0, reprBlocos: E.repr_blocos||null};
 }
 function f5Faltas(m, X){
   const f = [], c = X.cli, sel = n=>X.cot.filter(r=>r['s'+n]);
@@ -2265,10 +2408,24 @@ function f5Faltas(m, X){
   if(m==='luiz'){ if(!c.nasc) f.push({t:'Data de nascimento', go:'pp-diag'}); if(!(c.padrao>0)) f.push({t:'Padrão de vida mensal (renda, gastos ou renda desejada)', go:'pp-diag', core:true}); if(!(c.pat>0)) f.push({t:'Patrimônio bruto', go:'pp-diag'});
     if(!sel(1).length) f.push({t:'Cotações marcadas na Solução 1 (Fase 5)', go:'pp-fase4', core:true}); if(!sel(2).length) f.push({t:'Cotações marcadas na Solução 2 (Fase 5)', go:'pp-fase4', core:true}); }
   else { if(!c.nasc) f.push({t:'Data de nascimento', go:'pp-diag'}); if(!c.prof) f.push({t:'Profissão', go:'pp-diag'}); if(!c.segAtual) f.push({t:'Proteção atual (seguradora)', go:'pp-analise'});
-    if(!X.hasPol) f.push({t:'Apólices lançadas e confirmadas (Fase 2)', go:'pp-analise', core:true}); if(!sel(X.solSub).length) f.push({t:'Cotações marcadas na Solução '+X.solSub+' (Fase 5)', go:'pp-fase4', core:true}); }
+    if(!X.hasPol) f.push({t:'Apólices lançadas e confirmadas (Fase 2)', go:'pp-analise', core:true}); const okSol = X.solSub===3 ? (sel(1).length||sel(2).length) : sel(X.solSub).length; if(!okSol) f.push({t:'Cotações marcadas na '+(X.solSub===3?'Solução 1 ou 2':'Solução '+X.solSub)+' (Fase 5)', go:'pp-fase4', core:true}); }
   return f;
 }
 // ---- cálculos e blocos do modelo "não possui proteção" ----
+// Blocos da página de representatividade: "Seguro de vida" (se você não estiver aqui) e "Seguro em vida" (se estiver aqui, mas sem poder trabalhar).
+// Padrão do "Seguro de vida": marcado quando há cálculo (escola ou inventário), capital manual ou cotação de Morte; desmarcado para solteiro sem filhos sem nada preenchido
+// ou quando há cotações e nenhuma é de Morte. Pelo menos um bloco fica sempre marcado.
+function f5Blocos(salvo, manual, cot, esc, inv){
+  const cotMorte = (cot||[]).some(r=>r.cat==='Morte');
+  let vida;
+  if(salvo && typeof salvo.vida==='boolean') vida = salvo.vida;
+  else if(cotMorte || Number(manual)>0) vida = true;
+  else if((cot||[]).length) vida = false;
+  else vida = (Number(esc)>0 || Number(inv)>0);
+  let em = (salvo && typeof salvo.em_vida==='boolean') ? salvo.em_vida : true;
+  if(!vida && !em) em = true;
+  return {vida, em_vida:em, escolhido: !!(salvo && typeof salvo.vida==='boolean')};
+}
 function f5Rep(X){
   const c = X.cli, p = X.prem, g = p.reaj/100, f0 = v=>'R$ '+Math.round(Number(v)||0).toLocaleString('pt-BR'), fm = v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const miTxt = v=>'R$ '+(v/1e6).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+' mi', miP = v=>'R$ '+(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:1})+' milhões';
@@ -2287,7 +2444,7 @@ function f5Rep(X){
     {cat:'DIT', t:'Afastamento por qualquer causa. Mesmo cálculo da diária; custo mais alto, por isso é complemento.'+pr('DIT'), cap:dia, sub:'por dia', g:'c'},
     {cat:'Fratura óssea', t:(c.esporte==='Sim'?'Capital fixo. Você pratica esporte: o risco de queda e lesão é maior.':'Capital fixo. Indicada para quem pratica esporte.')+pr('Fratura óssea'), cap:Math.round(p.fra), sub:'', g:'c'},
     {cat:'Cirurgias', t:'Capital fixo. Complemento de renda'+(c.saude==='Sim'?' (já tem plano de saúde)':'')+': paga de 10% a 100% por procedimento.'+pr('Cirurgias'), cap:Math.round(p.cir), sub:'', g:'c'}];
-  const soma = ev.reduce((a,x)=>a+x.cap,0);
+  const soma = ev.reduce((a,x)=>a+x.cap*(['Diária de internação hospitalar','DIT'].includes(x.cat)?30:1),0);
   const escTxt = `Projeção com reajuste escolar de ${p.reaj}% ao ano, até cada dependente completar a idade-limite. `+(deps.length?deps.map(d=>`${d.n}: ${d.anos} anos de escola, ${miTxt(d.tot)} (a mensalidade de ${f0(d.c)} chega a cerca de ${f0(Math.round(d.fim/100)*100)} por mês no último ano)`).join('; ')+'.':'Sem dependentes informados.');
   const invTxt = `Custos de inventário somam ${pctInv}% do patrimônio: ITCMD ${p.itcmd}%, cartório ${p.cart}% e advogado ${p.adv}%. Com ${c.meac}% do patrimônio já do cônjuge, fica a representatividade de ${(pctInv*(1-c.meac/100)).toLocaleString('pt-BR',{maximumFractionDigits:1})}% sobre ${miP(c.pat)}.`;
   const padTxt = `Um ano do padrão de vida de ${f0(c.padrao)} por mês, para a família se reorganizar com tranquilidade. Com 2 anos: ${fm(p2)}.`;
@@ -2298,28 +2455,37 @@ function f5Deck(m, X, opt){
   const fm = v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}), f0 = v=>'R$ '+Math.round(Number(v)||0).toLocaleString('pt-BR');
   const dtBR = v=>v?String(v).split('-').reverse().join('/'):'';
   const sel = n=> X.cot.filter(r=>r['s'+n]);
-  const sumCap = l=>l.reduce((t,r)=>t+(Number(r.cap)||0),0), sumPrem = l=>l.reduce((t,r)=>t+(Number(r.prem)||0),0);
+  const sumCap = l=>somaCap(l), sumPrem = l=>l.reduce((t,r)=>t+(Number(r.prem)||0),0);
   const capTxt = r=>(F5_UPTO.includes(r.cat)?'até ':'')+f0(r.cap), capSub = r=>F3_DIARIA.includes(r.cat)?'por dia'+(Number(r.uti)?' · UTI '+f0(r.uti):''):'';
   const primeiro = ()=>(c.nome||'O cliente').trim().split(/\s+/)[0];
   const pages = [];
-  const page = (title, sub, body)=> pages.push(`<div class="dk-p"><div class="dk-h"><img src="data:image/jpeg;base64,${F5_LOGO}" alt="CallMed"><div><h1>${esc(title)}</h1>${sub?`<p>${esc(sub)}</p>`:''}</div></div>${body}@@FOOT@@</div>`);
+  const page = (title, sub, body)=> pages.push(`<div class="dk-p">${f5Cabeca(title, sub)}<div class="v2b">${body}</div>@@FOOT@@</div>`);
   const nomeCat = r=> esc(r.cob || F5_NOME[r.cat]);
   if(m==='luiz'){
     const R = f5Rep(X);
     // 1 · representatividade
     page('Sua representatividade financeira', c.repr>=100?`${primeiro()} é 100% responsável pelo financeiro da família · o que o seu trabalho representa hoje`:`${primeiro()} responde por ${c.repr}% do financeiro da família · o que o seu trabalho representa hoje`,
       `<div class="dk-bar">${[[c.sexo==='Feminino'?'Segurada':'Segurado',c.nome||'—'],['Nascimento · idade',(dtBR(c.nasc)||'—')+(R.idade!==''?' · '+R.idade+' anos':'')],['Responsabilidade',c.repr+'% do financeiro da família'],['Filhos',R.filhos],['Escola hoje',R.escola],['Padrão de vida',f0(c.padrao)+'/mês'],['Patrimônio',R.miP(c.pat)]].map(f=>`<div><small>${esc(f[0])}</small><b>${esc(f[1])}</b></div>`).join('')}</div>
-      <div class="dk-g2"><div>
+      <div class="dk-g2"><div><!--VIDA-->
         <div class="dk-ch dk-gd"><b>SEGURO DE VIDA</b><small>Se você não estiver aqui: o que sua família precisaria para seguir</small></div>
         ${[['1 · ESCOLA ATÉ A IDADE-LIMITE',fm(R.esc),R.escTxt],['2 · CUSTO DE INVENTÁRIO',fm(R.inv),R.invTxt],['3 · PADRÃO DE VIDA (1 ANO)',fm(R.p1),R.padTxt]].map(r=>`<div class="dk-row"><div class="l"><small>${r[0]}</small><b>${r[1]}</b></div><div class="r">${esc(r[2])}</div></div>`).join('')}
-        <div class="dk-tb dk-gd" style="margin-top:3mm"><small>OPÇÃO IDEAL</small><b>${fm(R.ideal)}</b><i>Escola até a idade-limite + inventário</i></div>
+        ${c.vidaManual>0 ? `<div class="dk-tb dk-gd" style="margin-top:3mm"><small>CAPITAL DEFINIDO (MANUAL)</small><b>${fm(c.vidaManual)}</b><i>Valor definido pela consultora para o seguro de vida</i></div>` : `<div class="dk-tb dk-gd" style="margin-top:3mm"><small>OPÇÃO IDEAL</small><b>${fm(R.ideal)}</b><i>Escola até a idade-limite + inventário</i></div>`}
         <div style="display:flex;gap:1mm;margin-top:1mm"><div class="dk-tb dk-gp" style="flex:1"><small>OPÇÃO NECESSÁRIA · 1 ANO</small><b style="font-size:12pt">${fm(R.nec1)}</b><i>Inventário + 1 ano de padrão de vida</i></div><div class="dk-tb dk-gp" style="flex:1"><small>OPÇÃO NECESSÁRIA · 2 ANOS</small><b style="font-size:12pt">${fm(R.nec2)}</b><i>Inventário + 2 anos de padrão de vida</i></div></div>
-      </div><div>
+      <!--/VIDA--></div><div><!--EMVIDA-->
         <div class="dk-ch dk-gp"><b>SEGURO EM VIDA</b><small>Se você estiver aqui, mas sem poder trabalhar: a cobertura de sobrevivência</small></div>
         <div style="background:#eef0ff;border-left:1mm solid #0018fc;padding:3mm"><b style="font-size:12pt;color:#0018fc">${f0(c.padrao)} por mês</b><div style="font-size:7.6pt;margin-top:1mm">é o seu custo mensal. Se parar de trabalhar hoje, é isso que precisa continuar entrando: transferimos esse risco para o seguro.</div></div>
         ${['m','c'].map(g=>`<div class="dk-lab"><span>${g==='m'?'MÍNIMOS':'COMPLEMENTARES'}</span><span>CAPITAL</span></div>${R.ev.filter(x=>x.g===g).map(x=>`<div class="dk-ev ${x.cat===c.pref?'pr':''}"><div class="n">${esc(x.cat)}</div><div class="t">${esc(x.t)}</div><div class="c"><b>${f0(x.cap)}</b>${x.sub?`<small>${esc(x.sub)}</small>`:''}</div></div>`).join('')}`).join('')}
-        <div class="dk-tb dk-gd" style="margin-top:3mm"><small>SOMA DOS CAPITAIS SEGURADOS · SEGURO EM VIDA</small><b>${fm(R.soma)}</b><i>Soma de todas as coberturas, incluindo os valores por dia da diária e do DIT</i></div>
-      </div></div>`);
+        <div class="dk-tb dk-gd" style="margin-top:3mm"><small>SOMA DOS CAPITAIS SEGURADOS · SEGURO EM VIDA</small><b>${fm(R.soma)}</b><i>Soma de todas as coberturas. Diária e DIT contados × 30 dias</i></div>
+      <!--/EMVIDA--></div></div>`);
+    { // só o que estiver marcado aparece; se for um bloco só, ele ocupa a página inteira
+      const B = f5Blocos(X.reprBlocos, c.vidaManual, X.cot, R.esc, R.inv);
+      if(!B.vida || !B.em_vida){
+        let h = pages[0];
+        if(!B.vida) h = h.replace(/<div><!--VIDA-->[\s\S]*?<!--\/VIDA--><\/div>/, '');
+        if(!B.em_vida) h = h.replace(/<div><!--EMVIDA-->[\s\S]*?<!--\/EMVIDA--><\/div>/, '');
+        pages[0] = h.replace('<div class="dk-g2">', '<div class="dk-g2" style="grid-template-columns:1fr">');
+      }
+    }
     if(opt && opt.onlyRep) return pages[0];
     // 2 · sugestões
     const descSug = (r,n)=> r.cat==='Morte' ? (n===1?(c.deps.length?'Garante a escola dos filhos até a idade-limite e o custo de inventário.':'Garante o custo de inventário e o padrão de vida da família.'):'O mínimo para a família: custo de inventário mais 1 a 2 anos do seu padrão de vida.') : r.cat==='Invalidez' ? ((r.prazo?r.prazo+'. ':'')+'Se aplicado a '+p.taxaInv+'%, vira renda fixa que mantém o padrão de vida.') : (r.nota||'Cobertura incluída nesta solução.');
@@ -2328,7 +2494,7 @@ function f5Deck(m, X, opt){
     const foraT = fora.length>1 ? fora.slice(0,-1).join(', ')+' e '+fora[fora.length-1] : (fora[0]||'');
     page('Sugestões de proteção','Duas soluções · uma mais completa e uma com o mínimo que você precisa ter',
       `<div class="dk-g2${(sel(1).length>=7||sel(2).length>=7)?' dk-dense':''}">${side(1,'SOLUÇÃO 1 · MAIS COMPLETA','A proteção mais ampla: a família, a sua renda e os complementares','dk-gd')}${side(2,'SOLUÇÃO 2 · A NECESSÁRIA','O mínimo que você precisa ter para proteger a família e a renda','dk-gp')}</div>
-       <div class="dk-g2"><div class="dk-sum dk-gd"><div><small>SOMA DOS CAPITAIS SEGURADOS</small><small>Inclui os valores por dia da diária e do DIT</small></div><b>${fm(sumCap(sel(1)))}</b></div><div><div class="dk-sum dk-gp"><div><small>SOMA DOS CAPITAIS SEGURADOS</small><small>Inclui o valor por dia da diária</small></div><b>${fm(sumCap(sel(2)))}</b></div>${fora.length?`<div class="dk-warn"><small>FICA DE FORA NESTA SOLUÇÃO</small>${esc(foraT)}: ficam de fora desta solução, que traz o mínimo.</div>`:''}</div></div>`);
+       <div class="dk-g2"><div class="dk-sum dk-gd"><div><small>SOMA DOS CAPITAIS SEGURADOS</small><small>Diária e DIT contados × 30 dias</small></div><b>${fm(sumCap(sel(1)))}</b></div><div><div class="dk-sum dk-gp"><div><small>SOMA DOS CAPITAIS SEGURADOS</small><small>Diária e DIT contados × 30 dias</small></div><b>${fm(sumCap(sel(2)))}</b></div>${fora.length?`<div class="dk-warn"><small>FICA DE FORA NESTA SOLUÇÃO</small>${esc(foraT)}: ficam de fora desta solução, que traz o mínimo.</div>`:''}</div></div>`);
     // 3 · analogia
     const carro = Number(opt.carro)||100000, taxa = Number(opt.taxaCarro)||4, tx = taxa/100, s1 = sumCap(sel(1)), s2 = sumCap(sel(2));
     const bx = (bg,bar,lab,calc,anual,col)=>`<div class="dk-bx" style="background:${bg};border-top:1mm solid ${bar}"><small>${lab}</small><small>VOCÊ INVESTIRIA</small><b style="color:${col}">${fm(anual/12)}</b><span style="color:${col}"> /mês</span><div style="font-size:8.2pt;font-weight:700">${fm(anual)} por ano</div><i>${calc}</i></div>`;
@@ -2341,8 +2507,8 @@ function f5Deck(m, X, opt){
     const col4 = (l,title,cls)=>`<div><div class="dk-ch ${cls}"><b>${title}</b></div>${l.length?l.map(r=>`<div class="dk-it"><div class="t"><b>${nomeCat(r)}</b></div><div class="c"><b>${capTxt(r)}</b>${capSub(r)?`<small>${esc(capSub(r))}</small>`:''}</div></div>`).join(''):'<div class="dk-it"><div class="t"><span>Nenhuma cobertura marcada (Fase 5).</span></div></div>'}<div class="dk-sum ${cls}"><div><small>SOMA DOS CAPITAIS SEGURADOS</small></div><b>${fm(sumCap(l))}</b></div><div class="dk-inv"><small>INVESTIMENTO MENSAL</small><b>${fm(sumPrem(l))}</b><span> /mês</span></div></div>`;
     page('Proposta','As duas soluções e o investimento mensal de cada uma',`<div class="dk-g2">${col4(sel(1),'SOLUÇÃO 1 · MAIS COMPLETA','dk-gd')}${col4(sel(2),'SOLUÇÃO 2 · A NECESSÁRIA','dk-gp')}</div>`);
     // 5 · detalhamento
-    const det = (n,title,cls)=>{ const l = sel(n); return `<div><div class="dk-ch ${cls}"><b>${title}</b></div><table class="dk-t dk-f2"><colgroup><col style="width:44%"><col style="width:21%"><col style="width:16%"><col style="width:19%"></colgroup><thead><tr><th>COBERTURA</th><th class="r">CAPITAL SEGURADO</th><th class="r">PRÊMIO MENSAL</th><th>SEGURADORA</th></tr></thead><tbody>${l.length?l.map(r=>`<tr><td><b>${nomeCat(r)}</b>${r.sub?`<div style="font-size:6pt;color:#4a5270">${esc(r.sub)}</div>`:''}</td><td class="r"><b>${capTxt(r)}</b>${capSub(r)?`<div style="font-size:5.8pt;color:#4a5270">${esc(capSub(r))}</div>`:''}</td><td class="r"><b style="color:#6f4f12">${fm(r.prem)}</b></td><td>${esc(r.seg||'')}</td></tr>`).join(''):'<tr><td colspan="4">Nenhuma cobertura marcada (Fase 5).</td></tr>'}<tr class="tot"><td>TOTAL</td><td class="r">${fm(sumCap(l))}</td><td class="r">${fm(sumPrem(l))}</td><td></td></tr></tbody></table></div>`; };
-    page('Detalhamento das soluções','Página de apoio: coberturas, capital segurado, prêmio mensal e seguradora',`<div class="dk-g2">${det(1,'SOLUÇÃO 1 · MAIS COMPLETA','dk-gd')}${det(2,'SOLUÇÃO 2 · A NECESSÁRIA','dk-gp')}</div><p style="font-size:6.6pt;color:#4a5270;margin-top:4mm">Prêmios mensais estimados conforme as cotações das seguradoras, sujeitos à análise de risco e à atualização anual. Os totais somam todas as coberturas, incluindo os valores por dia da diária e do DIT.</p>`);
+    const det = (n,title,cls)=>{ const l = sel(n); return `<div><div class="dk-ch ${cls}"><b>${title}</b></div><table class="dk-t dk-f2"><colgroup><col style="width:36%"><col style="width:24%"><col style="width:21%"><col style="width:19%"></colgroup><thead><tr><th>COBERTURA</th><th class="r">CAPITAL SEGURADO</th><th class="r">PRÊMIO MENSAL</th><th>SEGURADORA</th></tr></thead><tbody>${l.length?l.map(r=>`<tr><td><b>${nomeCat(r)}</b>${r.sub?`<div style="font-size:6pt;color:#4a5270">${esc(r.sub)}</div>`:''}</td><td class="r"><b>${capTxt(r)}</b>${capSub(r)?`<div style="font-size:5.8pt;color:#4a5270">${esc(capSub(r))}</div>`:''}</td><td class="r"><b style="color:#6f4f12">${fm(r.prem)}</b></td><td>${esc(r.seg||'')}</td></tr>`).join(''):'<tr><td colspan="4">Nenhuma cobertura marcada (Fase 5).</td></tr>'}<tr class="tot"><td>TOTAL</td><td class="r">${fm(sumCap(l))}</td><td class="r">${fm(sumPrem(l))}</td><td></td></tr></tbody></table></div>`; };
+    page('Detalhamento das soluções','Página de apoio: coberturas, capital segurado, prêmio mensal e seguradora',`<div class="dk-g2">${det(1,'SOLUÇÃO 1 · MAIS COMPLETA','dk-gd')}${det(2,'SOLUÇÃO 2 · A NECESSÁRIA','dk-gp')}</div><p style="font-size:6.6pt;color:#4a5270;margin-top:4mm">Prêmios mensais estimados conforme as cotações das seguradoras, sujeitos à análise de risco e à atualização anual. Os totais somam todas as coberturas; diária e DIT contados × 30 dias.</p>`);
   } else {
     const idade = f5Idade(c.nasc), hoje = new Date();
     // 1 · análise do que possui
@@ -2352,16 +2518,16 @@ function f5Deck(m, X, opt){
        <div class="dk-sec"><span>O que você possui hoje</span><small>Coluna em destaque: pontos de atenção indicados pela consultora</small></div>
        <table class="dk-t"><thead><tr><th>COBERTURA</th><th class="r">CAPITAL SEGURADO</th><th class="r">PRÊMIO MENSAL</th><th>VIGÊNCIA</th><th>PONTOS DE ATENÇÃO · CONSULTORA</th></tr></thead><tbody>
        ${X.apol.map(r=>`<tr><td style="border-left:1mm solid ${r.tipo==='Vitalícia'?'#32dfb6':/^ok/i.test(r.obs||'')?'#00125e':'#0018fc'}"><b>${esc(r.cob||'—')}</b></td><td class="r" style="${r.cap===''?'color:#7a400f;font-weight:700':''}">${r.cap===''?'não lido':fm(r.cap)}</td><td class="r" style="${r.prem===''?'color:#7a400f;font-weight:700':''}">${r.prem===''?'não lido':fm(r.prem)}</td><td style="${alertOf(r)?'color:#0018fc;font-weight:700':''}">${r.tipo==='Vitalícia'?'Vitalício':'Até '+dtBR(r.vig)}</td><td style="background:#eef0ff;font-size:7.2pt">${esc(r.obs||'')}</td></tr>`).join('')||'<tr><td colspan="5">Nenhuma apólice cadastrada na Fase 2.</td></tr>'}
-       <tr class="tot"><td>Total</td><td class="r">${fm(X.apol.reduce((a,r)=>a+(Number(r.cap)||0),0))}</td><td class="r">${fm(X.apol.reduce((a,r)=>a+(Number(r.prem)||0),0))}</td><td colspan="2" style="font-weight:400;font-size:6.6pt;color:#4a5270">Soma de todas as coberturas atuais (capital segurado e prêmio mensal).</td></tr></tbody></table>`);
+       <tr class="tot"><td>Total</td><td class="r">${fm(somaCap(X.apol))}</td><td class="r">${fm(X.apol.reduce((a,r)=>a+(Number(r.prem)||0),0))}</td><td colspan="2" style="font-weight:400;font-size:6.6pt;color:#4a5270">Soma de todas as coberturas atuais (capital segurado e prêmio mensal).</td></tr></tbody></table>`);
     // 2 · substituição
-    const l = X.cot.filter(r=>r['s'+X.solSub]);
+    const l = X.solSub===3 ? X.cot.filter(r=>r.s1||r.s2) : X.cot.filter(r=>r['s'+X.solSub]);
     const antes = r=>{ const idx = String(r.subst||'').split(/[^0-9]+/).filter(Boolean).map(n=>parseInt(n,10)-1).filter(i=>X.apol[i]); const rows = idx.map(i=>X.apol[i]); if(!rows.length) return null;
       const cap = rows.reduce((a,x)=>a+(Number(x.cap)||0),0), prem = rows.reduce((a,x)=>a+(Number(x.prem)||0),0); const lab = x=>x.tipo==='Vitalícia'?'Vitalício':dtBR(x.vig); const labs = [...new Set(rows.map(lab))];
       const vig = labs.length===1 ? labs[0] : [...new Set(rows.map(x=>x.tipo==='Vitalícia'?'Vitalício':(x.vig||'').slice(0,4)))].filter(Boolean).sort().join(' e '); return {cap, prem, vig, rows}; };
     const melAuto = (r,a)=>{ const out = []; if(a && (Number(r.cap)||0) > a.cap*1.02) out.push('Capital maior (antes '+fm(a.cap)+').'); if(a && a.rows.every(x=>x.tipo==='Temporária') && /vital/i.test(r.prazo||'')) out.push('Passa a ser vitalícia (antes, produto temporário).'); return out.join(' '); };
     const subPage = (l, titulo, subt, scoped)=>{
     const apolH = scoped ? X.apol.filter(r=>l.some(x=>x.cat===r.cat)) : X.apol;
-    const capN = sumCap(l), premN = sumPrem(l), capH = apolH.reduce((a,r)=>a+(Number(r.cap)||0),0), premH = apolH.reduce((a,r)=>a+(Number(r.prem)||0),0);
+    const capN = sumCap(l), premN = sumPrem(l), capH = somaCap(apolH), premH = apolH.reduce((a,r)=>a+(Number(r.prem)||0),0);
     const dc = capN-capH, dp = premN-premH, pc = capH?dc/capH*100:0, pp = premH?dp/premH*100:0, sg = v=>v<0?'–':'+';
     const up = ANL_CATS.filter(k=>l.some(r=>r.cat===k) && l.filter(r=>r.cat===k).reduce((a,r)=>a+(Number(r.cap)||0),0) > X.apol.filter(r=>r.cat===k).reduce((a,r)=>a+(Number(r.cap)||0),0)*1.02).map(k=>k.toLowerCase().replace('diária de internação hospitalar','diária').replace('assistência funeral','funeral'));
     const yrs = [...new Set(l.map(r=>(/(\d{4})/.exec(r.prazo||'')||[])[1]).filter(Boolean))].sort(), vit = l.filter(r=>/vital/i.test(r.prazo||'')).length;
@@ -2380,23 +2546,32 @@ function f5Deck(m, X, opt){
     };
     const segKey = r=>String(r.seg||'').trim().toLowerCase();
     const segsSub = []; l.forEach(r=>{ const k = segKey(r); if(!segsSub.some(x=>x[0]===k)) segsSub.push([k, String(r.seg||'').trim()]); });
-    if(segsSub.length>1) segsSub.forEach(([k,nome])=> subPage(l.filter(r=>segKey(r)===k), nome ? 'Atual x Cotação da '+nome : 'Atual x Cotação (seguradora não informada)', 'O que você possui hoje comparado com o que a '+(nome||'cotação')+' oferece', true));
-    else subPage(l, 'Proposta de substituição de apólices', 'Novas seguradoras · todas as melhorias em relação ao que você possui hoje', false);
+    const porSol = X.solSub===3 ? [[1, X.cot.filter(r=>r.s1)], [2, X.cot.filter(r=>r.s2)]].filter(x=>x[1].length) : [[0, l]];
+    porSol.forEach(([n, ls])=>{
+      const pre = n ? 'Solução '+n+' · ' : '';
+      const sg = []; ls.forEach(r=>{ const k = segKey(r); if(!sg.some(x=>x[0]===k)) sg.push([k, String(r.seg||'').trim()]); });
+      if(sg.length>1) sg.forEach(([k,nome])=> subPage(ls.filter(r=>segKey(r)===k), pre+(nome ? 'Atual x Cotação da '+nome : 'Atual x Cotação (seguradora não informada)'), 'O que você possui hoje comparado com o que a '+(nome||'cotação')+' oferece', true));
+      else subPage(ls, pre+'Proposta de substituição de apólices', 'Novas seguradoras · todas as melhorias em relação ao que você possui hoje', false);
+    });
     // 3 · quem vai proteger
     const segs = [...new Set(l.map(r=>r.seg).filter(s=>F5_SEGS[s]))];
     page('Quem vai proteger você',(segs.length?segs.join(' e ')+' · ':'')+'marcos importantes em resumo',
       segs.length ? segs.map(s=>{ const d = F5_SEGS[s]; return `<div style="margin-bottom:4mm"><div style="display:flex;align-items:baseline;gap:4mm"><span style="font-size:15pt;color:#000b3d">${esc(d.nome)}</span><span style="font-size:8.6pt;color:#4a5270">${esc(d.tag)}</span></div><div class="dk-cards">${d.cards.map(cd=>`<div><b style="font-size:${cd[0].length>11?'12':'16'}pt">${esc(cd[0])}</b><small>${esc(cd[1])}</small></div>`).join('')}</div>${d.txt?`<div class="dk-tx">${d.txt.map(t=>`<div><h4>${esc(t[0])}</h4>${t[1].split('\n').map(x=>`<p style="margin:0 0 1.5mm">${esc(x)}</p>`).join('')}</div>`).join('')}</div>`:''}</div>`; }).join('')
       : '<p style="font-size:9pt;color:#4a5270">As seguradoras escolhidas ainda não têm texto institucional cadastrado (há texto para MAG e Azos). Esta página fica em branco até haver.</p>');
   }
-  return F5_CSS + `<div class="dk">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="dk-f"><b>CallMed Proteção Patrimonial</b><span>${i+1} / ${pages.length}</span></div>`)).join('')}</div>`;
+  return F5_CSS + VD_CSS2 + `<div class="dk dk2">${pages.map((h,i)=>h.replace('@@FOOT@@', f5Rodape(i, pages.length))).join('')}</div>`;
 }
 // Baixa o PDF direto (sem janela de impressão): renderiza cada página do deck fora da tela, fotografa com html2canvas e monta o PDF A4 paisagem com jsPDF.
 // ---- PDFs por fase (mesmo molde da apresentação, identidade CallMed Proteção Patrimonial) ----
+// nome do cliente que sai no rodapé dos PDFs das fases (os relatórios não levam nome de cliente)
+let F5_CLI = '';
+const f5Cabeca = (title, sub, right)=>`<div class="v2h"><img src="assets/logo-branco.png" alt="CallMed Proteção Patrimonial"><div><div class="eb">CallMed Proteção Patrimonial</div><h1>${escapeHtml(title)}</h1>${sub?`<p>${escapeHtml(sub)}</p>`:''}</div>${right?`<div class="rt"><small>${escapeHtml(right[0])}</small><b>${escapeHtml(right[1])}</b></div>`:''}</div>`;
+const f5Rodape = (i,n)=>`<div class="v2f"><span><b>CallMed Proteção Patrimonial</b>${F5_CLI?' · '+escapeHtml(F5_CLI):''}</span><span class="pg">${i+1} / ${n}<img src="data:image/jpeg;base64,${F5_LOGO}" alt=""></span></div>`;
 function f5Page(title, sub, body, right){
-  return `<div class="dk-p"><div class="dk-h"><img src="data:image/jpeg;base64,${F5_LOGO}" alt="CallMed"><div><h1>${escapeHtml(title)}</h1>${sub?`<p>${escapeHtml(sub)}</p>`:''}</div>${right?`<div class="rt"><small>${escapeHtml(right[0])}</small><b>${escapeHtml(right[1])}</b></div>`:''}</div>${body}@@FOOT@@</div>`;
+  return `<div class="dk-p">${f5Cabeca(title, sub, right)}<div class="v2b">${body}</div>@@FOOT@@</div>`;
 }
 function f5Wrap(pages){
-  return F5_CSS + `<div class="dk">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="dk-f"><b>CallMed Proteção Patrimonial</b><span>${i+1} / ${pages.length}</span></div>`)).join('')}</div>`;
+  return F5_CSS + VD_CSS2 + `<div class="dk dk2">${pages.map((h,i)=>h.replace('@@FOOT@@', f5Rodape(i, pages.length))).join('')}</div>`;
 }
 // divide linhas de tabela em páginas por "orçamento" de altura (mm); custo estimado pelo texto mais longo da linha
 function f5Chunk(rows, costOf, firstBudget, budget, tailCost){
@@ -2410,7 +2585,7 @@ function f5DeckFase2(rows, emissao){
   const fm = v=>v===''||v==null?'—':'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
   const dt = v=>v?String(v).slice(0,10).split('-').reverse().join('/'):'—', esc = escapeHtml;
   const right = emissao ? ['EMISSÃO DA APÓLICE', dt(emissao)] : null;
-  const cap = rows.reduce((t,r)=>t+(Number(r.cap)||0),0), prem = rows.reduce((t,r)=>t+(Number(r.prem)||0),0);
+  const cap = somaCap(rows), prem = rows.reduce((t,r)=>t+(Number(r.prem)||0),0);
   const head = '<thead><tr><th style="width:19%">Cobertura (nome técnico)</th><th style="width:12%">Categoria</th><th class="r" style="width:12%">Capital segurado</th><th class="r" style="width:11%">Prêmio mensal (com IOF)</th><th style="width:9%">Prazo</th><th style="width:9%">Vigência até</th><th style="width:17%">Observação</th><th style="width:11%">Apólice</th></tr></thead>';
   const tr = r=>`<tr><td>${esc(r.cob||'—')}</td><td>${esc(r.cat||'—')}</td><td class="r">${fm(r.cap)}</td><td class="r">${fm(r.prem)}</td><td>${esc(r.tipo||'—')}</td><td>${r.tipo==='Vitalícia'?'—':dt(r.vig)}</td><td>${esc(r.obs||'—')}</td><td>${esc(r.apol||'—')}</td></tr>`;
   const cost = r=> 3.4 + 3.1*Math.max(f5Lines(r.cob,24), f5Lines(r.cat,14), f5Lines(r.obs,26));
@@ -2418,7 +2593,7 @@ function f5DeckFase2(rows, emissao){
   const pages = parts.map((chunk,i)=>{
     const last = i===parts.length-1;
     const tot = last ? `<tr class="tot"><td colspan="2"><b>Soma das apólices</b></td><td class="r"><b>${fm(cap)}</b></td><td class="r"><b>${fm(prem)}</b></td><td colspan="4"></td></tr>` : '';
-    const note = last ? `<p class="dk-nt" style="margin-top:2mm">${rows.length} cobertura(s) lida(s). A soma inclui os valores por dia da diária e do DIT. O prêmio é o mensal, com IOF. A vigência gera alerta 1 mês antes da renovação.</p>` : '';
+    const note = last ? `<p class="dk-nt" style="margin-top:2mm">${rows.length} cobertura(s) lida(s). Diária e DIT contados × 30 dias na soma. O prêmio é o mensal, com IOF. A vigência gera alerta 1 mês antes da renovação.</p>` : '';
     return f5Page('Análise dos documentos','Apólices lidas e organizadas: cobertura, capital segurado, prêmio com IOF e observação',`<table class="dk-t dk-f2">${head}<tbody>${chunk.map(tr).join('')}${tot}</tbody></table>${note}`, right);
   });
   return f5Wrap(pages);
@@ -2445,7 +2620,7 @@ function f5DeckFase34(X, f4, emissao){
   const pages = parts.map((chunk,i)=>{
     const last = i===parts.length-1;
     const tot = last ? (t ? `<tr class="tot"><td><b>Soma das coberturas</b></td><td class="r"><b>${f0(T.need)}</b></td><td class="r"><b>${f0(T.cap)}</b></td><td class="r"><b>${f0(T.gap)}</b></td><td class="r"><b>${mm(T.prem)}</b></td><td colspan="3"><b>${T.sem} sem cobertura, ${T.ins} insuficiente(s)</b></td></tr>` : `<tr class="tot"><td><b>Soma das coberturas</b></td><td class="r"><b>${f0(T.need)}</b></td><td></td></tr>`) : '';
-    const foot = last ? `<p class="dk-nt" style="margin-top:2mm">A soma inclui os valores por dia da diária e do DIT. ${t?'A coluna Falta soma só o que falta em cada cobertura. O prêmio é o mensal das apólices atuais.':'Sem apólice analisada: mostramos só o que o cliente precisa, sem comparativo.'}</p>` : '';
+    const foot = last ? `<p class="dk-nt" style="margin-top:2mm">Diária e DIT contados × 30 dias na soma. ${t?'A coluna Falta soma só o que falta em cada cobertura. O prêmio é o mensal das apólices atuais.':'Sem apólice analisada: mostramos só o que o cliente precisa, sem comparativo.'}</p>` : '';
     return f5Page('Diagnóstico: o que você tem e o que você precisa', t?'Necessidade nas coberturas comparada com as apólices atuais':'Necessidade calculada com os dados do cliente', `${i===0?nota1:''}<table class="dk-t dk-f2">${head}<tbody>${chunk.map(tr).join('')}${tot}</tbody></table>${foot}`, right);
   });
   return f5Wrap([rep].concat(pages));
@@ -2469,6 +2644,12 @@ async function f5DownloadPdf(html, nome){
   await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
   const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-20000px;top:0;width:1123px;background:#fff'; box.innerHTML = html; document.body.appendChild(box);
   try{
+    box.querySelectorAll('.dk-p').forEach(pg=>{ const b = pg.querySelector('.v2b'); if(!b) return;
+      const lim = pg.getBoundingClientRect().top + (794 - 52); // folha A4 paisagem (297×210 mm a 96 dpi) menos o rodapé
+      for(let z = 1.18; z >= 0.64; z -= 0.02){ b.style.transform = 'scale('+z.toFixed(2)+')'; b.style.width = (100/z).toFixed(2)+'%'; b.style.marginBottom = '0';
+        const alt = b.scrollHeight * z; if(b.getBoundingClientRect().top + alt <= lim) break; }
+      const z0 = parseFloat((b.style.transform.match(/[\d.]+/)||['1'])[0]); b.style.marginBottom = '0'; pg.style.minHeight = '0'; pg.style.height = Math.max(794, b.offsetTop + b.scrollHeight * z0)+'px'; });
+    box.querySelectorAll('.dk-fin small, .dk-fin b, .dk-sum b, .dk-tb b').forEach(el=>{ const w0 = el.style.whiteSpace; el.style.whiteSpace = 'nowrap'; if(getComputedStyle(el).display==='inline') el.style.display = 'inline-block'; el.style.maxWidth = '100%'; let fs = parseFloat(getComputedStyle(el).fontSize), n = 0; while(el.scrollWidth > el.clientWidth + 1 && fs > 6 && n++ < 40){ fs -= 0.5; el.style.fontSize = fs+'px'; } });
     const pages = [...box.querySelectorAll('.dk-p')]; if(!pages.length) throw new Error('sem páginas');
     const { jsPDF } = window.jspdf; const pdf = new jsPDF({orientation:'landscape', unit:'mm', format:'a4'});
     for(let i=0;i<pages.length;i++){
@@ -2524,7 +2705,7 @@ async function pvFase4(p){
   const fm = v=>'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}), f0 = v=>'R$ '+Math.round(Number(v)||0).toLocaleString('pt-BR');
   const ordIx = c=>{ const i = F3_ORD.indexOf(c); return i<0?99:i; };
   const sel = n=> rows.filter(r=>r['s'+n]).slice().sort((a,b)=>ordIx(a.cat)-ordIx(b.cat));
-  const sumCap = l=>l.reduce((t,r)=>t+(Number(r.cap)||0),0), sumPrem = l=>l.reduce((t,r)=>t+(Number(r.prem)||0),0);
+  const sumCap = l=>somaCap(l), sumPrem = l=>l.reduce((t,r)=>t+(Number(r.prem)||0),0);
   const autoMarcar = ()=>{ ANL_CATS.forEach(cat=>{ const rs = rows.filter(r=>r.cat===cat); if(!rs.length || rs.some(r=>r.s1||r.s2)) return;
     let r = null, nota = '';
     if(rs.length===1) r = rs[0];
@@ -2555,7 +2736,10 @@ async function pvFase4(p){
     rows = ord; rows.forEach((r,i)=>{ r.ord = i+1; }); persist();
     if(host.isConnected) draw(); if(forca===true) showToast('Coberturas organizadas pela numeração.'); return true; };
   FLOW.f4org = ()=>{ if(host.isConnected) organizar(); };
-  const summary = ()=>{ f4Bandas(); const e = document.getElementById('f4-sum'); if(!e) return;
+  const f4Aviso = ()=>{ const e = host.querySelector('#f4-warn'); if(!e) return;
+    const sem = rows.map((r,i)=>({r,n:Number(r.ord)>0?Number(r.ord):i+1})).filter(x=>(x.r.cob||x.r.cap!==''||x.r.prem!=='') && !x.r.s1 && !x.r.s2);
+    e.innerHTML = sem.length ? `<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-top:8px"><b>Cobertura fora da apresentação</b><ul style="margin:4px 0 0 18px">${sem.map(x=>`<li>#${x.n} · ${escapeHtml(x.r.cob||x.r.cat)}: esta cobertura não está marcada em nenhuma solução e por isso não aparece na apresentação.</li>`).join('')}</ul></div>` : ''; };
+  const summary = ()=>{ f4Bandas(); f4Aviso(); const e = document.getElementById('f4-sum'); if(!e) return;
     const a = sel(1), b = sel(2), hp = apol.length>0, h = sumPrem(apol), hc = sumCap(apol);
     const diff = v=> hp ? `<div class="hint">${v>=h?'+':'−'}${fm(Math.abs(v-h))} por mês em relação ao que paga hoje</div>` : '';
     const orc = pr=> investir>0 ? `<div class="hint">${pr<=investir?'Cabe no valor que o cliente pode investir ('+f0(investir)+'/mês)':'Acima do que o cliente pode investir ('+f0(investir)+'/mês) em '+fm(pr-investir)}</div>` : '';
@@ -2581,19 +2765,24 @@ async function pvFase4(p){
         <td><input type="text" data-f="subst" placeholder="ex.: 2,3" value="${escapeHtml(r.subst||'')}"></td><td><button type="button" class="om-cancel icon-btn" data-del="${i}" title="Remover">×</button></td></tr>`)):'<tr><td colspan="15" style="color:var(--ink-faint)">Nenhuma cotação ainda. Use "Nova cotação" acima.</td></tr>'}
       </tbody></table></div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><button class="om-cancel" id="f4-add">＋ Adicionar linha</button><button class="om-cancel" id="f4-clear" style="color:var(--red)">Limpar cotações</button><button class="om-save" id="f4-salvar">Salvar informações</button><button class="om-cancel" id="f4-prox">Ir para a Fase 6 · Apresentação</button>
-        ${apol.length?`<label class="fl" style="min-width:260px"><span>Solução usada na proposta de substituição</span><select id="f4-sol"><option value="1" ${solSub===1?'selected':''}>Solução 1</option><option value="2" ${solSub===2?'selected':''}>Solução 2</option></select></label>`:''}</div>
-      <div class="hint" style="margin-top:6px">O prêmio da diária inclui o adicional de UTI. Os totais somam todas as coberturas marcadas, inclusive os valores por dia da diária e do DIT (o valor de UTI não entra na soma).</div>
+        ${apol.length?`<label class="fl" style="min-width:260px"><span>Solução usada na proposta de substituição</span><select id="f4-sol"><option value="1" ${solSub===1?'selected':''}>Solução 1</option><option value="2" ${solSub===2?'selected':''}>Solução 2</option><option value="3" ${solSub===3?'selected':''}>As duas soluções (1 e 2)</option></select></label>`:''}</div>
+      <div class="hint" style="margin-top:6px">O prêmio da diária inclui o adicional de UTI. Os totais somam todas as coberturas marcadas; diária e DIT contados × 30 dias (o valor de UTI não entra na soma).</div>
+      <div id="f4-warn"></div>
       <div id="f4-sum" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>`;
     summary();
     // tabela principal
     host.querySelectorAll('tbody tr[data-i]').forEach(tr=>{ const i = +tr.dataset.i;
       tr.querySelectorAll('[data-f]').forEach(el=>el.addEventListener(el.tagName==='SELECT'||el.type==='checkbox'?'change':'input', ()=>{
         const f = el.dataset.f; let v = el.type==='checkbox' ? el.checked : el.value; if(['cap','prem','uti','ord'].includes(f)) v = v===''?'':Number(v);
-        rows[i][f] = v; if(f==='ord') lastEd = rows[i]; if(f==='cap'||f==='prem') el.classList.toggle('unread', v===''); summary(); saveSoon(); })); });
+        rows[i][f] = v; if(f==='ord') lastEd = rows[i]; if(f==='cap'||f==='prem') el.classList.toggle('unread', v==='');
+        // marcar à mão uma solução faz o sistema parar de ajustar essa linha; trocar a categoria ajusta as soluções (complementares só na Solução 1)
+        if(f==='s1' || f==='s2') rows[i].manualSol = true;
+        if(f==='cat' && !rows[i].manualSol){ const mn = F4_MIN.includes(v); rows[i].s1 = true; rows[i].s2 = mn; const c1 = tr.querySelector('[data-f="s1"]'), c2 = tr.querySelector('[data-f="s2"]'); if(c1) c1.checked = true; if(c2) c2.checked = mn; }
+        summary(); saveSoon(); })); });
     host.querySelectorAll('input[data-f="seg"]').forEach(el=>el.addEventListener('change', ()=>{ const mudou = f4Grupos().length>1 || new Set(rows.map(f4SegKey)).size>1; if(mudou) draw(); }));
     host.querySelectorAll('input[data-f="ord"]').forEach(el=>el.addEventListener('keydown', ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); clearTimeout(tmr); organizar(true); } }));
     host.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click', ()=>{ rows.splice(+b.dataset.del,1); persist(); draw(); }));
-    host.querySelector('#f4-add').addEventListener('click', ()=>{ rows.push(f4Blank()); persist(); draw(); });
+    host.querySelector('#f4-add').addEventListener('click', ()=>{ rows.push(Object.assign(f4Blank(), {s1:true, s2:true})); persist(); draw(); });
     host.querySelector('#f4-salvar').addEventListener('click', async ()=>{ clearTimeout(tmr); organizar(); await persist(); showToast('Informações salvas (Cotações e plano novo)'); });
     host.querySelector('#f4-prox').addEventListener('click', async ()=>{ clearTimeout(tmr); organizar(); await persist(); pvGotoSection('pp-fase5'); });
     host.querySelector('#f4-org').addEventListener('click', ()=>{ organizar(true); });
@@ -2648,16 +2837,19 @@ const F3_DIARIA = ['Diária de internação hospitalar','DIT'], F3_PRAZO = {'Mor
 async function pvFase3(p){
   const host = document.getElementById('pp-fase3'); if(!host) return;
   host.innerHTML = '<div class="ql">Fase 4 · O que você tem × o que você precisa</div><div class="op-more">Calculando…</div>';
-  const [P, { data: e }, { data: an }] = await Promise.all([ensureCalcParams(),
+  const [P, { data: e }, { data: an }, { data: ctq }] = await Promise.all([ensureCalcParams(),
     sb.from('crm_estudos').select('*').eq('pessoa_id', p.id).order('created_at',{ascending:false}).limit(1).maybeSingle(),
-    sb.from('crm_analise_apolices').select('*').eq('pessoa_id', p.id).maybeSingle()]);
+    sb.from('crm_analise_apolices').select('*').eq('pessoa_id', p.id).maybeSingle(),
+    sb.from('crm_cotacoes_estudo').select('linhas').eq('pessoa_id', p.id).maybeSingle()]);
+  const ctRows = (ctq && ctq.linhas) || [];
   const head = '<div class="ql">Fase 4 · O que você tem × o que você precisa</div>';
   if(!e || !(Number(e.renda_mensal)>0 || Number(e.gastos_mensais)>0 || Number(e.renda_desejada_familia)>0)){
     host.innerHTML = head + '<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px">Para calcular a necessidade, preencha os <b>dados do cliente</b> (renda, gastos, dependentes, patrimônio…) no <b>Diagnóstico de proteção</b> (Fase 3, logo acima) e clique em salvar. O diagnóstico aparece aqui em seguida.</div>'; return; }
   const ec = {...e, cliente_nome:e.cliente_nome||p.nome, coberturas_valores:{}, coberturas_atuais:[]};
   const calc = calcAnaliseCompleta(ec, P);
   const linhas = ((an&&an.linhas)||[]).filter(r=>ANL_CATS.includes(r.cat)); const temApolice = linhas.length>0;
-  const needOf = cat => { const rs = calc.rows.filter(r=>F3_KEYS[cat].includes(r.key)); return rs.length ? rs.reduce((t,r)=>t+(Number(r.necessidade)||0),0) : null; };
+  const manualVida = Number(e.capital_vida_manual)||0;
+  const needOf = cat => { if(cat==='Morte' && manualVida>0) return manualVida; const rs = calc.rows.filter(r=>F3_KEYS[cat].includes(r.key)); return rs.length ? rs.reduce((t,r)=>t+(Number(r.necessidade)||0),0) : null; };
   const hoje = cat => linhas.filter(r=>r.cat===cat);
   const sit = (need,cap)=> cap<=0 ? ['sem','Sem cobertura','#c23636'] : cap<need*0.9 ? ['ins','Insuficiente','#8a5406'] : ['ok','Adequada','#0f7a53'];
   const hojeDt = new Date();
@@ -2666,7 +2858,7 @@ async function pvFase3(p){
     const vigs = hr.filter(r=>r.tipo==='Temporária' && r.vig).map(r=>r.vig).sort(); const vencendo = vigs.length && ((new Date(vigs[0])-hojeDt)/86400000) < 5*365;
     const dy = F3_DIARIA.includes(cat)?' por dia':''; const ideal = Math.round(need/(need>5000?1000:1))*(need>5000?1000:1);
     return {cat, need, cap, prem, s:sit(need,cap), gap:Math.max(need-cap,0), alerta:vencendo?('Temporária até '+fmtDate(vigs[0])):'', ponto:hr.map(r=>r.obs).filter(Boolean).join('; '), sug:(F3_PRAZO[cat]?F3_PRAZO[cat]+', ':'')+'ideal '+fmtMoney(ideal)+dy, dy}; }).filter(Boolean);
-  const T = rows.reduce((t,r)=>({need:t.need+(F3_DIARIA.includes(r.cat)?0:r.need), cap:t.cap+(F3_DIARIA.includes(r.cat)?0:r.cap), gap:t.gap+(F3_DIARIA.includes(r.cat)?0:r.gap), prem:t.prem+r.prem, sem:t.sem+(r.s[0]==='sem'?1:0), ins:t.ins+(r.s[0]==='ins'?1:0)}), {need:0,cap:0,gap:0,prem:0,sem:0,ins:0});
+  const T = rows.reduce((t,r)=>({need:t.need+(F3_DIARIA.includes(r.cat)?30:1)*r.need, cap:t.cap+(F3_DIARIA.includes(r.cat)?30:1)*r.cap, gap:t.gap+(F3_DIARIA.includes(r.cat)?30:1)*r.gap, prem:t.prem+r.prem, sem:t.sem+(r.s[0]==='sem'?1:0), ins:t.ins+(r.s[0]==='ins'?1:0)}), {need:0,cap:0,gap:0,prem:0,sem:0,ins:0});
   const padrao = Number(e.renda_desejada_familia)||Number(e.gastos_mensais)||Number(e.renda_mensal)||0;
   const deps = e.dependentes||[]; const reaj = e.reajuste_educacao_pct_override!=null?Number(e.reajuste_educacao_pct_override):(P.reajuste_educacao_pct||6);
   const liq = calcLiquidezSucessoria(Number(e.patrimonio_bruto)||0, P, e), educ = calcEducacao(deps, reaj);
@@ -2677,10 +2869,20 @@ async function pvFase3(p){
     ${!temApolice?'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-bottom:8px">Cliente sem apólice analisada: mostrando <b>só o que ele precisa</b>, sem comparativo. Para comparar, preencha e confirme a Fase 2 acima.</div>':(an&&an.confirmada?'':'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-bottom:8px">A tabela da Fase 2 ainda <b>não foi confirmada</b>: confira os valores antes de apresentar.</div>')}
     <div style="overflow-x:auto"><table class="ca-table" style="min-width:${temApolice?980:560}px"><thead><tr><th>Cobertura</th><th>Necessidade</th>${temApolice?'<th>Hoje (apólices)</th><th>Situação</th><th>Falta cobrir</th><th>Prêmio hoje (mês)</th><th>Alerta</th><th>Ponto de atenção</th>':''}<th>Sugestão</th></tr></thead><tbody>
       ${rows.map(r=>`<tr><td><b>${escapeHtml(r.cat)}</b></td><td>${fmtMoney(r.need)}${r.dy}</td>${temApolice?`<td>${r.cap?fmtMoney(r.cap)+r.dy:'—'}</td><td><b style="color:${r.s[2]}">${r.s[1]}</b></td><td>${r.gap?fmtMoney(r.gap)+r.dy:'—'}</td><td>${r.prem?fmtMoney(r.prem):'—'}</td><td>${r.alerta?'<span class="tagx warn">'+escapeHtml(r.alerta)+'</span>':''}</td><td><small>${escapeHtml(r.ponto)}</small></td>`:''}<td><small>${escapeHtml(r.sug)}</small></td></tr>`).join('')}
-      <tr style="font-weight:700;background:#f6f7fc"><td>Total (sem as diárias)</td><td>${fmtMoney(T.need)}</td>${temApolice?`<td>${fmtMoney(T.cap)}</td><td>${T.sem} sem · ${T.ins} insuf.</td><td>${fmtMoney(T.gap)}</td><td>${fmtMoney(T.prem)}</td><td></td><td></td>`:''}<td></td></tr></tbody></table></div>
-    <div class="hint" style="margin-top:6px">Situação: <b>Sem cobertura</b> = nada lançado na Fase 2; <b>Insuficiente</b> = tem menos de 90% da necessidade; <b>Adequada</b> = 90% ou mais. Diárias (internação e DIT) são valores por dia e não entram no total.</div>
+      <tr style="font-weight:700;background:#f6f7fc"><td>Total (diária e DIT × 30 dias)</td><td>${fmtMoney(T.need)}</td>${temApolice?`<td>${fmtMoney(T.cap)}</td><td>${T.sem} sem · ${T.ins} insuf.</td><td>${fmtMoney(T.gap)}</td><td>${fmtMoney(T.prem)}</td><td></td><td></td>`:''}<td></td></tr></tbody></table></div>
+    <div class="hint" style="margin-top:6px">Situação: <b>Sem cobertura</b> = nada lançado na Fase 2; <b>Insuficiente</b> = tem menos de 90% da necessidade; <b>Adequada</b> = 90% ou mais. Diária e DIT são valores por dia: nas somas são contados × 30 dias.</div>
+    ${(()=>{ const B = f5Blocos(e.repr_blocos, manualVida, ctRows, educ, liq.valor); return `<div class="es-box" style="margin-top:10px"><div class="ql">Representatividade financeira · o que entra nos PDFs <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— o PDF da Fase 4 e a apresentação da Fase 6 mostram só o que estiver marcado</small></div>
+      <label class="rd"><input type="checkbox" id="f3-b-vida" ${B.vida?'checked':''}> <b>Seguro de vida</b> (se você não estiver aqui)</label>
+      <label class="rd"><input type="checkbox" id="f3-b-em" ${B.em_vida?'checked':''}> <b>Seguro em vida</b> (se estiver aqui, mas sem poder trabalhar)</label>
+      <div class="hint" style="margin-top:4px">${B.escolhido?'Escolha da consultora.':'Marcação sugerida pelo sistema.'} Se só um estiver marcado, ele ocupa a página inteira. Pelo menos um precisa ficar marcado.</div></div>`; })()}
     <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">${f5NomeCampo('f3-nome-pdf')}<button class="om-save" id="f3-pdf">Baixar PDF · Fases 3 e 4 (Diagnóstico)</button><button class="om-save" id="f3-save">Salvar informações</button><button class="om-cancel" id="f3-prox">Ir para a Fase 5 · Cotações e plano novo</button></div>`;
   host.querySelector('#f3-save').addEventListener('click', ()=>{ showToast('Informações salvas. Esta tela é calculada com o que está salvo nas Fases 2 e 3.'); pvFase3(p); });
+  const bv = host.querySelector('#f3-b-vida'), be = host.querySelector('#f3-b-em');
+  const salvaBlocos = async (quem)=>{
+    if(!bv.checked && !be.checked){ (quem===bv?be:bv).checked = true; showToast('Pelo menos uma das duas precisa ficar marcada.'); }
+    const { error } = await sb.from('crm_estudos').update({ repr_blocos:{ vida:bv.checked, em_vida:be.checked } }).eq('id', e.id);
+    if(error) showToast('Erro: '+error.message); else showToast('Escolha salva'); };
+  bv.addEventListener('change', ()=>salvaBlocos(bv)); be.addEventListener('change', ()=>salvaBlocos(be));
   host.querySelector('#f3-prox').addEventListener('click', ()=>pvGotoSection('pp-fase4'));
   const pdfBtn = host.querySelector('#f3-pdf'); pdfBtn.addEventListener('click', async ()=>{
     pdfBtn.disabled = true; const lb = pdfBtn.textContent; pdfBtn.textContent = 'Gerando…';
@@ -2716,7 +2918,7 @@ async function pvAnalise(p){
     const { error } = await sb.from('crm_analise_apolices').upsert(upd, {onConflict:'pessoa_id'}); if(error){ showToast('Erro ao salvar a análise: '+error.message); return false; }
     confirmada = !!conf; iniciada = true; return true;
   };
-  const totals = ()=>{ const c = rows.reduce((s,r)=>s+(Number(r.cap)||0),0), pr = rows.reduce((s,r)=>s+(Number(r.prem)||0),0);
+  const totals = ()=>{ const c = somaCap(rows), pr = rows.reduce((s,r)=>s+(Number(r.prem)||0),0);
     const a = document.getElementById('an-tc'), b = document.getElementById('an-tp'); if(a) a.textContent = fmt(c); if(b) b.textContent = fmt(pr); };
   const msg = ()=>{ const el = document.getElementById('an-msg'); if(!el) return;
     el.innerHTML = confirmada ? `<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px"><b>Análise confirmada e salva no cadastro.</b> Siga para a Fase 3 · Diagnóstico de proteção. <button class="om-save" id="an-prox" style="margin-left:8px;padding:4px 10px;font-size:12px">Ir para a Fase 3 · Diagnóstico de proteção</button></div>` : (iniciada?'<div class="hint">Edições salvas automaticamente — falta <b>Confirmar análise</b>.</div>':'');
@@ -3056,6 +3258,9 @@ async function pvDiagnostico(p){
       ${fld('dgp-data_nascimento','Data de nascimento'+(idadeP!=null?' ('+idadeP+' anos)':''),p.data_nascimento,'date')}${fld('dgp-profissao','Profissão',p.profissao)}
     </div>
     <div class="fgrid">${DIAG_ESSENCIAL.map(d=>pvDiagField(d[0], row[d[0]], d)).join('')}</div>
+    ${(()=>{ const solteiro = !p.estado_civil || p.estado_civil==='solteiro', semDep = !(Number(row.dependentes)>0); return `<div class="es-box" style="margin-top:12px"><div class="ql">Seguro de vida · capital manual <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— opcional</small></div>
+      <label class="fl" style="max-width:340px"><span>Capital de seguro de vida, manual (R$, opcional)</span><input type="number" step="1000" min="0" data-dg="capital_vida_manual" value="${row.capital_vida_manual==null?'':row.capital_vida_manual}"></label>
+      ${solteiro && semDep ? '<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:6px 10px;margin-top:6px">Cliente solteiro(a) e sem dependentes: o cálculo do seguro de vida (escola + inventário) fica em R$ 0. Se a pessoa quiser seguro de vida, digite o capital neste campo.</div>' : '<div class="hint" style="margin-top:6px">Se preenchido, vira a necessidade de Morte no diagnóstico e substitui a "Opção ideal" na representatividade financeira.</div>'}</div>`; })()}
     <details style="margin-top:12px"><summary style="cursor:pointer;font-weight:600">Saúde e subscrição <small style="color:var(--ink-faint);font-weight:400">— dado sensível: preencher só quando necessário para cotação (LGPD)</small></summary>
       <div class="fgrid" style="margin-top:8px">${DIAG_SAUDE.map(k=>pvDiagField(k, row[k], defOf(k))).join('')}</div><div class="hint" id="dg-imc">${imc?`IMC calculado: <b>${imc}</b>`:''}</div></details>
     <details style="margin-top:8px" open><summary style="cursor:pointer;font-weight:600">ADN completo <small style="color:var(--ink-faint);font-weight:400">— usado no cálculo da Análise (Fase 4) e da apresentação (Fase 6)</small></summary>
@@ -4425,14 +4630,15 @@ function demDialog(p){
       <label class="fl"><span>Ação</span><select id="dm-acao">${opt(DEM_ACOES,'Cotar')}</select></label>
       <label class="fl"><span>Status</span><select id="dm-st">${opt(DEM_STATUS.slice(0,5),'Pendente')}</select></label>
       <label class="fl"><span>Prazo (opcional)</span><input type="date" id="dm-prazo"></label>
-      <label class="fl"><span>Responsável</span><input id="dm-resp" value="${escapeHtml(curUserName()||'')}"></label></div>
+      <label class="fl"><span>Responsável</span><input id="dm-resp" value="${escapeHtml(curUserName()||'')}"></label>
+      <label class="fl"><span>Quem pediu</span><input id="dm-quem" placeholder="ex.: cliente, Amanda, escalista"></label></div>
       <label class="fl" style="margin-top:8px"><span>O que foi pedido / o que fazer?</span><textarea id="dm-desc" rows="3" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none"></textarea></label>
       <div class="om-err" id="dm-err"></div></div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="dm-save">Salvar demanda</button></div>`);
   box.querySelector('#dm-save').addEventListener('click', async ()=>{
     const g = id=>box.querySelector('#'+id).value.trim(), st = g('dm-st');
     const btn = box.querySelector('#dm-save'); btn.disabled = true;
-    const { error } = await sb.from('crm_demandas').insert({pessoa_id:p.id, produto:g('dm-prod'), acao:g('dm-acao'), descricao:g('dm-desc')||null, status:st, prazo:g('dm-prazo')||null, responsavel:g('dm-resp')||null, criado_por:curUserName()||null, concluida_em: st==='Concluída'?new Date().toISOString():null});
+    const { error } = await sb.from('crm_demandas').insert({pessoa_id:p.id, produto:g('dm-prod'), acao:g('dm-acao'), descricao:g('dm-desc')||null, quem_pediu:g('dm-quem')||null, status:st, prazo:g('dm-prazo')||null, responsavel:g('dm-resp')||null, criado_por:curUserName()||null, concluida_em: st==='Concluída'?new Date().toISOString():null});
     if(error){ box.querySelector('#dm-err').textContent = 'Erro: '+error.message; btn.disabled = false; return; }
     dlgClose(); showToast('Demanda registrada'); pvDemandas(p); });
 }
@@ -7037,6 +7243,7 @@ async function diagPushToADN(pessoaId, diag){
   if(diag.reposicao_renda_conjuge!=null) estUpd.reposicao_renda_conjuge = diag.reposicao_renda_conjuge;
   if(diag.outros_objetivos && diag.outros_objetivos.length) estUpd.outros_objetivos = diag.outros_objetivos;
   if(diag.modulos_visiveis) estUpd.modulos_visiveis = diag.modulos_visiveis;
+  if(diag.capital_vida_manual!==undefined) estUpd.capital_vida_manual = diag.capital_vida_manual;
   if(!Object.keys(estUpd).length) return {ok:true};
   const { data: estRow } = await sb.from('crm_estudos').select('id,dependentes').eq('pessoa_id', pessoaId).order('created_at',{ascending:false}).limit(1).maybeSingle();
   if(!estUpd.dependentes && diag.dependentes_idades && !(estRow && estRow.dependentes && estRow.dependentes.length)){ const ids = parseIdades(diag.dependentes_idades); if(ids.length) estUpd.dependentes = ids.map(i=>({nome:'', idade:i, custo_educacao:null, idade_limite_educacao:null})); }
@@ -8013,7 +8220,7 @@ document.getElementById('who-email').title = 'Clique para trocar o nome exibido'
 document.getElementById('who-email').addEventListener('click', ()=>userNameDialog(false));
 
 // ---- backup ----
-const BACKUP_TABLES = ['crm_demandas','crm_vendas','crm_nao_vendas','crm_prospeccao','crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
+const BACKUP_TABLES = ['crm_demandas','crm_vendas','crm_nao_vendas','crm_prospeccao','crm_acoes','crm_pessoas','crm_apolices','crm_funil','crm_oportunidades','crm_atividades','crm_estudos','crm_documentos','crm_diagnostico','crm_eventos_vida','crm_indicacoes','crm_pos_venda','crm_redes_sociais','crm_relacionamento','crm_agenda','crm_tarefas_diarias','crm_lembretes','crm_base_conhecimento','crm_sugestoes','crm_metas','crm_plantoes_resumo','crm_catalogo_produtos','crm_ata_entregaveis','crm_ata_semanal','crm_indicadores','crm_mais_carlas'];
 async function backupNow(){
   const btn = document.getElementById('btn-backup'); btn.disabled = true; const out = {exportado_em:new Date().toISOString(), tabelas:{}};
   try{
@@ -8298,6 +8505,11 @@ checkSession();
   table.vd-edit tr.vd-pro.cot td{ background:#e3eefc; } table.vd-edit tr.vd-pro.cot td:first-child{ box-shadow:inset 4px 0 0 #1b5fc7; }
   table.vd-edit tr.vd-pro.ret td{ background:#fff3e8; }
   .vd-ret{ font-size:11px; font-weight:700; margin-top:2px; } .vd-ret.atrasado{ color:#c8450b; } .vd-ret.hoje{ color:#8a5406; }
+
+  .vd-aviso{ margin:8px 0; padding:8px 12px; background:#fbeed9; border:1px solid #f0d3a3; border-radius:8px; font-size:13px; color:#8a5406; }
+  table.vd-edit textarea.req{ border-color:#c23636; background:#fff5f5; } .vd-req{ color:#c23636; font-size:11px; font-weight:600; margin-top:2px; }
+
+  .top-scroll{ overflow-x:auto; overflow-y:hidden; height:14px; margin-bottom:2px; } .top-scroll > div{ height:1px; }
 </style>
 </body>
 </html>
