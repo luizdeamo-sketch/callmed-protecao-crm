@@ -1316,9 +1316,9 @@ function vdWrap2(pages){
   return F5_CSS + VD_CSS2 + `<div class="dk dk2 rep">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="v2f"><span><b>CallMed Proteção Patrimonial</b></span><span class="pg">${i+1} / ${pages.length}<img src="data:image/jpeg;base64,${F5_LOGO}" alt=""></span></div>`)).join('')}</div>`;
 }
 // ---------- Prospecção ----------
-const VD_ST_PRO = ['Novo','Em contato','Agendou reunião','Retornar','Cotação em andamento','Virou cliente','Sem interesse'];
+const VD_ST_PRO = ['Novo','Em contato','Agendou reunião','Retornar','Cotação em andamento','Apresentei cotação','Virou cliente','Sem interesse'];
 const VD_ORIGENS = ['Indicação','Instagram','WhatsApp','Site','CallMed Saúde (médicos)','Carteira de clientes','Evento','Ganhador COPA','Outro'];
-const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Agendou reunião':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Virou cliente':'#0f7a53','Sem interesse':'#8b90a3'};
+const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Agendou reunião':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Apresentei cotação':'#6a3fc4','Virou cliente':'#0f7a53','Sem interesse':'#8b90a3'};
 const vdHojeIso = ()=> ymd(new Date());
 const vdFechado = x => x.status==='Virou cliente' || x.status==='Sem interesse';
 const vdRetornoTipo = x => { if(vdFechado(x) || !x.retorno_data) return ''; const h = vdHojeIso(); return x.retorno_data < h ? 'atrasado' : x.retorno_data === h ? 'hoje' : ''; };
@@ -1358,8 +1358,8 @@ async function vdTentaLigar(tabela, r, nome, cpf, tel){
   const { error } = await sb.from(tabela).update(upd).eq('id', r.id); if(error){ showToast('Erro ao ligar ao cadastro: '+error.message); return; }
   r.pessoa_id = alvo.id; showToast('Ligado ao cadastro de '+alvo.nome); vdDraw();
 }
-const VD_ACAO_ST = {'Novo':'Realizar primeiro contato','Em contato':'Realizar follow-up','Agendou reunião':'Confirmar reunião','Retornar':'Fazer nova tentativa','Cotação em andamento':'Apresentar proposta'};
-const VD_RES_ST = {'Novo':'Outro','Em contato':'Conversou','Agendou reunião':'Agendou','Retornar':'Sem resposta','Cotação em andamento':'Enviou material','Virou cliente':'Demonstrou interesse','Sem interesse':'Sem interesse'};
+const VD_ACAO_ST = {'Novo':'Realizar primeiro contato','Em contato':'Realizar follow-up','Agendou reunião':'Confirmar reunião','Retornar':'Fazer nova tentativa','Cotação em andamento':'Apresentar proposta','Apresentei cotação':'Realizar follow-up'};
+const VD_RES_ST = {'Novo':'Outro','Em contato':'Conversou','Agendou reunião':'Agendou','Retornar':'Sem resposta','Cotação em andamento':'Enviou material','Apresentei cotação':'Enviou material','Virou cliente':'Demonstrou interesse','Sem interesse':'Sem interesse'};
 const vdAcaoPadrao = x => VD_ACAO_ST[x.status] || '';
 // "Registrar": grava o contato no histórico do cliente (atividade + próxima ação) e, se for "Sem interesse", leva para Vendas não realizadas
 async function vdRegistrar(r){
@@ -1551,13 +1551,15 @@ function vdNaoTot(l){ const m = {}; l.forEach(x=>{ const k = x.motivo||'Sem moti
   return `<span class="vd-chip">Não realizadas: <b>${l.length}</b></span>${Object.entries(m).map(([k,v])=>`<span class="vd-chip">${escapeHtml(k)}: <b>${v}</b></span>`).join('')}${sj?`<span class="vd-chip warn">${sj} sem justificativa</span>`:''}`; }
 function vdNaoHtml(){
   const l = vdNaoList(), f = VD.fN;
-  const rows = l.map(x=>`<tr data-id="${x.id}"><td><input type="date" data-k="data_registro" value="${escapeHtml(x.data_registro||'')}"></td>
-      <td><input type="text" list="vd-cli" data-k="cliente" value="${escapeHtml(x.cliente||'')}" aria-label="Cliente">${vdAbrirLink(x)}</td>
-      <td><input type="text" list="vd-prod" data-k="produto" value="${escapeHtml(x.produto||'')}" placeholder="Produto"></td>
-      <td><input type="text" data-k="seguradora" value="${escapeHtml(x.seguradora||'')}" placeholder="Seguradora"></td>
-      <td><select data-k="motivo"><option value="">Escolha o motivo</option>${VD_MOTIVOS.map(m=>`<option${x.motivo===m?' selected':''}>${escapeHtml(m)}</option>`).join('')}</select></td>
-      <td><textarea rows="3" data-k="justificativa" class="${(x.justificativa||'').trim()?'':'req'}" placeholder="Justificativa: por que não virou venda?">${escapeHtml(x.justificativa||'')}</textarea>${(x.justificativa||'').trim()?'':'<div class="vd-req">Escreva a justificativa para registrar.</div>'}</td>
-      <td style="white-space:nowrap">${x.demanda_id?`<button class="om-cancel vd-btn" data-act="reabrir-n" data-id="${x.id}">Reabrir demanda</button> `:''}<button class="om-cancel vd-btn" data-act="del-n" data-id="${x.id}" style="color:var(--red)">Excluir</button></td></tr>`).join('');
+  VD.nEdit = VD.nEdit || {};
+  const rows = l.map(x=>{ const lk = x.prospeccao_id && !VD.nEdit[x.id], dis = lk ? ' disabled' : '';
+    return `<tr data-id="${x.id}"${lk?' style="background:#f6f8fc"':''}><td><input type="date" data-k="data_registro" value="${escapeHtml(x.data_registro||'')}"${dis}></td>
+      <td><input type="text" list="vd-cli" data-k="cliente" value="${escapeHtml(x.cliente||'')}" aria-label="Cliente"${dis}>${vdAbrirLink(x)}</td>
+      <td><input type="text" list="vd-prod" data-k="produto" value="${escapeHtml(x.produto||'')}" placeholder="Produto"${dis}></td>
+      <td><input type="text" data-k="seguradora" value="${escapeHtml(x.seguradora||'')}" placeholder="Seguradora"${dis}></td>
+      <td><select data-k="motivo"${dis}><option value="">Escolha o motivo</option>${VD_MOTIVOS.map(m=>`<option${x.motivo===m?' selected':''}>${escapeHtml(m)}</option>`).join('')}</select></td>
+      <td><textarea rows="3" data-k="justificativa" class="${(x.justificativa||'').trim()?'':'req'}" placeholder="Justificativa: por que não virou venda?"${dis}>${escapeHtml(x.justificativa||'')}</textarea>${(x.justificativa||'').trim()?'':'<div class="vd-req">Escreva a justificativa para registrar.</div>'}</td>
+      <td style="white-space:nowrap">${x.prospeccao_id?(lk?`<div style="font-size:10.5px;color:#1a7f37;margin-bottom:3px">✓ registrado da Prospecção</div><button class="om-cancel vd-btn" data-act="edit-n" data-id="${x.id}">Editar</button> `:`<button class="om-save vd-btn" data-act="ok-n" data-id="${x.id}">Concluir edição</button> `):''}${x.demanda_id?`<button class="om-cancel vd-btn" data-act="reabrir-n" data-id="${x.id}">Reabrir demanda</button> `:''}<button class="om-cancel vd-btn" data-act="del-n" data-id="${x.id}" style="color:var(--red)">Excluir</button></td></tr>`; }).join('');
   return `<div class="vd-bar"><label class="fl"><span>Data · de</span><input type="date" id="vd-n-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-n-ate" value="${escapeHtml(f.ate)}"></label>
       ${(f.de||f.ate)?'<button class="om-cancel" data-act="limpar-n">Limpar período</button>':''}<span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-n">Gerar relatório (PDF)</button></div>
     <div class="vd-chips" id="vd-tot">${vdNaoTot(l)}</div>
@@ -1692,6 +1694,8 @@ async function vdPdfDemandas(){
     else if(a==='nao'){ const d = VD.dem.find(x=>x.id===id); if(d) vdNaoVirouDem(d); }
     else if(a==='ir-vend'){ VD.tab = 'vend'; vdDraw(); } else if(a==='ir-nao'){ VD.tab = 'nao'; vdDraw(); }
     else if(a==='nova-p'){ const { data, error } = await sb.from('crm_prospeccao').insert({ nome:'', status:'Novo', contato_em:new Date().toISOString(), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.pro.unshift(data); VD.foco = data.id; vdDraw(); }
+    else if(a==='edit-n'){ VD.nEdit = VD.nEdit||{}; VD.nEdit[id] = true; vdDraw(); }
+    else if(a==='ok-n'){ if(VD.nEdit) delete VD.nEdit[id]; vdDraw(); }
     else if(a==='reg-p'){ vdRegistrar(VD.pro.find(x=>x.id===id)); }
     else if(a==='del-p'){ if(!confirm('Excluir este contato da prospecção?')) return; const { error } = await sb.from('crm_prospeccao').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; } VD.pro = VD.pro.filter(x=>x.id!==id); vdDraw(); }
     else if(a==='pdf-p') vdProPdf();
