@@ -1316,9 +1316,9 @@ function vdWrap2(pages){
   return F5_CSS + VD_CSS2 + `<div class="dk dk2 rep">${pages.map((h,i)=>h.replace('@@FOOT@@',`<div class="v2f"><span><b>CallMed Proteção Patrimonial</b></span><span class="pg">${i+1} / ${pages.length}<img src="data:image/jpeg;base64,${F5_LOGO}" alt=""></span></div>`)).join('')}</div>`;
 }
 // ---------- Prospecção ----------
-const VD_ST_PRO = ['Novo','Em contato','Agendou reunião','Retornar','Cotação em andamento','Apresentei cotação','Virou cliente','Sem interesse'];
+const VD_ST_PRO = ['Novo','Em contato','Respondeu','Agendou reunião','Retornar','Cotação em andamento','Apresentei cotação','Virou cliente','Sem interesse'];
 const VD_ORIGENS = ['Indicação','Instagram','WhatsApp','Site','CallMed Saúde (médicos)','Carteira de clientes','Evento','Ganhador COPA','Outro'];
-const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Agendou reunião':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Apresentei cotação':'#6a3fc4','Virou cliente':'#0f7a53','Sem interesse':'#8b90a3'};
+const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Respondeu':'#0b7a8a','Agendou reunião':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Apresentei cotação':'#6a3fc4','Virou cliente':'#0f7a53','Sem interesse':'#8b90a3'};
 const vdHojeIso = ()=> ymd(new Date());
 const vdFechado = x => x.status==='Virou cliente' || x.status==='Sem interesse';
 const vdRetornoTipo = x => { if(vdFechado(x) || !x.retorno_data) return ''; const h = vdHojeIso(); return x.retorno_data < h ? 'atrasado' : x.retorno_data === h ? 'hoje' : ''; };
@@ -1358,8 +1358,8 @@ async function vdTentaLigar(tabela, r, nome, cpf, tel){
   const { error } = await sb.from(tabela).update(upd).eq('id', r.id); if(error){ showToast('Erro ao ligar ao cadastro: '+error.message); return; }
   r.pessoa_id = alvo.id; showToast('Ligado ao cadastro de '+alvo.nome); vdDraw();
 }
-const VD_ACAO_ST = {'Novo':'Realizar primeiro contato','Em contato':'Realizar follow-up','Agendou reunião':'Confirmar reunião','Retornar':'Fazer nova tentativa','Cotação em andamento':'Apresentar proposta','Apresentei cotação':'Realizar follow-up'};
-const VD_RES_ST = {'Novo':'Outro','Em contato':'Conversou','Agendou reunião':'Agendou','Retornar':'Sem resposta','Cotação em andamento':'Enviou material','Apresentei cotação':'Enviou material','Virou cliente':'Demonstrou interesse','Sem interesse':'Sem interesse'};
+const VD_ACAO_ST = {'Novo':'Realizar primeiro contato','Em contato':'Realizar follow-up','Respondeu':'Realizar follow-up','Agendou reunião':'Confirmar reunião','Retornar':'Fazer nova tentativa','Cotação em andamento':'Apresentar proposta','Apresentei cotação':'Realizar follow-up'};
+const VD_RES_ST = {'Novo':'Outro','Em contato':'Conversou','Respondeu':'Conversou','Agendou reunião':'Agendou','Retornar':'Sem resposta','Cotação em andamento':'Enviou material','Apresentei cotação':'Enviou material','Virou cliente':'Demonstrou interesse','Sem interesse':'Sem interesse'};
 const vdAcaoPadrao = x => VD_ACAO_ST[x.status] || '';
 // "Registrar": grava o contato no histórico do cliente (atividade + próxima ação) e, se for "Sem interesse", leva para Vendas não realizadas
 async function vdRegistrar(r){
@@ -4176,7 +4176,7 @@ async function renderAta(){
     <div class="ata-entry">
       <div class="dt">${fmtDateLong(a.data)}</div>
       <div class="dw">${escapeHtml(a.dia_semana||'')}${a.participantes?(' · '+escapeHtml(a.participantes)):''}</div>
-      ${a.comercial&&a.comercial.kpis?`<div style="margin:10px 0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--brand-soft)"><div class="ql" style="margin-bottom:8px">${escapeHtml(a.comercial.titulo||'Resultado comercial')}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">${a.comercial.kpis.map(k=>`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px"><b style="font-size:20px;display:block">${escapeHtml(String(k.v))}</b><span style="font-size:11.5px;color:var(--ink-faint)">${escapeHtml(k.l)}</span></div>`).join('')}</div>${a.comercial.nota?`<div style="font-size:12px;margin-top:8px;color:var(--ink-soft,inherit)">${escapeHtml(a.comercial.nota)}</div>`:''}</div>`:''}
+      ${a.comercial&&a.comercial.kpis?`<div style="margin:10px 0;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--brand-soft)"><div class="ql" style="margin-bottom:8px">${escapeHtml(a.comercial.titulo||'Resultado comercial')}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">${a.comercial.kpis.map(k=>`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px"><b style="font-size:20px;display:block">${escapeHtml(String(k.v))}</b><span style="font-size:11.5px;color:var(--ink-faint)">${escapeHtml(k.l)}</span></div>`).join('')}</div>${a.comercial.nota?`<div style="font-size:12px;margin-top:8px;color:var(--ink-soft,inherit)">${escapeHtml(a.comercial.nota)}</div>`:''}${a.comercial.meta&&a.comercial.meta.linhas?`<div class="ql" style="margin:12px 0 8px">${escapeHtml(a.comercial.meta.titulo||'Meta do funil')}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">${a.comercial.meta.linhas.map(k=>`<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:8px 10px"><b style="font-size:18px;display:block">${escapeHtml(String(k.v))}</b><span style="font-size:11.5px"><b>${escapeHtml(k.l)}</b> — ${escapeHtml(k.t||'')}</span></div>`).join('')}</div>${a.comercial.meta.nota?`<div style="font-size:12px;margin-top:8px">${escapeHtml(a.comercial.meta.nota)}</div>`:''}`:''}</div>`:''}
       <h4 class="done-h4">Entregue &amp; decidido</h4>
       <ul>${(a.entregue||[]).map(i=>`<li>${escapeHtml(i)}</li>`).join('')}</ul>
       <h4 class="open-h4">Em aberto</h4>
