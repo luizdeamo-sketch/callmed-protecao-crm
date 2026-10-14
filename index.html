@@ -1454,36 +1454,364 @@ function vdDemList(){
   return VD.dem.filter(d=>{
     if(f.st==='abertas' && VD_ENC.includes(d.status)) return false;
     if(f.st && f.st!=='abertas' && f.st!=='todas' && d.status!==f.st) return false;
-    if(q && !vdNorm([d.crm_pessoas&&d.crm_pessoas.nome, d.produto, d.acao, d.descricao, d.responsavel].join(' ')).includes(q)) return false;
+    if(q && !vdNorm([d.crm_pessoas&&d.crm_pessoas.nome, d.para_quem, d.produto, d.acao, d.descricao, d.responsavel, d.quem_pediu].join(' ')).includes(q)) return false;
     return true; });
 }
 const VD_ST_ACAO = ['Pendente','Em andamento','Pausada','Concluída'];
+// ---------- Demandas: entrada, abas por produto e "Abrir demanda" (levantamento, cotações, possibilidades e proposta) ----------
+const DM_ABAS = [['resumo','Resumo geral'],['saude','Seguro Saúde'],['vida','Seguro de Vida'],['rc','RC (Responsabilidade Civil)'],['cons','Consórcio'],['acoes','Ações']];
+const DM_PROD = {saude:'Seguro Saúde', vida:'Seguro de Vida', rc:'RC (Responsabilidade Civil)', cons:'Consórcio'};
+const DM_VINC = ['Titular','Cônjuge','Filho(a)','Pai','Mãe','Outro dependente','Sócio','Funcionário','Outro'];
+const DM_TIPOS_RC = ['RC Profissional (erros e omissões)','RC Geral (empresa e estabelecimento)','RC Médica e hospitalar','RC Administradores (D&O)','RC Cyber','Outro'];
+const DM_FAIXAS = [[0,18],[19,23],[24,28],[29,33],[34,38],[39,43],[44,48],[49,53],[54,58],[59,200]];
+const DM_CALLMED = { razao:'CALLMED SERVIÇOS MEDICOS E ANESTESIOLOGIA LTDA', cnpj:'38.011.127/0001-89', end:{log:'RUA JOSE VERSOLATO, 111', comp:'SALA 2827', bairro:'CENTRO', cidade:'SÃO BERNARDO DO CAMPO', uf:'SP', cep:'09750-730'} };
+const dmCat = d => { const t = vdNorm(d.produto||''); return /saude/.test(t)?'saude':/vida/.test(t)?'vida':/\brc\b|responsabilidade/.test(t)?'rc':/consorcio/.test(t)?'cons':'geral'; };
+const dmN = v => { if(typeof v==='number') return isFinite(v)?v:0; let s = String(v==null?'':v).replace(/[^\d,.\-]/g,''); if(!s) return 0; if(s.includes(',')) s = s.replace(/\./g,'').replace(',','.'); else if((s.match(/\./g)||[]).length>1) s = s.replace(/\./g,''); const n = parseFloat(s); return isFinite(n)?n:0; };
+const dmM = n => (Number(n)||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const dmR2 = n => Math.round(n*100)/100;
+const dmUid = () => Math.random().toString(36).slice(2,8);
+const dmPara = d => (d.crm_pessoas&&d.crm_pessoas.nome) || d.para_quem || '—';
+const dmDados = d => { if(!d.dados || typeof d.dados!=='object' || Array.isArray(d.dados)) d.dados = {}; return d.dados; };
+const dmGet = (o,p) => p.split('.').reduce((a,k)=>a==null?a:a[k], o);
+function dmSetPath(o, p, v){ const ks = p.split('.'); let a = o; for(let i=0;i<ks.length-1;i++){ if(a[ks[i]]==null) a[ks[i]] = /^\d+$/.test(ks[i+1]) ? [] : {}; a = a[ks[i]]; } a[ks[ks.length-1]] = v; }
+function dmSave(d, quick){
+  clearTimeout(VD.timers['dm'+d.id]); vdMsg('Salvando…');
+  VD.timers['dm'+d.id] = setTimeout(async ()=>{
+    const { error } = await sb.from('crm_demandas').update({ dados:d.dados, updated_at:new Date().toISOString() }).eq('id', d.id);
+    vdMsg(error ? 'Erro ao salvar: '+error.message : 'Salvo às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' ✓'); if(error) showToast('Erro: '+error.message); }, quick?0:300);
+}
+function dmRedraw(){ const el = document.scrollingElement || document.documentElement, y = el.scrollTop, w = document.getElementById('vd-body'); const wy = w ? w.scrollTop : 0; vdDraw(); el.scrollTop = y; if(w) w.scrollTop = wy; }
+const dmIdade = n => { if(!/^\d{4}-\d{2}-\d{2}$/.test(n||'')) return null; const b = new Date(n+'T00:00:00'), t = new Date(); let a = t.getFullYear()-b.getFullYear(); if(t.getMonth()<b.getMonth()||(t.getMonth()===b.getMonth()&&t.getDate()<b.getDate())) a--; return a>=0&&a<125 ? a : null; };
+const dmFx = f => f[1]>=200 ? f[0]+'+ anos' : f[0]+' a '+f[1]+' anos';
+// estruturas
+function dmSd(d){ const D = dmDados(d); if(!D.sd) D.sd = { tipo:'', modal:'', empresa:'', atual:'', necessidade:'', pessoas:[{nome:'',nasc:'',vinc:'Titular'}] }; return D.sd; }
+function dmProp(d){ const D = dmDados(d); if(!D.prop) D.prop = { titulo:'Proposta Comercial · Saúde Empresarial', estip:'', grupo:d.para_quem||((d.crm_pessoas&&d.crm_pessoas.nome)||''), emissao:ymd(new Date()), validade:'', atualRot:'', atualValor:'', atualVidas:'', atualPessoas:'', objetivo:'', quem:'', porque:'', abrang:'', passos:'', nota:'', analise:'', blocos:[], poss:[] }; return D.prop; }
+function dmOut(d, k){ const D = dmDados(d); if(!D[k]) D[k] = (k==='rc') ? { razao:'', cnpj:'', tel:'', email:'', contato:'', atividade:'', cnae:'', func:'', prof:'', fat:'', tipo:'', lmi:'', vigIni:'', segAtual:'', apAtual:'', sinistros:'', nec:'', end:{log:'',comp:'',bairro:'',cidade:'',uf:'',cep:''}, cots:[] } : { nome:'', doc:'', tel:'', email:'', nec:'', obs:'', cots:[] }; return D[k]; }
+function dmOpCalc(b,o){ const ls = (o.linhas||[]).filter(l=>dmN(l.u)>0); const sub = dmR2(ls.reduce((s,l)=>s+(dmN(l.v)||1)*dmN(l.u),0)); const man = dmN(o.totalManual);
+  const total = man>0 ? dmR2(man) : dmR2(sub + dmR2(sub*dmN(b.iof)/100)), iof = man>0 && sub>0 ? dmR2(total-sub) : dmR2(sub*dmN(b.iof)/100); return { ls, sub, iof, total, anual:dmR2(total*12), manual:man>0 }; }
+function dmAn(d){
+  const p = dmProp(d), atual = dmN(p.atualValor);
+  const bl = p.blocos.map((b,i)=>({ b, nome:b.nome||('Grupo '+(i+1)), ops:(b.opcoes||[]).map((o,j)=>({ o, rot:o.rot||('Opção '+(j+1)), c:dmOpCalc(b,o) })).filter(x=>x.c.total>0) })).filter(x=>x.ops.length);
+  bl.forEach(x=>{ x.min = x.ops.reduce((m,y)=>y.c.total<m.c.total?y:m, x.ops[0]); x.max = x.ops.reduce((m,y)=>y.c.total>m.c.total?y:m, x.ops[0]); });
+  let combos = []; const poss = p.poss||[];
+  if(poss.length){
+    combos = poss.map((q,i)=>{ const parts = []; (q.itens||[]).forEach(t=>{ const x = bl.find(z=>z.b.id===t.bid), y = x && x.ops.find(z=>z.o.id===t.oid); if(y) parts.push([x,y]); });
+      const total = dmR2(parts.reduce((a,[x,y])=>a+y.c.total,0));
+      return { poss:q, total, anual:dmR2(total*12), dif:atual?dmR2(total-atual):null, vidas:parts.reduce((a,[x])=>a+dmN(x.b.vidas),0), nome:q.nome||('Possibilidade '+(i+1)), comp:parts.map(([x,y])=>x.nome+' '+y.rot).join(' + ') }; }).filter(c=>c.total>0);
+  } else if(bl.length>1){
+    combos = bl.reduce((acc,x)=>{ const r = []; acc.forEach(a=>x.ops.forEach(y=>r.push({ parts:a.parts.concat([[x,y]]), total:dmR2(a.total+y.c.total) }))); return r; }, [{parts:[],total:0}]);
+    combos.forEach(c=>{ c.anual = dmR2(c.total*12); c.dif = atual?dmR2(c.total-atual):null; c.nome = c.parts.map(([x,y])=>x.nome+' '+y.rot).join(' + '); c.comp = c.nome; c.vidas = c.parts.reduce((a,[x])=>a+dmN(x.b.vidas),0); });
+    combos.sort((a,b)=>a.total-b.total);
+  }
+  const mv = combos.length ? Math.max(...combos.map(c=>c.vidas||0)) : 0, cand = combos.filter(c=>(c.vidas||0)===mv);
+  const cheap = cand.length ? cand.reduce((m,c)=>c.total<m.total?c:m, cand[0]) : null;
+  const tx = [];
+  bl.forEach(x=>{
+    if(x.ops.length>1){ const dd = dmR2(x.max.c.total-x.min.c.total); tx.push(x.nome+': a opção mais barata é '+x.min.rot+' ('+dmM(x.min.c.total)+' por mês). '+x.max.rot+' custa '+dmM(dd)+' a mais por mês, '+dmM(dmR2(dd*12))+' a mais por ano.'); }
+    else tx.push(x.nome+': '+x.min.rot+' custa '+dmM(x.min.c.total)+' por mês ('+dmM(x.min.c.anual)+' por ano).');
+    if(x.b.compara && atual>0){ const e = dmR2(atual-x.min.c.total), pc = Math.abs(e/atual*100).toFixed(1).replace('.',','); tx.push('Frente ao valor de hoje ('+dmM(atual)+' por mês), '+x.min.rot+' representa '+(e>=0?'uma economia':'um acréscimo')+' de '+dmM(Math.abs(e))+' por mês ('+pc+'%), ou '+dmM(dmR2(Math.abs(e)*12))+' por ano.'); }
+  });
+  if(poss.length && combos.length) combos.forEach(c=>tx.push(c.nome+': '+c.comp+' = '+dmM(c.total)+' por mês ('+dmM(c.anual)+' por ano)'+(c.vidas?', '+c.vidas+' vidas':'')+(c.dif!=null?'; '+(c.dif<=0?'economia de ':'acréscimo de ')+dmM(Math.abs(c.dif))+' por mês em relação a hoje':'')+'.'));
+  else if(cheap) tx.push('Cenário completo mais econômico ('+cheap.vidas+' vidas): '+cheap.nome+', '+dmM(cheap.total)+' por mês ('+dmM(cheap.anual)+' por ano).'+(cheap.dif!=null?' Em relação a hoje: '+(cheap.dif<=0?'economia de ':'acréscimo de ')+dmM(Math.abs(cheap.dif))+' por mês.':''));
+  if(p.validade && p.validade<ymd(new Date())) tx.push('Atenção: a validade informada ('+vdD(p.validade)+') já passou. Confirme os valores com as operadoras antes de apresentar.');
+  return { atual, bl, combos, cheap, tx };
+}
+function dmCotN(d){ const c = dmCat(d), D = dmDados(d);
+  if(c==='saude'){ const A = dmAn(d); return A.bl.reduce((n,x)=>n+x.ops.length,0); }
+  return ((D.rc||D.cons||D.vida||{}).cots||[]).length; }
+// ---------- helpers de campo ----------
+const dmH = escapeHtml;
+const dmVal = (d,p) => { const v = dmGet(dmDados(d), p); return v==null?'':v; };
+const dmIn = (d,p,l,t,x) => `<label class="fl"><span>${dmH(l)}</span><input type="${t||'text'}" data-dm="${p}" value="${dmH(dmVal(d,p))}"${x||''}></label>`;
+const dmMo = (d,p,l,re) => { const v = dmVal(d,p); return `<label class="fl"><span>${dmH(l)}</span><input type="text" inputmode="decimal" data-dm="${p}" data-num="1"${re?' data-re="1"':''} value="${v===''?'':dmH(dmN(v).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))}" placeholder="0,00" style="text-align:right"></label>`; };
+const dmTa = (d,p,l,r,ph) => `<label class="fl" style="width:100%" id="dmf-${p.replace(/\./g,'-')}"><span>${dmH(l)}</span><textarea rows="${r||3}" data-dm="${p}" placeholder="${dmH(ph||'')}" style="width:100%">${dmH(dmVal(d,p))}</textarea></label>`;
+const dmSe = (d,p,l,ops,re) => `<label class="fl"><span>${dmH(l)}</span><select data-dm="${p}"${re?' data-re="1"':''}><option value="">Escolha</option>${ops.map(o=>`<option${o===dmVal(d,p)?' selected':''}>${dmH(o)}</option>`).join('')}</select></label>`;
+const dmGrid = (...c) => `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px">${c.join('')}</div>`;
+const dmBox = (t, sub, body, id) => `<div class="es-box" style="margin-bottom:12px"${id?` id="${id}"`:''}><div class="ql">${dmH(t)}</div>${sub?`<div class="hint" style="margin:0 0 8px">${dmH(sub)}</div>`:''}${body}</div>`;
+// ---------- levantamento do Seguro Saúde ----------
+function dmSdResumo(sd){ const ps = sd.pessoas.filter(x=>(x.nome||'').trim()||x.nasc); const tit = ps.filter(x=>x.vinc==='Titular'||x.vinc==='Sócio').length;
+  const fx = DM_FAIXAS.map(f=>({ f, n:ps.filter(x=>{ const a = dmIdade(x.nasc); return a!=null && a>=f[0] && a<=f[1]; }).length })).filter(x=>x.n);
+  return { tot:ps.length, tit, dep:ps.length-tit, fx, sem:ps.filter(x=>dmIdade(x.nasc)==null).length, ps }; }
+function dmSdFamilias(sd){ const fam = []; let cur = null; const eT = x=>x.vinc==='Titular'||x.vinc==='Sócio';
+  sd.pessoas.filter(x=>(x.nome||'').trim()||x.nasc).forEach(x=>{ if(eT(x)){ cur = {tit:x,deps:[]}; fam.push(cur); } else if(cur) cur.deps.push(x); else { cur = {tit:null,deps:[x]}; fam.push(cur); } });
+  return fam; }
+const dmSdLinha = x => ((x.nome||'').trim()||'(sem nome)')+' · '+(x.vinc||'vínculo não informado')+(x.nasc?' · '+vdD(x.nasc)+(dmIdade(x.nasc)!=null?' ('+dmIdade(x.nasc)+' anos)':''):' · sem data de nascimento');
+function dmSdHtml(d){
+  const sd = dmSd(d), emp = sd.tipo==='Empresa', R = dmSdResumo(sd), F = dmSdFamilias(sd);
+  const linhas = sd.pessoas.map((x,i)=>`<tr><td><input type="text" data-dm="sd.pessoas.${i}.nome" value="${dmH(x.nome||'')}" style="width:100%"></td>
+    <td style="white-space:nowrap"><input type="date" data-dm="sd.pessoas.${i}.nasc" data-re="1" value="${dmH(x.nasc||'')}"> <small style="color:var(--ink-faint)">${dmIdade(x.nasc)!=null?dmIdade(x.nasc)+' anos':''}</small></td>
+    <td><select data-dm="sd.pessoas.${i}.vinc" data-re="1"><option value="">Escolha</option>${DM_VINC.map(o=>`<option${o===x.vinc?' selected':''}>${o}</option>`).join('')}</select></td>
+    <td><button class="om-cancel vd-btn" data-dmact="del-seg" data-p="${i}" title="Remover pessoa">x</button></td></tr>`).join('');
+  const resumo = R.tot ? `<div class="vd-chips" style="margin:8px 0"><span class="vd-chip ok"><b>${R.tot}</b> vida(s)</span><span class="vd-chip">${R.tit} titular(es)/sócio(s)</span><span class="vd-chip">${R.dep} dependente(s)</span>${R.sem?`<span class="vd-chip warn">${R.sem} sem data de nascimento</span>`:''}${R.fx.map(x=>`<span class="vd-chip">${dmFx(x.f)}: <b>${x.n}</b></span>`).join('')}</div>` : '';
+  const fam = F.length ? `<div class="ql" style="margin:10px 0 4px">Como ficou, por família</div>${F.map((f,i)=>`<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin:4px 0"><b>${f.tit?'Família '+(i+1)+' · '+dmH(f.tit.nome||'titular'):'Sem titular definido'}</b><br>${[f.tit].concat(f.deps).filter(Boolean).map(x=>dmH(dmSdLinha(x))).join('<br>')}</div>`).join('')}` : '';
+  return dmBox('Levantamento do Seguro Saúde','Quem será segurado, o plano de hoje e a necessidade. Salva ao sair de cada campo.',
+    dmGrid(dmSe(d,'sd.tipo','Para quem será o seguro?',['Empresa','Pessoa física'],true),
+      emp ? dmIn(d,'sd.empresa','Empresa (nome e CNPJ)') : sd.tipo==='Pessoa física' ? dmSe(d,'sd.modal','Individual ou familiar?',['Individual','Familiar']) : '',
+      dmIn(d,'sd.atual','Qual plano de saúde tem atualmente?','text',' placeholder="Operadora, plano e valor, se souber"'))
+    + `<div class="ql" style="margin:12px 0 4px">Segurados</div><div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:620px"><thead><tr><th>Nome do segurado</th><th>Data de nascimento</th><th>${emp?'Vínculo (titular, dependente, sócio...)':'Grau de parentesco (titular ou dependente)'}</th><th></th></tr></thead><tbody>${linhas}</tbody></table></div>
+    <div style="margin:8px 0"><button class="om-cancel" data-dmact="add-seg">+ Adicionar pessoa</button> <span class="hint">${R.tot} pessoa(s) informada(s)</span></div>${resumo}${fam}`
+    + dmTa(d,'sd.necessidade','Qual a maior necessidade hoje?',3)
+    + `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" data-dmact="sd-copiar">Copiar mensagem para o cliente validar (WhatsApp ou e-mail)</button><button class="om-cancel" data-dmact="sd-pdf">Baixar resumo para o cliente (PDF)</button><button class="om-cancel" data-dmact="sd-faixas">Montar as faixas etárias na cotação</button><button class="om-cancel" data-dmact="sd-proposta">Copiar estes dados para a proposta</button></div><textarea id="dm-msg" rows="10" style="display:none;width:100%;margin-top:8px"></textarea>`, 'dm-sd');
+}
+function dmSdMsg(d){ const sd = dmSd(d), F = dmSdFamilias(sd), R = dmSdResumo(sd);
+  let t = 'Olá! Para eu seguir com a cotação do plano de saúde, só preciso que você confirme se estas são as pessoas, os vínculos e as datas de nascimento:\n';
+  t += '\nSeguro para: '+(sd.tipo==='Empresa'?'empresa'+(sd.empresa?' ('+sd.empresa+')':''):sd.tipo==='Pessoa física'?'pessoa física'+(sd.modal?' · '+sd.modal.toLowerCase():''):'(não informado)')+'\n';
+  F.forEach((f,i)=>{ t += '\n'+(f.tit?'Família '+(i+1):'Sem titular definido')+'\n'; [f.tit].concat(f.deps).filter(Boolean).forEach(x=>{ t += '- '+dmSdLinha(x)+'\n'; }); });
+  t += '\nTotal: '+R.tot+' vida(s), sendo '+R.tit+' titular(es) e '+R.dep+' dependente(s).\n';
+  if(sd.atual) t += 'Plano atual: '+sd.atual+'\n'; if(sd.necessidade) t += 'Maior necessidade hoje: '+sd.necessidade+'\n';
+  return t+'\nEstá tudo certo? Se faltar alguém ou algo estiver diferente, me avise que eu ajusto.\n\nCallMed Proteção Patrimonial'; }
+// ---------- cotações, possibilidades e proposta (Saúde) ----------
+function dmBlocoHtml(d, b, bi){
+  const ops = (b.opcoes||[]).map((o,oi)=>{ const c = dmOpCalc(b,o), P = `${bi},${oi}`;
+    const ls = (o.linhas||[]).map((l,li)=>`<tr><td><input type="text" data-dm="prop.blocos.${bi}.opcoes.${oi}.linhas.${li}.f" value="${dmH(l.f||'')}" placeholder="Faixa ou item" style="width:100%"></td>
+      <td><input type="text" inputmode="decimal" data-dm="prop.blocos.${bi}.opcoes.${oi}.linhas.${li}.v" data-num="1" data-re="1" value="${l.v===''||l.v==null?'':dmH(String(l.v))}" style="width:70px;text-align:right"></td>
+      <td><input type="text" inputmode="decimal" data-dm="prop.blocos.${bi}.opcoes.${oi}.linhas.${li}.u" data-num="1" data-re="1" value="${l.u===''||l.u==null?'':dmH(dmN(l.u).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))}" placeholder="0,00" style="width:110px;text-align:right"></td>
+      <td style="text-align:right">${dmN(l.u)>0?dmM((dmN(l.v)||1)*dmN(l.u)):'—'}</td><td><button class="om-cancel vd-btn" data-dmact="del-lin" data-p="${bi},${oi},${li}">x</button></td></tr>`).join('');
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0;background:#fff">
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">${dmIn(d,`prop.blocos.${bi}.opcoes.${oi}.rot`,'Nome da opção')}${dmMo(d,`prop.blocos.${bi}.opcoes.${oi}.totalManual`,'Total mensal informado (opcional)',true)}<span style="flex:1"></span><b style="font-size:15px">${c.total>0?dmM(c.total)+' /mês':'—'}</b><button class="om-cancel vd-btn" data-dmact="del-op" data-p="${P}" style="color:var(--red)">Excluir opção</button></div>
+      <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:560px"><thead><tr><th>Faixa / item</th><th>Vidas</th><th>Valor por vida</th><th style="text-align:right">Subtotal</th><th></th></tr></thead><tbody>${ls}</tbody></table></div>
+      <button class="om-cancel vd-btn" data-dmact="add-lin" data-p="${P}">+ Linha</button>
+      ${c.total>0?`<div class="hint" style="margin-top:6px">Subtotal ${dmM(c.sub)}${c.iof?` · IOF ${dmM(c.iof)}`:''} · <b>${dmM(c.total)}/mês</b> · ${dmM(c.anual)}/ano${c.manual?' (total informado)':''}</div>`:''}
+      ${dmTa(d,`prop.blocos.${bi}.opcoes.${oi}.det`,'Detalhes da opção (coberturas, coparticipação, rede)',2)}</div>`; }).join('');
+  return `<div style="border:2px solid var(--border);border-radius:10px;padding:12px;margin:10px 0">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">${dmIn(d,`prop.blocos.${bi}.nome`,'Operadora ou grupo')}${dmIn(d,`prop.blocos.${bi}.desc`,'Produto / plano')}${dmIn(d,`prop.blocos.${bi}.vidas`,'Vidas do grupo','number',' data-re="1" min="0"')}${dmMo(d,`prop.blocos.${bi}.iof`,'IOF (%)',true)}
+      <label class="fl"><span>Compara com o plano atual?</span><select data-dm="prop.blocos.${bi}.compara" data-bool="1" data-re="1"><option value="1"${b.compara!==false?' selected':''}>Sim</option><option value="0"${b.compara===false?' selected':''}>Não</option></select></label>
+      <span style="flex:1"></span><button class="om-cancel vd-btn" data-dmact="del-bloco" data-p="${bi}" style="color:var(--red)">Excluir grupo</button></div>
+    ${dmTa(d,`prop.blocos.${bi}.cond`,'Condições do grupo (carência, vigência, observações)',2)}
+    ${ops}<button class="om-cancel vd-btn" data-dmact="add-op" data-p="${bi}">+ Adicionar opção</button></div>`;
+}
+function dmChecks(d){ const p = dmProp(d), A = dmAn(d);
+  const it = (ok, nome, dica, campo, opc) => ({ ok, nome, dica, campo, opc }); const f = v=>!!String(v==null?'':v).trim();
+  return [ it(f(p.titulo),'Título da apresentação','Dê um título à proposta.','prop.titulo'), it(f(p.estip)||f(p.grupo),'Estipulante ou grupo','Informe quem contrata.','prop.estip'),
+    it(f(p.atualRot)&&dmN(p.atualValor)>0,'Plano atual e valor','Informe o plano atual e o valor por mês, para calcular a economia.','prop.atualRot'),
+    it(f(p.objetivo),'Objetivo','Escreva o objetivo: a primeira linha vira o título do quadro azul.','prop.objetivo'), it(f(p.quem),'Quem vai para onde','Inclua as cotações e liste as pessoas de cada grupo.','prop.quem'),
+    it(f(p.porque),'Por que essa divisão','Explique em uma linha por motivo (Título: explicação).','prop.porque',true), it(f(p.abrang),'Abrangência por região','Monte a tabela (Região | Grupo 1 | Grupo 2).','prop.abrang',true),
+    it(A.bl.length>0,'Cotações','Nenhuma cotação ainda. Adicione um grupo e preencha as opções.','dm-cot'), it(f(p.passos),'Próximos passos','Liste os próximos passos (um por linha).','prop.passos') ]; }
+function dmSaudeHtml(d){
+  const p = dmProp(d), A = dmAn(d), chk = dmChecks(d);
+  const blocos = p.blocos.map((b,i)=>dmBlocoHtml(d,b,i)).join('') || '<div class="hint">Nenhum grupo de cotações ainda.</div>';
+  const poss = (p.poss||[]).map((q,qi)=>{ const c = A.combos.find(z=>z.poss===q);
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin:8px 0;background:#fff"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>Possibilidade ${qi+1}</b><span><span class="vd-chip ok">${c?dmM(c.total)+'/mês':'—'}</span> <button class="om-cancel vd-btn" data-dmact="del-poss" data-p="${qi}" style="color:var(--red)">Excluir</button></span></div>
+      ${dmIn(d,`prop.poss.${qi}.nome`,'Nome da possibilidade')}${dmTa(d,`prop.poss.${qi}.ideia`,'A ideia: o que você quer mostrar com esta possibilidade',2,'Ex.: Núcleo familiar na operadora A e pais na operadora B, para reduzir custo')}
+      ${dmGrid(...p.blocos.map((b,bi)=>{ const cur = ((q.itens||[]).find(t=>t.bid===b.id)||{}).oid||''; return `<label class="fl"><span>${dmH(b.nome||'Grupo '+(bi+1))}: qual opção usar?</span><select data-dmposs="${qi}" data-bid="${b.id}"><option value="">(nenhuma)</option>${(b.opcoes||[]).map((o,oi)=>`<option value="${o.id}"${o.id===cur?' selected':''}>${dmH(o.rot||('Opção '+(oi+1)))}</option>`).join('')}</select></label>`; }))}</div>`; }).join('');
+  const checks = chk.map(c=>`<div style="display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);padding:6px 0"><div><span class="vd-chip ${c.ok?'ok':(c.opc?'':'warn')}" style="margin-right:8px">${c.ok?'OK':(c.opc?'Opcional':'Falta')}</span><b>${dmH(c.nome)}</b><div class="hint" style="margin:2px 0 0">${dmH(c.dica)}</div></div><button class="om-cancel vd-btn" data-dmact="goto" data-p="${c.campo}">Ir para o campo</button></div>`).join('');
+  return dmSdHtml(d)
+  + dmBox('1. Dados da proposta','O que aparece no cabeçalho e no quadro de cenário da apresentação.',
+      dmGrid(dmIn(d,'prop.titulo','Título da apresentação'),dmIn(d,'prop.estip','Estipulante ou contratante'),dmIn(d,'prop.grupo','Cliente ou grupo (aparece no rodapé)'),dmIn(d,'prop.emissao','Data de emissão','date'),dmIn(d,'prop.validade','Validade das cotações','date'))
+      + `<div class="ql" style="margin:12px 0 4px">Cenário atual</div>` + dmGrid(dmIn(d,'prop.atualRot','Plano atual'),dmMo(d,'prop.atualValor','Valor atual por mês (R$)',true),dmIn(d,'prop.atualVidas','Vidas hoje','number',' min="0"'),dmIn(d,'prop.atualPessoas','Quem são'))
+      + dmTa(d,'prop.objetivo','Objetivo (a primeira linha vira o título)',3,'Reduzir custo e incluir as 2 novas vidas')
+      + dmTa(d,'prop.quem','Quem vai para onde (uma pessoa por linha: Nome | Idade ou faixa | Destino)',4,'Dr. Juliano | 44 a 48 anos | Operadora X PME')
+      + dmTa(d,'prop.porque','Por que essa divisão (uma por linha: Título: explicação)',3,'Operadora X para o núcleo: plano empresarial PME, nacional, com reembolso')
+      + dmTa(d,'prop.abrang','Abrangência por região (tabela; separe as colunas com | e comece pela linha de títulos)',3,'Região | Núcleo | Pais\nSão Paulo | Atendido | Atendido')
+      + dmTa(d,'prop.passos','Próximos passos (um por linha)',3,'Escolher entre as opções\nEnvio da documentação')
+      + dmTa(d,'prop.nota','Observação final (aparece no rodapé da última página)',2), 'dm-prop')
+  + dmBox('2. Cotações','Cada operadora ou produto é um grupo; cada plano comparado é uma opção. Preencha a quantidade de vidas e o valor por vida de cada faixa.', blocos+`<button class="om-save" data-dmact="add-bloco">+ Adicionar grupo à mão</button>`, 'dm-cot')
+  + dmBox('3. Possibilidades','Combine as opções das cotações e escreva a ideia de cada possibilidade.', (p.blocos.length?poss+`<button class="om-cancel" data-dmact="add-poss">+ Adicionar possibilidade</button>`:'<div class="hint">Inclua as cotações acima para montar as possibilidades.</div>')+((p.poss||[]).length?'':'<div class="hint" style="margin-top:6px">Sem possibilidades, a análise e a apresentação mostram todas as combinações entre os grupos.</div>'))
+  + dmBox('4. Análise','Calculada a partir das cotações e do plano atual. Edite o texto e ele vai para a apresentação.',
+      (A.tx.length?`<ul style="margin:0 0 8px;padding-left:18px">${A.tx.map(t=>`<li>${dmH(t)}</li>`).join('')}</ul>`:'<div class="hint">Preencha as cotações para ver a análise.</div>')
+      + `<button class="om-cancel" data-dmact="usar-analise">Usar a análise acima como texto da apresentação</button>` + dmTa(d,'prop.analise','Texto da análise (aparece na apresentação)',5))
+  + dmBox('5. Apresentação','PDF no layout oficial: cenário e quem vai para onde, opções lado a lado, possibilidades e próximos passos.',
+      `<button class="om-save" data-dmact="pdf-prop">Baixar apresentação (PDF)</button><div class="ql" style="margin:14px 0 4px">O que falta para a proposta sair completa</div>${checks}`);
+}
+// ---------- RC, Consórcio, Vida e Geral ----------
+function dmCotsHtml(d, key, titulo, intro, cols){
+  const o = dmOut(d, key); const menor = o.cots.filter(c=>dmN(c.total)>0).reduce((m,c)=>!m||dmN(c.total)<dmN(m.total)?c:m, null);
+  const rows = o.cots.map((c,i)=>`<tr><td><input type="text" data-dm="${key}.cots.${i}.seg" value="${dmH(c.seg||'')}" style="width:100%"></td><td><input type="text" data-dm="${key}.cots.${i}.num" value="${dmH(c.num||'')}" style="width:100%"></td>
+    <td><input type="text" inputmode="decimal" data-dm="${key}.cots.${i}.total" data-num="1" data-re="1" value="${c.total===''||c.total==null?'':dmH(dmN(c.total).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}))}" style="text-align:right;width:130px">${menor&&menor===c&&o.cots.length>1?'<div><span class="vd-chip ok">menor valor</span></div>':''}</td>
+    <td><input type="text" data-dm="${key}.cots.${i}.vig" value="${dmH(c.vig||'')}" style="width:100%"></td><td><textarea rows="2" data-dm="${key}.cots.${i}.cob" style="width:100%">${dmH(c.cob||'')}</textarea></td>
+    <td><button class="om-cancel vd-btn" data-dmact="del-cot" data-p="${key},${i}" style="color:var(--red)">Excluir</button></td></tr>`).join('');
+  return dmBox(titulo, intro, `${o.cots.length?`<div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:880px"><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}<th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<div class="hint">Nenhuma cotação ainda.</div>'}<button class="om-cancel" data-dmact="add-cot" data-p="${key}">+ Adicionar cotação à mão</button>`);
+}
+function dmRcHtml(d){
+  const r = dmOut(d,'rc'); const E = k=>dmIn(d,'rc.end.'+k,{log:'Endereço (rua e número)',comp:'Complemento',bairro:'Bairro',cidade:'Cidade',uf:'UF',cep:'CEP'}[k]);
+  return dmBox('Cadastro inicial · Responsabilidade Civil','Dados do segurado e do risco para cotar.',
+      `<div style="margin-bottom:8px"><button class="om-cancel" data-dmact="rc-callmed">Preencher com os dados da CallMed</button></div>`
+      + dmGrid(dmIn(d,'rc.razao','Razão social ou nome'),dmIn(d,'rc.cnpj','CNPJ ou CPF'),dmIn(d,'rc.tel','Telefone'),dmIn(d,'rc.email','E-mail'),dmIn(d,'rc.contato','Pessoa de contato'))
+      + `<div class="ql" style="margin:12px 0 4px">Endereço</div>` + dmGrid(E('log'),E('comp'),E('bairro'),E('cidade'),E('uf'),E('cep'))
+      + `<div class="ql" style="margin:12px 0 4px">Atividade e risco</div>` + dmGrid(dmIn(d,'rc.atividade','Atividade principal'),dmIn(d,'rc.cnae','CNAE'),dmIn(d,'rc.func','Nº de funcionários','number',' min="0"'),dmIn(d,'rc.prof','Nº de profissionais segurados','number',' min="0"'),dmMo(d,'rc.fat','Faturamento anual (R$)'))
+      + `<div class="ql" style="margin:12px 0 4px">Seguro desejado</div>` + dmGrid(dmSe(d,'rc.tipo','Tipo de RC',DM_TIPOS_RC),dmMo(d,'rc.lmi','Limite máximo de indenização (R$)'),dmIn(d,'rc.vigIni','Início de vigência desejado','date'),dmIn(d,'rc.segAtual','Seguradora atual'),dmIn(d,'rc.apAtual','Apólice atual (número ou vigência)'))
+      + dmTa(d,'rc.sinistros','Sinistros ou reclamações nos últimos anos',2) + dmTa(d,'rc.nec','Qual a maior necessidade hoje?',3), 'dm-rc')
+    + dmCotsHtml(d,'rc','Cotações recebidas','Preencha a cotação de cada seguradora para comparar.',['Seguradora','Nº da cotação','Prêmio total','Vigência','Coberturas e pagamento']);
+}
+function dmGenHtml(d, key, titulo, campos){
+  return dmBox(titulo,'Levantamento para cotar.', dmGrid(...campos) + dmTa(d,key+'.nec','Qual a necessidade? O que o cliente precisa resolver?',3) + dmTa(d,key+'.obs','Observações',3), 'dm-'+key)
+    + dmCotsHtml(d,key,'Cotações recebidas','Preencha a cotação de cada seguradora ou administradora para comparar.', key==='cons' ? ['Administradora','Nº da cota','Parcela ou total','Prazo','Condições (carta, taxa, lance)'] : ['Seguradora','Nº da cotação','Prêmio total','Vigência','Coberturas e pagamento']);
+}
+function dmDetHtml(d){
+  const c = dmCat(d);
+  const topo = `<div class="vd-bar"><button class="om-cancel" data-dmact="voltar">← Voltar às demandas</button><span style="flex:1"></span><span id="vd-msg" class="hint"></span><button class="om-save" data-dmact="salvar">Salvar informações</button></div>
+    <div class="es-box" style="margin-bottom:12px"><div class="ql">Demanda · ${dmH(d.produto)}</div><div style="font-size:14px"><b>${dmH(d.produto)}</b> · ${dmH(d.acao)} · para <b>${dmH(dmPara(d))}</b> · pedido por ${dmH(d.quem_pediu||'—')}<br>${dmH(d.descricao||'')}</div><div class="hint" style="margin-top:6px">Status: <b>${dmH(d.status)}</b></div></div>`;
+  let corpo;
+  if(c==='saude') corpo = dmSaudeHtml(d);
+  else if(c==='rc') corpo = dmRcHtml(d);
+  else if(c==='cons') corpo = dmGenHtml(d,'cons','Levantamento do Consórcio',[dmIn(d,'cons.nome','Nome do interessado'),dmIn(d,'cons.doc','CPF ou CNPJ'),dmIn(d,'cons.tel','Telefone'),dmIn(d,'cons.email','E-mail'),dmSe(d,'cons.bem','Tipo de bem',['Imóvel','Veículo','Serviços','Outro']),dmMo(d,'cons.carta','Valor da carta de crédito (R$)'),dmIn(d,'cons.prazo','Prazo desejado (meses)','number',' min="0"'),dmMo(d,'cons.parcela','Parcela desejada (R$)'),dmIn(d,'cons.lance','Lance disponível')]);
+  else corpo = dmGenHtml(d,'vida',c==='vida'?'Levantamento do Seguro de Vida':'Levantamento da demanda',[dmIn(d,'vida.nome','Nome do segurado'),dmIn(d,'vida.doc','CPF'),dmIn(d,'vida.tel','Telefone'),dmIn(d,'vida.email','E-mail'),dmMo(d,'vida.capital','Capital desejado (R$)'),dmIn(d,'vida.prazo','Prazo ou vigência desejada')]);
+  return topo + corpo + `<div class="vd-bar" style="margin-top:12px"><button class="om-save" data-dmact="salvar">Salvar informações</button><span class="hint">O que você digita também é salvo ao sair de cada campo.</span></div>`;
+}
+// ---------- lista, entrada e resumo ----------
 function vdDemHtml(){
-  const l = vdDemList(), f = VD.fDem, cont = {};
-  VD.dem.forEach(d=>{ cont[d.status] = (cont[d.status]||0)+1; });
+  if(VD.dDet){ const dd = VD.dem.find(x=>x.id===VD.dDet); if(dd) return dmDetHtml(dd); VD.dDet = null; }
+  const aba = VD.dAba || 'resumo', nt = VD.dNt || (aba==='acoes'?'acao':'produto'), f = VD.fDem;
+  const noAba = d => aba==='resumo' || aba==='acoes' || dmCat(d)===aba;
+  const abertas = VD.dem.filter(d=>!VD_ENC.includes(d.status));
+  const cntAba = k => k==='resumo' ? abertas.length : k==='acoes' ? VD.acoes.filter(a=>a.status!=='Concluída').length : abertas.filter(d=>dmCat(d)===k).length;
+  const tabs = `<div class="pv-tabs" style="margin:0 0 10px">${DM_ABAS.map(([k,l])=>`<button class="pv-tab${aba===k?' on':''}" data-dmact="aba" data-p="${k}">${l} <span class="vd-cnt">${cntAba(k)}</span></button>`).join('')}</div>`;
+  const l = vdDemList().filter(noAba), cont = {}; VD.dem.filter(noAba).forEach(d=>{ cont[d.status] = (cont[d.status]||0)+1; });
   const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
   const chips = DEM_STATUS.map(s=>`<span class="vd-chip" style="border-color:${DEM_COR[s]||'var(--border)'};color:${DEM_COR[s]||'inherit'}">${escapeHtml(s)}: <b>${cont[s]||0}</b></span>`).join('');
-  const ocultas = f.st==='abertas' ? VD.dem.filter(d=>VD_ENC.includes(d.status)).length : 0;
+  const ocultas = f.st==='abertas' ? VD.dem.filter(d=>noAba(d)&&VD_ENC.includes(d.status)).length : 0;
   const aviso = ocultas ? `<div class="vd-aviso">Há <b>${ocultas}</b> demanda(s) oculta(s) (concluídas, vendas fechadas ou não realizadas). <button class="om-cancel vd-btn" data-act="ver-conc">Ver concluídas</button> <button class="om-cancel vd-btn" data-act="ver-todas">Ver todas</button></div>` : '';
+  const prodDef = DM_PROD[aba] || '';
+  const entrada = `<div class="es-box" style="margin-bottom:12px"><div class="ql">Entrada de demandas</div><div class="hint" style="margin:0 0 8px">Controle das soluções e cotações pedidas: o que é, quem pediu, para quem é e em que ponto está.</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px">
+      <label class="fl"><span>Tipo de demanda</span><select id="dm-nt"><option value="produto"${nt!=='acao'?' selected':''}>Produto</option><option value="acao"${nt==='acao'?' selected':''}>Ação</option></select></label>
+      ${nt==='acao' ? `<label class="fl"><span>Qual ação?</span><input id="dm-qual" placeholder="Ex.: Call Hot, Ação da COPA"></label><label class="fl"><span>Início da ação</span><input type="date" id="dm-ini" value="${ymd(new Date())}"></label><label class="fl"><span>Status da ação</span><select id="dm-stac">${opt(VD_ST_ACAO,'Pendente')}</select></label>`
+      : `<label class="fl"><span>Produto</span><select id="dm-prod"><option value="">Escolha o produto</option>${opt(DEM_PRODUTOS.filter(x=>x!=='Geral'),prodDef)}</select></label><label class="fl"><span>Ação</span><select id="dm-acao">${opt(['Cotar'].concat(DEM_ACOES.filter(x=>x!=='Cotar')),'Cotar')}</select></label><label class="fl"><span>Quem pediu</span><input id="dm-quem" list="vd-quem" placeholder="Quem pediu"></label><label class="fl"><span>Para quem?</span><input id="dm-para" list="vd-cli" placeholder="Cliente ou contato"></label><label class="fl"><span>Status</span><select id="dm-st">${opt(DEM_STATUS.filter(s=>!VD_ENC.includes(s)||s==='Concluída'),'Pendente')}</select></label>`}
+    </div>
+    <label class="fl" style="width:100%;margin-top:8px"><span>${nt==='acao'?'O que fazer?':'O que?'}</span><textarea id="dm-oque" rows="2" style="width:100%" placeholder="${nt==='acao'?'Descreva o que precisa ser feito':'Descreva o que precisa ser feito'}"></textarea></label>
+    ${nt==='acao'?`<label class="fl" style="width:100%;margin-top:8px"><span>Por quê?</span><textarea id="dm-porque" rows="2" style="width:100%"></textarea></label>`:''}
+    <div style="margin-top:8px"><button class="om-save" data-dmact="${nt==='acao'?'reg-acao':'reg-dem'}">${nt==='acao'?'Registrar ação':'Registrar demanda'}</button> <span class="hint" id="dm-regmsg"></span></div></div>
+    <datalist id="vd-quem">${[...new Set(VD.dem.map(x=>x.quem_pediu).filter(Boolean).concat(['Luiz','Amanda']))].map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>${vdBaseList()}`;
   const rows = l.map(d=>{
-    const enc = VD_ENC.includes(d.status);
-    return `<tr data-id="${d.id}"><td>${vdDtHora(d.created_at)}</td><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td>${escapeHtml(d.quem_pediu||'—')}</td><td style="max-width:260px;white-space:pre-wrap">${escapeHtml(d.descricao||'—')}</td><td><a href="#" data-act="abrir" data-pid="${d.pessoa_id}"><b>${escapeHtml((d.crm_pessoas&&d.crm_pessoas.nome)||'—')}</b></a></td>
+    const enc = VD_ENC.includes(d.status), nc = dmCotN(d);
+    const para = d.pessoa_id ? `<a href="#" data-act="abrir" data-pid="${d.pessoa_id}"><b>${escapeHtml(dmPara(d))}</b></a>` : `<b>${escapeHtml(dmPara(d))}</b>`;
+    return `<tr data-id="${d.id}"><td>${vdDtHora(d.created_at)}</td><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td>${escapeHtml(d.quem_pediu||'—')}</td><td style="max-width:260px;white-space:pre-wrap">${escapeHtml(d.descricao||'—')}</td><td>${para}</td>
       <td><select data-act="dst" data-id="${d.id}" style="border:1px solid ${DEM_COR[d.status]||'var(--border)'};color:${DEM_COR[d.status]||'inherit'};border-radius:6px;padding:3px 6px;font-weight:600">${opt(DEM_STATUS,d.status)}</select></td>
       <td>${d.prazo?vdD(d.prazo):'—'}</td><td>${escapeHtml(d.responsavel||'—')}</td>
-      <td style="white-space:nowrap">${enc ? (d.status==='Venda fechada'?'<a href="#" data-act="ir-vend">ver em Vendas realizadas</a>':d.status==='Não virou venda'?'<a href="#" data-act="ir-nao">ver em Não realizadas</a>':'') : `<button class="om-save vd-btn" data-act="virou" data-id="${d.id}">Virou venda</button> <button class="om-cancel vd-btn" data-act="nao" data-id="${d.id}">Não virou venda</button>`}</td></tr>`; }).join('');
+      <td style="white-space:nowrap"><button class="om-save vd-btn" data-dmact="abrir-dem" data-p="${d.id}">Abrir demanda</button> ${enc ? (d.status==='Venda fechada'?'<a href="#" data-act="ir-vend">ver em Vendas realizadas</a>':d.status==='Não virou venda'?'<a href="#" data-act="ir-nao">ver em Não realizadas</a>':'') : `<button class="om-cancel vd-btn" data-act="virou" data-id="${d.id}">Virou venda</button> <button class="om-cancel vd-btn" data-act="nao" data-id="${d.id}">Não virou venda</button>`}${nc?`<div class="hint" style="margin:3px 0 0">${nc} cotação(ões)</div>`:''}</td></tr>`; }).join('');
+  const resumoProd = aba==='resumo' ? `<h4 style="margin:14px 0 6px;font-size:.95rem">Resumo por produto</h4><div class="vd-wrap"><table class="ca-table" style="min-width:760px"><thead><tr><th>Produto</th>${DEM_STATUS.map(s=>`<th>${escapeHtml(s)}</th>`).join('')}<th>Total</th></tr></thead><tbody>${[...new Set(VD.dem.map(d=>d.produto))].sort().map(p=>{ const ds = VD.dem.filter(d=>d.produto===p); return `<tr><td><b>${escapeHtml(p)}</b></td>${DEM_STATUS.map(s=>`<td>${ds.filter(d=>d.status===s).length||'—'}</td>`).join('')}<td><b>${ds.length}</b></td></tr>`; }).join('')||'<tr><td colspan="9" style="color:var(--ink-faint)">Nenhuma demanda ainda.</td></tr>'}</tbody></table></div>` : '';
   const acRows = VD.acoes.map(a=>`<tr data-aid="${a.id}"><td style="white-space:nowrap">${vdDtHora(a.created_at)}</td><td><input type="text" data-ak="qual" value="${escapeHtml(a.qual||'')}" placeholder="Qual ação?"></td><td><textarea rows="2" data-ak="o_que" placeholder="O que fazer?">${escapeHtml(a.o_que||'')}</textarea></td><td><input type="date" data-ak="inicio" value="${escapeHtml(a.inicio||'')}"></td><td><textarea rows="2" data-ak="por_que" placeholder="Por quê?">${escapeHtml(a.por_que||'')}</textarea></td>
       <td><select data-ak="status">${opt(VD_ST_ACAO,a.status)}</select></td><td><button class="om-cancel vd-btn" data-act="del-a" data-id="${a.id}" style="color:var(--red)">Excluir</button></td></tr>`).join('');
-  return `<div class="vd-bar"><label class="fl"><span>Mostrar</span><select id="vd-f-st"><option value="abertas"${f.st==='abertas'?' selected':''}>Em aberto</option><option value="todas"${f.st==='todas'?' selected':''}>Todas</option>${DEM_STATUS.map(s=>`<option value="${escapeHtml(s)}"${f.st===s?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
+  const lista = aba==='acoes' ? '' : `<div class="vd-bar"><label class="fl"><span>Mostrar</span><select id="vd-f-st"><option value="abertas"${f.st==='abertas'?' selected':''}>Em aberto</option><option value="todas"${f.st==='todas'?' selected':''}>Todas</option>${DEM_STATUS.map(s=>`<option value="${escapeHtml(s)}"${f.st===s?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
       <label class="fl" style="flex:1;min-width:200px"><span>Buscar</span><input id="vd-f-q" value="${escapeHtml(f.q)}" placeholder="cliente, produto, ação, quem pediu, responsável"></label>
       <label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label>
       <button class="om-save" data-act="pdf-dem">Relatório de demandas (PDF)</button></div>
     <div class="vd-chips">${chips}</div>${aviso}
-    <div class="hint" style="margin:6px 0">${l.length} demanda(s) na lista, da mais recente para a mais antiga. Para lançar uma demanda nova, abra o cadastro do cliente (aba Resumo → Demandas do cliente).</div>
-    <div class="vd-wrap"><table class="ca-table" style="min-width:1100px"><thead><tr><th>Entrada</th><th>Produto</th><th>Ação</th><th>Quem pediu</th><th>O que?</th><th>Para quem?</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="10" style="color:var(--ink-faint)">Nenhuma demanda nesta visão.</td></tr>'}</tbody></table></div>
-    <h4 style="margin:18px 0 6px;font-size:.95rem">Ações <small style="font-weight:400;color:var(--ink-faint)">— tarefas internas, com início, motivo e andamento</small></h4>
+    <div class="hint" style="margin:6px 0">${l.length} demanda(s) na lista, da mais recente para a mais antiga.</div>
+    <div class="vd-wrap"><table class="ca-table" style="min-width:1100px"><thead><tr><th>Entrada</th><th>Produto</th><th>Ação</th><th>Quem pediu</th><th>O que?</th><th>Para quem?</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="10" style="color:var(--ink-faint)">Nenhuma demanda nesta visão.</td></tr>'}</tbody></table></div>${resumoProd}`;
+  const acoes = (aba==='acoes'||aba==='resumo') ? `<h4 style="margin:18px 0 6px;font-size:.95rem">Ações <small style="font-weight:400;color:var(--ink-faint)">— tarefas internas, com início, motivo e andamento</small></h4>
     <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:960px"><thead><tr><th>Entrada</th><th>Qual ação?</th><th>O que fazer?</th><th>Início da ação</th><th>Por quê?</th><th>Status</th><th></th></tr></thead><tbody>${acRows||'<tr><td colspan="7" style="color:var(--ink-faint)">Nenhuma ação registrada.</td></tr>'}</tbody></table></div>
-    <div style="margin-top:10px"><button class="om-cancel" data-act="nova-a">＋ Nova ação</button> <span id="vd-msg" class="hint"></span></div>`;
+    <div style="margin-top:10px"><button class="om-cancel" data-act="nova-a">＋ Nova ação</button> <span id="vd-msg" class="hint"></span></div>` : '<span id="vd-msg" class="hint"></span>';
+  return tabs + entrada + lista + acoes;
 }
+// ---------- PDFs ----------
+const dmLinhasDe = t => String(t||'').split('\n').map(x=>x.trim()).filter(Boolean);
+const dmTabelaTxt = t => { const ls = dmLinhasDe(t).map(l=>l.split('|').map(c=>c.trim())); if(!ls.length) return ''; const n = Math.max(...ls.map(r=>r.length));
+  return `<table class="dk-t"><thead><tr>${ls[0].concat(Array(n-ls[0].length).fill('')).map(c=>`<th>${dmH(c)}</th>`).join('')}</tr></thead><tbody>${ls.slice(1).map(r=>`<tr>${r.concat(Array(n-r.length).fill('')).map(c=>`<td>${dmH(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`; };
+async function dmPdfProposta(d){
+  const p = dmProp(d), sd = dmSd(d), A = dmAn(d), hoje = vdD(p.emissao||ymd(new Date())), R = dmSdResumo(sd);
+  const sub = (p.grupo||p.estip||dmPara(d))+' · emitido em '+hoje;
+  const pages = [];
+  // 1. cenário
+  const atualBox = `<div class="v2c"><div class="t"><small>PLANO ATUAL</small><b style="font-size:13pt">${dmH(p.atualRot||'Não informado')}</b><span style="color:#dfe6ff">${dmN(p.atualValor)>0?dmM(dmN(p.atualValor))+' por mês':''}</span></div><div><small>VIDAS</small><b>${dmH(String(p.atualVidas||R.tot||'—'))}</b><span>${dmH(p.atualPessoas||'')}</span></div><div><small>VALIDADE DAS COTAÇÕES</small><b style="font-size:13pt">${p.validade?vdD(p.validade):'—'}</b></div></div>`;
+  const obj = dmLinhasDe(p.objetivo), quem = dmLinhasDe(p.quem).map(l=>l.split('|').map(c=>c.trim()));
+  const porque = dmLinhasDe(p.porque).map(l=>{ const i = l.indexOf(':'); return i>0 ? [l.slice(0,i), l.slice(i+1).trim()] : ['', l]; });
+  pages.push(vdPage2(p.titulo||'Proposta Comercial', sub, atualBox
+    + (obj.length?`<p class="dk-nt" style="color:#0b1433"><b>${dmH(obj[0])}</b></p>${obj.slice(1).map(x=>`<p class="dk-nt">${dmH(x)}</p>`).join('')}`:'')
+    + (quem.length?`<table class="dk-t"><thead><tr><th>Quem</th><th>Idade ou faixa</th><th>Destino</th></tr></thead><tbody>${quem.map(r=>`<tr><td>${dmH(r[0]||'')}</td><td>${dmH(r[1]||'')}</td><td>${dmH(r[2]||'')}</td></tr>`).join('')}</tbody></table>`:'')
+    + (porque.length?`<p class="dk-nt" style="margin-top:3mm"><b>Por que essa divisão</b></p>${porque.map(x=>`<p class="dk-nt">${x[0]?`<b>${dmH(x[0])}:</b> `:''}${dmH(x[1])}</p>`).join('')}`:'')
+    + (p.abrang?`<p class="dk-nt" style="margin-top:3mm"><b>Abrangência por região</b></p>${dmTabelaTxt(p.abrang)}`:'')));
+  // 2. opções por grupo
+  A.bl.forEach(x=>{
+    const linhas = x.ops.map(y=>`<tr><td><b>${dmH(y.rot)}</b></td><td>${dmH(y.o.det||'')}</td><td class="nw" style="text-align:right">${dmM(y.c.total)}</td><td class="nw" style="text-align:right">${dmM(y.c.anual)}</td>${x.b.compara&&A.atual>0?`<td class="nw" style="text-align:right;color:${y.c.total<=A.atual?'#0f7a53':'#c23636'}">${y.c.total<=A.atual?'− ':'+ '}${dmM(Math.abs(A.atual-y.c.total))}</td>`:''}</tr>`).join('');
+    const det = x.ops.map(y=>y.c.ls.length?`<p class="dk-nt"><b>${dmH(y.rot)}</b>: ${y.c.ls.map(l=>dmH((l.f||'')+(dmN(l.v)?' ('+dmN(l.v)+' vida(s))':'')+' '+dmM(dmN(l.u))+' por vida')).join(' · ')}</p>`:'').join('');
+    pages.push(vdPage2('Opções · '+x.nome, [x.b.desc, x.b.vidas?x.b.vidas+' vida(s)':''].filter(Boolean).join(' · ')||sub,
+      `<table class="dk-t"><thead><tr><th>Opção</th><th>Detalhes</th><th>Por mês</th><th>Por ano</th>${x.b.compara&&A.atual>0?'<th>Frente ao atual</th>':''}</tr></thead><tbody>${linhas}</tbody></table>${det}${x.b.cond?`<p class="dk-nt"><b>Condições:</b> ${dmH(x.b.cond)}</p>`:''}`));
+  });
+  // 3. possibilidades e análise
+  if(A.combos.length || p.analise || A.tx.length){
+    const cmb = A.combos.slice(0,10).map(c=>`<tr><td><b>${dmH(c.nome)}</b>${c.poss&&c.poss.ideia?`<div>${dmH(c.poss.ideia)}</div>`:''}</td><td>${dmH(c.comp||'')}</td><td class="nw" style="text-align:right">${dmM(c.total)}</td><td class="nw" style="text-align:right">${dmM(c.anual)}</td><td class="nw">${c.vidas||'—'}</td>${A.atual>0&&c.dif!=null?`<td class="nw" style="text-align:right;color:${c.dif<=0?'#0f7a53':'#c23636'}">${c.dif<=0?'− ':'+ '}${dmM(Math.abs(c.dif))}</td>`:'<td></td>'}</tr>`).join('');
+    const texto = dmLinhasDe(p.analise).length ? dmLinhasDe(p.analise) : A.tx;
+    pages.push(vdPage2('Possibilidades e análise', sub,
+      (cmb?`<table class="dk-t"><thead><tr><th>Possibilidade</th><th>Composição</th><th>Por mês</th><th>Por ano</th><th>Vidas</th><th>Frente ao atual</th></tr></thead><tbody>${cmb}</tbody></table>`:'')
+      + texto.map(t=>`<p class="dk-nt">${dmH(t)}</p>`).join('')));
+  }
+  // 4. próximos passos
+  const passos = dmLinhasDe(p.passos);
+  pages.push(vdPage2('Próximos passos', sub, (passos.length?`<table class="dk-t"><thead><tr><th style="width:8%">#</th><th>Passo</th></tr></thead><tbody>${passos.map((x,i)=>`<tr><td>${i+1}</td><td>${dmH(x)}</td></tr>`).join('')}</tbody></table>`:'<p class="dk-nt">Defina os próximos passos na demanda.</p>')
+    + (p.nota?`<p class="dk-nt" style="margin-top:4mm"><b>Observação:</b> ${dmH(p.nota)}</p>`:'')));
+  const nome = (p.grupo||p.estip||dmPara(d)||'cliente').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(vdWrap2(pages), 'Proposta_Saude_'+nome+'.pdf'); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
+}
+async function dmPdfSegurados(d){
+  const sd = dmSd(d), p = dmProp(d), F = dmSdFamilias(sd), R = dmSdResumo(sd);
+  if(!F.length){ showToast('Preencha os segurados antes de gerar o resumo.'); return; }
+  const grupo = p.grupo||dmPara(d), para = sd.tipo==='Empresa' ? 'Empresa'+(sd.empresa?' · '+sd.empresa:'') : sd.tipo==='Pessoa física' ? 'Pessoa física'+(sd.modal?' · '+sd.modal:'') : 'Não informado';
+  const fam = F.map((f,i)=>`<p class="dk-nt"><b>${f.tit?'Família '+(i+1)+' · '+dmH(f.tit.nome||'titular'):'Pessoas sem titular definido'}</b></p><table class="dk-t"><thead><tr><th>Nome</th><th>Vínculo</th><th>Nascimento</th><th>Idade</th></tr></thead><tbody>${[f.tit].concat(f.deps).filter(Boolean).map(x=>`<tr><td>${dmH(x.nome||'(sem nome)')}</td><td>${dmH(x.vinc||'—')}</td><td>${x.nasc?vdD(x.nasc):'—'}</td><td>${dmIdade(x.nasc)!=null?dmIdade(x.nasc)+' anos':'—'}</td></tr>`).join('')}</tbody></table>`).join('');
+  const body = `<div class="v2c"><div><small>SEGURO PARA</small><b style="font-size:12pt">${dmH(para)}</b></div><div><small>PLANO ATUAL</small><b style="font-size:12pt">${dmH(sd.atual||'Não informado')}</b></div><div class="t"><small>TOTAL</small><b>${R.tot}</b><span style="color:#dfe6ff">${R.tit} titular(es) · ${R.dep} dependente(s)</span></div></div>`
+    + `<p class="dk-nt">Para seguirmos com a cotação do plano de saúde, confira se as pessoas abaixo, os vínculos e as datas de nascimento estão corretos.</p>` + fam
+    + (R.fx.length?`<p class="dk-nt"><b>Vidas por faixa etária:</b> ${R.fx.map(x=>dmFx(x.f)+': '+x.n).join(' · ')}</p>`:'')
+    + (sd.necessidade?`<p class="dk-nt"><b>Maior necessidade hoje:</b> ${dmH(sd.necessidade)}</p>`:'')
+    + `<p class="dk-nt"><b>Está tudo certo?</b> Responda confirmando ou nos diga o que ajustar: pessoa faltando, data de nascimento diferente ou vínculo errado.</p>`;
+  const nome = (grupo||'cliente').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(vdWrap2([vdPage2('Confirmação dos segurados','Plano de saúde · '+(grupo||'dados para cotação'),body)]), 'Confirmacao_segurados_'+nome+'.pdf'); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
+}
+// ---------- eventos de Demandas ----------
+(function(){
+  const host = document.getElementById('vd-body'); if(!host) return;
+  const cur = () => VD.dem.find(x=>x.id===VD.dDet);
+  host.addEventListener('click', async e=>{
+    const t = e.target.closest('[data-dmact]'); if(!t) return;
+    const a = t.dataset.dmact, P = t.dataset.p||'', d = cur();
+    if(a==='aba'){ VD.dAba = P; VD.dNt = P==='acoes' ? 'acao' : 'produto'; vdDraw(); return; }
+    if(a==='abrir-dem'){ VD.dDet = P; vdDraw(); window.scrollTo && window.scrollTo(0,0); return; }
+    if(a==='voltar'){ VD.dDet = null; vdDraw(); return; }
+    if(a==='reg-dem'){
+      const g = id=>{ const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+      const produto = g('dm-prod'), acao = g('dm-acao') || 'Cotar', para = g('dm-para'), oque = g('dm-oque');
+      if(!produto){ showToast('Escolha o produto.'); return; } if(!oque && !para){ showToast('Informe para quem é ou descreva o que precisa ser feito.'); return; }
+      let pid = null; if(para){ try{ await ensurePessoas(); const f = await findPessoas({nome:para}); const s = f.find(isStrong); if(s) pid = s.id; }catch(err){} }
+      const { data, error } = await sb.from('crm_demandas').insert({ pessoa_id:pid, produto, acao, descricao:oque||null, status:g('dm-st')||'Pendente', quem_pediu:g('dm-quem')||null, para_quem:para||null, responsavel:curUserName()||null, criado_por:curUserName()||null }).select('*, crm_pessoas(nome)').single();
+      if(error){ showToast('Erro: '+error.message); return; } VD.dem.unshift(data); showToast('Demanda registrada'+(pid?' e ligada ao cadastro':'')+'.'); vdDraw(); return;
+    }
+    if(a==='reg-acao'){
+      const g = id=>{ const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+      if(!g('dm-qual')){ showToast('Informe qual ação.'); return; }
+      const { data, error } = await sb.from('crm_acoes').insert({ qual:g('dm-qual'), o_que:g('dm-oque')||null, inicio:g('dm-ini')||null, por_que:g('dm-porque')||null, status:g('dm-stac')||'Pendente', criado_por:curUserName()||null }).select('*').single();
+      if(error){ showToast('Erro: '+error.message); return; } VD.acoes.unshift(data); showToast('Ação registrada.'); vdDraw(); return;
+    }
+    if(!d) return;
+    const D = dmDados(d), sd = dmSd(d);
+    const num = s=>s.split(',').map(x=>parseInt(x,10));
+    if(a==='salvar'){ dmSave(d, true); return; }
+    if(a==='add-seg'){ sd.pessoas.push({nome:'',nasc:'',vinc:''}); dmSave(d); dmRedraw(); }
+    else if(a==='del-seg'){ sd.pessoas.splice(num(P)[0],1); if(!sd.pessoas.length) sd.pessoas.push({nome:'',nasc:'',vinc:'Titular'}); dmSave(d); dmRedraw(); }
+    else if(a==='add-bloco'){ dmProp(d).blocos.push({ id:dmUid(), nome:'', vidas:'', desc:'', iof:0, compara:true, cond:'', opcoes:[{ id:dmUid(), rot:'Opção 1', linhas:[{f:'',v:'',u:''}], totalManual:'', det:'' }] }); dmSave(d); dmRedraw(); }
+    else if(a==='del-bloco'){ if(!confirm('Excluir este grupo de cotações?')) return; const p = dmProp(d); const b = p.blocos.splice(num(P)[0],1)[0]; (p.poss||[]).forEach(q=>{ q.itens = (q.itens||[]).filter(t=>!b||t.bid!==b.id); }); dmSave(d); dmRedraw(); }
+    else if(a==='add-op'){ const b = dmProp(d).blocos[num(P)[0]]; b.opcoes.push({ id:dmUid(), rot:'Opção '+(b.opcoes.length+1), linhas:[{f:'',v:'',u:''}], totalManual:'', det:'' }); dmSave(d); dmRedraw(); }
+    else if(a==='del-op'){ const [bi,oi] = num(P); const b = dmProp(d).blocos[bi]; if(!confirm('Excluir esta opção?')) return; b.opcoes.splice(oi,1); dmSave(d); dmRedraw(); }
+    else if(a==='add-lin'){ const [bi,oi] = num(P); dmProp(d).blocos[bi].opcoes[oi].linhas.push({f:'',v:'',u:''}); dmSave(d); dmRedraw(); }
+    else if(a==='del-lin'){ const [bi,oi,li] = num(P); const o = dmProp(d).blocos[bi].opcoes[oi]; o.linhas.splice(li,1); if(!o.linhas.length) o.linhas.push({f:'',v:'',u:''}); dmSave(d); dmRedraw(); }
+    else if(a==='add-poss'){ const p = dmProp(d); p.poss = p.poss||[]; p.poss.push({ id:dmUid(), nome:'Possibilidade '+(p.poss.length+1), ideia:'', itens:p.blocos.filter(b=>(b.opcoes||[]).length).map(b=>({bid:b.id,oid:b.opcoes[0].id})) }); dmSave(d); dmRedraw(); }
+    else if(a==='del-poss'){ const p = dmProp(d); p.poss.splice(num(P)[0],1); dmSave(d); dmRedraw(); }
+    else if(a==='usar-analise'){ const p = dmProp(d); p.analise = dmAn(d).tx.join('\n'); dmSave(d); dmRedraw(); }
+    else if(a==='sd-copiar'){ const ta = document.getElementById('dm-msg'), txt = dmSdMsg(d); if(ta){ ta.style.display = 'block'; ta.value = txt; ta.focus(); ta.select(); } let ok = false; try{ await navigator.clipboard.writeText(txt); ok = true; }catch(err){} showToast(ok?'Mensagem copiada. É só colar no WhatsApp ou no e-mail.':'Selecione o texto e copie (Ctrl+C).'); }
+    else if(a==='sd-pdf'){ dmPdfSegurados(d); }
+    else if(a==='sd-faixas'){ const R = dmSdResumo(sd); if(!R.fx.length){ showToast('Preencha as datas de nascimento dos segurados primeiro.'); return; }
+      dmProp(d).blocos.push({ id:dmUid(), nome:'Nova cotação', vidas:R.fx.reduce((s,x)=>s+x.n,0), desc:'', iof:0, compara:true, cond:'', opcoes:[{ id:dmUid(), rot:'Opção 1', linhas:R.fx.map(x=>({f:dmFx(x.f),v:x.n,u:''})), totalManual:'', det:'' }] }); dmSave(d); dmRedraw(); showToast('Criei um grupo com as faixas etárias. Preencha o valor por vida de cada faixa.'); }
+    else if(a==='sd-proposta'){ const p = dmProp(d), R = dmSdResumo(sd); const ps = R.ps.filter(x=>(x.nome||'').trim());
+      if(!p.atualRot && sd.atual) p.atualRot = sd.atual; if(!p.atualVidas && ps.length) p.atualVidas = ps.length; if(!p.atualPessoas && ps.length) p.atualPessoas = ps.map(x=>x.nome).join(', ');
+      if(!p.quem.trim() && ps.length) p.quem = ps.map(x=>x.nome+' | '+(dmIdade(x.nasc)!=null?dmIdade(x.nasc)+' anos':'')+' | ').join('\n');
+      if(sd.tipo==='Empresa' && sd.empresa && !p.estip) p.estip = sd.empresa; if(sd.necessidade && !p.objetivo.trim()) p.objetivo = sd.necessidade;
+      dmSave(d); dmRedraw(); showToast('Dados copiados para a proposta (só nos campos vazios).'); }
+    else if(a==='pdf-prop'){ dmPdfProposta(d); }
+    else if(a==='add-cot'){ const o = dmOut(d,P); o.cots.push({ seg:'', num:'', total:'', vig:'', cob:'' }); dmSave(d); dmRedraw(); }
+    else if(a==='del-cot'){ const [k,i] = P.split(','); const o = dmOut(d,k); o.cots.splice(parseInt(i,10),1); dmSave(d); dmRedraw(); }
+    else if(a==='rc-callmed'){ const r = dmOut(d,'rc'); if(!r.razao) r.razao = DM_CALLMED.razao; if(!r.cnpj) r.cnpj = DM_CALLMED.cnpj; Object.keys(DM_CALLMED.end).forEach(k=>{ if(!r.end[k]) r.end[k] = DM_CALLMED.end[k]; }); dmSave(d); dmRedraw(); }
+    else if(a==='goto'){ const el = host.querySelector('[data-dm="'+P+'"]') || document.getElementById(P); if(el){ el.scrollIntoView({block:'center',behavior:'smooth'}); try{ el.focus(); }catch(err){} } }
+  });
+  host.addEventListener('change', e=>{
+    const t = e.target;
+    if(t.id==='dm-nt'){ VD.dNt = t.value; vdDraw(); return; }
+    const d = VD.dDet ? VD.dem.find(x=>x.id===VD.dDet) : null; if(!d) return;
+    if(t.dataset.dmposs!==undefined){ const p = dmProp(d), q = p.poss[parseInt(t.dataset.dmposs,10)]; if(!q) return; q.itens = (q.itens||[]).filter(x=>x.bid!==t.dataset.bid); if(t.value) q.itens.push({bid:t.dataset.bid, oid:t.value}); dmSave(d); dmRedraw(); return; }
+    if(!t.dataset.dm) return;
+    let v = t.value; if(t.dataset.num) v = v.trim()==='' ? '' : dmN(v); if(t.dataset.bool) v = v==='1';
+    dmSetPath(dmDados(d), t.dataset.dm, v); dmSave(d);
+    if(t.dataset.re) dmRedraw();
+  });
+})();
+
 // ---------- Clientes trabalhados ----------
 async function vdCliBuild(an, ct, es){
   const m = new Map();
@@ -1572,7 +1900,7 @@ function vdNaoHtml(){
 function vdIrPara(tab, foco){ VD.tab = tab; VD.foco = foco||null; VD.ok = false; const b = document.querySelector('.nav-btn[data-view="vendas"]'); if(b) b.click(); else renderVendas(true); }
 async function vdVirouVendaDem(d, p){
   try{
-    const nome = (d.crm_pessoas&&d.crm_pessoas.nome) || (p&&p.nome) || '';
+    const nome = (d.crm_pessoas&&d.crm_pessoas.nome) || (p&&p.nome) || d.para_quem || '';
     let vid = null;
     const { data: ex } = await sb.from('crm_vendas').select('id').eq('demanda_id', d.id).maybeSingle();
     if(ex) vid = ex.id; else {
@@ -1585,7 +1913,7 @@ async function vdVirouVendaDem(d, p){
 }
 async function vdNaoVirouDem(d, p){
   try{
-    const nome = (d.crm_pessoas&&d.crm_pessoas.nome) || (p&&p.nome) || '';
+    const nome = (d.crm_pessoas&&d.crm_pessoas.nome) || (p&&p.nome) || d.para_quem || '';
     let nid = null;
     const { data: ex } = await sb.from('crm_nao_vendas').select('id').eq('demanda_id', d.id).maybeSingle();
     if(ex) nid = ex.id; else {
@@ -1665,8 +1993,8 @@ async function vdPdfDemandas(){
     + `<p class="dk-nt">Por produto e ação: ${cnt(d=>d.produto+' — '+d.acao)}</p><p class="dk-nt">Por ação: ${cnt(d=>d.acao)}</p><p class="dk-nt">Por quem pediu: ${cnt(d=>d.quem_pediu||'Não informado')}</p>`;
   const head = ['Entrada','Produto','Ação','Quem pediu','O que?','Para quem?','Status'], W = [11,12,12,11,25,17,12];
   const cor = st=> st==='Pendente' ? '#c8450b' : st==='Concluída' ? '#000a61' : '#0b1433';
-  const tr = d=>`<tr><td class="nw">${esc(vdDtHora(d.created_at))}</td><td>${esc(d.produto)}</td><td>${esc(d.acao)}</td><td>${esc(d.quem_pediu||'—')}</td><td>${esc(d.descricao||'—')}</td><td>${esc((d.crm_pessoas&&d.crm_pessoas.nome)||'—')}</td><td><b style="color:${cor(d.status)}">${esc(d.status)}</b></td></tr>`;
-  const cost = d=> 4.2 + 3.8*Math.max(f5Lines(d.descricao,28), f5Lines((d.crm_pessoas&&d.crm_pessoas.nome)||'',18), 2);
+  const tr = d=>`<tr><td class="nw">${esc(vdDtHora(d.created_at))}</td><td>${esc(d.produto)}</td><td>${esc(d.acao)}</td><td>${esc(d.quem_pediu||'—')}</td><td>${esc(d.descricao||'—')}</td><td>${esc((d.crm_pessoas&&d.crm_pessoas.nome)||d.para_quem||'—')}</td><td><b style="color:${cor(d.status)}">${esc(d.status)}</b></td></tr>`;
+  const cost = d=> 4.2 + 3.8*Math.max(f5Lines(d.descricao,28), f5Lines((d.crm_pessoas&&d.crm_pessoas.nome)||d.para_quem||'',18), 2);
   const parts = l.length ? f5Chunk(l, cost, 66, 128, 14) : [[]];
   const pages = parts.map((chunk,i)=> vdPage2('Relatório de demandas', 'Soluções, cotações e ações · emitido em '+hoje,
     (i===0?resumo:'')+`<table class="dk-t"><colgroup>${W.map(w=>`<col style="width:${w}%">`).join('')}</colgroup><thead><tr>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${chunk.length?chunk.map(tr).join(''):`<tr><td colspan="7">Nenhuma demanda na visão atual.</td></tr>`}</tbody></table>`));
