@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261016125014">
+<meta name="app-build" content="20261016141223">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -817,7 +817,7 @@ function escapeHtml(s){
   if(s===null || s===undefined) return '';
   return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
-function fmtDate(s){ if(!s) return ''; try{ return new Date(s).toLocaleDateString('pt-BR'); }catch(e){ return s; } }
+function fmtDate(s){ if(!s) return ''; try{ const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s)); if(m) return m[3]+'/'+m[2]+'/'+m[1]; return new Date(s).toLocaleDateString('pt-BR'); }catch(e){ return s; } }
 function fmtDateTime(s){ if(!s) return ''; try{ return new Date(s).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}); }catch(e){ return s; } }
 function ymd(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
@@ -4715,6 +4715,12 @@ let OP_SUM_HEIGHT_INIT = null;
 try{ const h = localStorage.getItem('op-sum-h'); if(h) OP_SUM_HEIGHT_INIT = parseInt(h,10); }catch(e){}
 const OP = { pessoas:[], funil:new Map(), apo:new Map(), dem:new Map(), filtered:[], shown:0, loaded:false, loading:false,
              plant:new Map(), dirty:false, start:new Date(2026,9,1), monthsCount:12, rangeIni:null, rangeFim:null, sumOpen:true, expanded:new Set(), months:[], total:12, sumFilter:null, sumHeight:OP_SUM_HEIGHT_INIT };
+// Janela padrão ao abrir: 21 dias atrás + 9 dias à frente do dia atual, por dia (o seletor de Período continua livre para mudar)
+(function(){ const t = new Date(); t.setHours(0,0,0,0);
+  const ini = new Date(t.getFullYear(), t.getMonth(), t.getDate()-21), fim = new Date(t.getFullYear(), t.getMonth(), t.getDate()+9);
+  OP.rangeIni = ini; OP.rangeFim = fim; OP.start = new Date(ini.getFullYear(), ini.getMonth(), 1);
+  OP.monthsCount = (fim.getFullYear()-ini.getFullYear())*12 + fim.getMonth()-ini.getMonth() + 1;
+  for(let i=0;i<OP.monthsCount;i++) OP.expanded.add((new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1)).getFullYear()+'-'+(new Date(OP.start.getFullYear(), OP.start.getMonth()+i, 1)).getMonth()); })();
 const OP_PAGE = 120;
 const TIPOS_PESSOA = {medico:'Médico', profissional_saude:'Outro profissional de saúde', empresa:'Empresa / PJ', outro:'Outro (não médico)'};
 const isMedico = (p)=> (p.tipo||'medico')==='medico';
