@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261016142329">
+<meta name="app-build" content="20261016143042">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -559,6 +559,9 @@
   .op-lane{ position:absolute; left:0; right:0; height:22px;}
   .op-lane.funil{ cursor:copy;}
   .seg{ position:absolute; top:1px; height:20px; border-radius:5px; color:#fff; font-size:10.5px; font-weight:600; padding:0 7px; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:6px; cursor:pointer;}
+  .seg.tmp{ cursor:default; color:var(--c); background:color-mix(in srgb, var(--c) 16%, transparent); border:1px solid color-mix(in srgb, var(--c) 45%, transparent); height:18px; line-height:16px; font-size:10px; letter-spacing:.02em; text-transform:uppercase; background-image:repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--c) 14%, transparent) 5px 7px);}
+  .apo-bar.out{ opacity:.45; font-weight:500; border:1px dashed rgba(255,255,255,.8);}
+  .seg.tmp.none{ opacity:.6;}
   .apo-bar{ position:absolute; top:1px; height:20px; border-radius:5px; color:#fff; font-size:10.5px; font-weight:600; padding:0 8px; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer;}
   .apo-bar.late{ opacity:.5; background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.28) 0 6px,transparent 6px 12px);}
   .op-today{ position:absolute; top:0; bottom:0; width:2px; background:rgba(194,54,54,.55); z-index:1; pointer-events:none;}
@@ -5282,13 +5285,26 @@ function opRenderAll(prevShown){
   opAppendRows(Math.max(prevShown||0, OP_PAGE));
 }
 
+// faixa de status de cada médico ao longo do período exibido (um status por dia, trechos iguais ficam juntos)
+function opTempLane(p){
+  const m0 = OP.months[0], last = OP.months[OP.months.length-1]; if(!m0 || !last) return '';
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  let segs = '', cur = null, ini = null, d = new Date(m0.visS.getFullYear(), m0.visS.getMonth(), m0.visS.getDate());
+  const fimJan = last.visE, push = (k, a, b)=>{ if(!k) return; const t = OP_TEMP.find(x=>x.k===k); if(!t) return;
+    let l = opClamp(opPct(a)), r = opClamp(opPct(b)); if(r<=l) return;
+    segs += `<div class="seg tmp${k==='t_none'?' none':''}" style="left:${l}%;width:${Math.max(r-l,0.4)}%;--c:${t.c}" title="${escapeHtml(t.l+' · '+opFmt(a)+' a '+opFmt(new Date(b.getTime()-DAY))+' · '+t.d)}">${escapeHtml(t.l)}</div>`; };
+  for(; d < fimJan && d <= hoje; d = new Date(d.getFullYear(), d.getMonth(), d.getDate()+1)){
+    const k = opTempAt(p, d); if(k!==cur){ push(cur, ini, d); cur = k; ini = d; } }
+  if(cur) push(cur, ini, d);
+  return `<div class="op-lane" style="top:5px">${segs}</div>`;
+}
 function opRowHtml(p){
   const cli = opIsCliente(p.id);
   const apos = (OP.apo.get(p.id)||[]).slice().sort((a,b)=>{ const ra=opApoRange(a), rb=opApoRange(b); return (ra.start||0)-(rb.start||0); });
   const prz = OP.plant.get(p.id); let plInfo = '';
   if(prz && prz.ultimo_plantao){ const ud = opD(prz.ultimo_plantao); const t0 = new Date(); t0.setHours(0,0,0,0); const dd = Math.round((t0-ud)/DAY);
     plInfo = ` · <span class="pl-tag ${dd<=7?'hot':dd<=30?'warm':''}">último plantão ${opFmt(ud).slice(0,5)}${prz.qtde_mes_atual?' · '+prz.qtde_mes_atual+' em '+OP_MESES[new Date().getMonth()].toLowerCase():''}</span>`; }
-  const height = 10 + 26 + apos.length*24;
+  const height = 10 + 26 + 24 + apos.length*24;
   const st = opStages(p.id);
   const today = new Date(); today.setHours(0,0,0,0);
   let segs = '';
@@ -5303,16 +5319,21 @@ function opRowHtml(p){
     const tip = `${s.label}\n${opFmt(s.date)} → ${s.fim?opFmt(s.fim):'em andamento'}${s.obs?'\n\n'+s.obs:''}`;
     segs += `<div class="seg" data-etapa="${s.key}" style="left:${l}%;width:${Math.max(r-l,0.5)}%;background:${OP_STAGE_COLORS[s.i]}" title="${escapeHtml(tip)}">${s.obs?'':''}${s.label}</div>`;
   });
-  let lanes = `<div class="op-lane funil" data-pid="${p.id}" style="top:5px">${segs}</div>`;
+  let lanes = opTempLane(p) + `<div class="op-lane funil" data-pid="${p.id}" style="top:29px">${segs}</div>`;
   apos.forEach((a,i)=>{
     const rg = opApoRange(a); if(!rg.start || !rg.end) return;
-    let l = opPct(rg.start), r = opPct(rg.end);
-    if(r < 0 || l > 100) return;
-    l = opClamp(l); r = opClamp(r);
     const pd = opProd(opProdKey(a.tipo_seguro));
     const late = rg.end < today || a.status==='cancelada';
-    const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}`;
-    lanes += `<div class="op-lane" style="top:${5+26+i*24}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${escapeHtml(pd.l)}${a.seguradora?' · '+escapeHtml(a.seguradora):''}</div></div>`;
+    const fimEf = rg.end < today ? rg.end : today, mT = Math.max(0, Math.round((fimEf - rg.start)/DAY/30.44)), tempo = mT>=12 ? Math.floor(mT/12)+(Math.floor(mT/12)>1?' anos':' ano')+(mT%12?' e '+(mT%12)+' m':'') : (mT||1)+(mT>1?' meses':' mês');
+    const top = 5+26+24+i*24, nome = escapeHtml(pd.l)+(a.seguradora?' · '+escapeHtml(a.seguradora):'');
+    const tip = `${pd.l}${a.seguradora?' · '+a.seguradora:''} · ${opFmt(rg.start)} a ${opFmt(rg.end)}${late?' (encerrada)':''}
+Tempo com a gente: ${tempo}`;
+    let l = opPct(rg.start), r = opPct(rg.end);
+    if(l > 100) return;                                   // começa depois do período exibido
+    if(r < 0){                                            // já terminou antes do período: mantém a linha, com o tempo que ficou
+      lanes += `<div class="op-lane" style="top:${top}px"><div class="apo-bar late out" data-open="${p.id}" style="left:0;width:100%;background:${pd.c}" title="${escapeHtml(tip)}">◂ ${nome} · ${opFmt(rg.start).slice(3)} a ${opFmt(rg.end).slice(3)} · ${tempo}</div></div>`; return; }
+    l = opClamp(l); r = opClamp(r);
+    lanes += `<div class="op-lane" style="top:${top}px"><div class="apo-bar${late?' late':''}" data-open="${p.id}" style="left:${l}%;width:${Math.max(r-l,1)}%;background:${pd.c}" title="${escapeHtml(tip)}">${nome} · ${tempo}</div></div>`;
   });
   return `<div class="op-row" data-pid="${p.id}"><div class="op-left" data-open="${p.id}"><div class="n">${escapeHtml(p.nome)}${cli?'<span class="cli">CLIENTE</span>':''}${opTempBadge(p)}${isMedico(p)?'':'<span class="cli" style="background:var(--amber-soft);color:var(--amber-ink)">'+escapeHtml((TIPOS_PESSOA[p.tipo]||'NÃO MÉDICO').toUpperCase())+'</span>'}</div><div class="m">${p.crm?'CRM '+escapeHtml(p.crm):''}${p.especialidade?' · '+escapeHtml(p.especialidade):''}${p.cpf?' · CPF '+escapeHtml(fmtCPF(p.cpf)):''}${p.classificacao==='call_hot'?' · <span class="pl-tag hot" style="color:var(--red)">Call Hot</span>':(p.classificacao==='quente'?' · <span class="pl-tag warm">Quente</span>':'')}${(p.tags&&p.tags.length)?' · '+escapeHtml(p.tags.join(', ')):''}${opNextInfo(p)}${opDemInfo(p)}${opTempInfo(p)}${plInfo}</div></div><div class="op-right" style="height:${height}px">${lanes}</div></div>`;
 }
