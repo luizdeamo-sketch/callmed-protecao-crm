@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
+<meta name="app-build" content="20261016122929">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -856,7 +857,7 @@ document.getElementById('btn-reset-save').addEventListener('click', async ()=>{
   errEl.style.color = 'var(--green)'; errEl.textContent = 'Senha atualizada! Redirecionando...';
   setTimeout(()=>{ document.getElementById('reset-screen').style.display='none'; boot(); }, 1200);
 });
-document.getElementById('btn-logout').addEventListener('click', async ()=>{ await sb.auth.signOut(); location.reload(); });
+document.getElementById('btn-logout').addEventListener('click', async ()=>{ try{ if(window.ACOMP && ACOMP.flush) await ACOMP.flush(); }catch(e){} await sb.auth.signOut({ scope:'local' }); location.reload(); });
 async function checkSession(){ const { data } = await sb.auth.getSession(); if(data.session){ boot(); } }
 
 function boot(){
@@ -5788,12 +5789,14 @@ function intelRelHtml(rel){
     <div class="es-box" style="margin-bottom:10px"><div class="ql">Pool de perguntas personalizadas <button class="om-cancel" id="intel-copy" style="padding:2px 8px;font-size:11px;margin-left:8px">Copiar</button></div>
       ${Object.keys(porBloco).map(b=>`<div style="margin-top:8px"><b style="color:var(--brand)">${escapeHtml(b)}</b>${porBloco[b].map(q=>`<div style="margin:4px 0;font-size:12.5px">• ${escapeHtml(q.pergunta||'')}<div style="color:var(--ink-faint);font-size:11.5px;margin-left:10px">↳ ${escapeHtml(q.por_que||'')}</div></div>`).join('')}</div>`).join('')}</div>
     ${(rel.cuidados||[]).length?ruBox('Cuidados', ruLi(rel.cuidados)):''}
+    ${(rel.buscas_feitas||[]).length?ruBox('O que a IA buscou ('+rel.buscas_feitas.length+' buscas)', ruLi(rel.buscas_feitas)):''}
     ${ruBox('Fontes', (rel.fontes||[]).length ? '<ul style="margin:0;padding-left:18px">'+(rel.fontes||[]).map(f=>'<li>'+escapeHtml(f.titulo||'')+' — <span style="word-break:break-all">'+escapeHtml(f.url||'')+'</span></li>').join('')+'</ul>' : '<div style="color:var(--ink-faint)">sem fontes</div>')}`;
 }
 async function intelDialog(p){
   const { data } = await sb.from('crm_inteligencia').select('*').eq('pessoa_id', p.id).order('gerado_em',{ascending:false}).limit(1);
   const last = (data||[])[0];
   const draw = (rel, quando, quem) => {
+    if(rel){ try{ rel = JSON.parse(JSON.stringify(rel).replace(/<\/?cite[^>]*>/g,'')); }catch(e){} }
     dlgOpen(`<h3 style="margin:0 0 4px">Inteligência — ${escapeHtml(p.nome)}</h3>
       <div class="hint" style="margin-bottom:10px">Pesquisa em fontes públicas (redes, site, publicações) para conhecer a pessoa antes da abordagem e montar perguntas sob medida. Só informações públicas; confirme sempre na conversa.${quando?'<br><b>Última pesquisa:</b> '+audWhen(quando)+' por '+escapeHtml(audWho(quem)):''}</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px"><input id="intel-ctx" placeholder="Contexto extra opcional (cidade, hospital, @ do Instagram…)" style="flex:1;min-width:220px"><button class="om-save" id="intel-run">${rel?'Atualizar pesquisa':'Pesquisar agora'}</button></div>
@@ -5812,7 +5815,7 @@ async function intelDialog(p){
     if(cp) cp.addEventListener('click', ()=>{ const t = (rel.perguntas||[]).map(q=>'['+q.bloco+'] '+q.pergunta).join('\n'); navigator.clipboard.writeText(t).then(()=>showToast('Perguntas copiadas')); });
     document.getElementById('intel-run').addEventListener('click', async ()=>{
       const btn = document.getElementById('intel-run'), msg = document.getElementById('intel-msg');
-      btn.disabled = true; msg.textContent = 'Pesquisando na web e montando o perfil… pode levar de 1 a 2 minutos.';
+      btn.disabled = true; msg.textContent = 'A IA está procurando a pessoa pelo nome e sobrenome, em várias buscas (Instagram, LinkedIn, Facebook, web)… pode levar até 2 minutos.';
       const { data: r, error } = await sb.functions.invoke('inteligencia-pessoa', { body: { pessoa_id: p.id, contexto_extra: document.getElementById('intel-ctx').value||null } });
       if(error || (r&&r.error)){ msg.textContent = ''+(r&&r.error ? r.error : await ruErr(error)); btn.disabled = false; return; }
       draw(r.relatorio, r.gerado_em || new Date().toISOString(), 'você');
@@ -8146,8 +8149,8 @@ document.getElementById('op-newcli').addEventListener('click', ()=> openNovoClie
 
 // ---------- SUGESTÕES DE MELHORIA (texto livre + voz, com histórico e status) ----------
 const SG_STATUS = [['nova','Nova','#0018fc'],['em_analise','Em análise','#c8790b'],['aprovada','Aprovada','#0f7a53'],['em_execucao','Em execução','#00125e'],['concluida','Concluída','#0f7a53'],['rejeitada','Rejeitada','#c23636'],['depois','Deixar para depois','#646b89']];
-const SG_TIPOS = {ideia:'Ideia nova', melhoria:'Melhoria', problema:'Problema / erro'};
-const SG_TELAS = ['Aliança','Central de Apólices','Comercial','Reuniões','Indicadores','Estudo','Cadastro do cliente','Novo cliente','Agenda','Base','Ata','Login / acesso','Outro'];
+const SG_TIPOS = {ideia:'Ideia nova', melhoria:'Melhoria', problema:'Problema / erro', duvida:'Dúvida'};
+const SG_TELAS = ['Aliança','Central de Apólices','Comercial','Vendas','Reuniões','Indicadores','Analítico','Estudo','Cadastro do cliente','Novo cliente','Agenda','Base','Sugestões','Ata','Login / acesso','Outro'];
 const SG = { list:[], filter:'', q:'', rec:null, media:null, chunks:[], audioBlob:null, recording:false };
 const sgLabel = (k)=> (SG_STATUS.find(s=>s[0]===k)||[k,k,'#666']);
 
@@ -9013,5 +9016,345 @@ checkSession();
 
   .top-scroll{ overflow-x:auto; overflow-y:hidden; height:14px; margin-bottom:2px; } .top-scroll > div{ height:1px; }
 </style>
+<script>
+/* ===== Acompanhante: aviso de nova versão · registro de uso · balão 💬 =====
+   O sistema anota telas abertas e botões clicados. Nunca anota o que a pessoa digita nos campos. */
+(function(){
+  'use strict';
+  const A = window.ACOMP = window.ACOMP || {};
+  const esc = s => String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const lsGet = (k,d)=>{ try{ const v = localStorage.getItem(k); return v==null ? d : JSON.parse(v); }catch(e){ return d; } };
+  const lsSet = (k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
+  const email = ()=> String(window._userEmail||'').toLowerCase();
+  // quem testa o sistema não recebe os balões automáticos (o botão 💬 continua)
+  const SEM_BALAO = ['luiz.amo@callmedsaude.com.br','luiz.amo@capacitycase.com.br','luizdeamo@gmail.com'];
+
+  /* ---------- PEÇA 1 · aviso de nova versão ---------- */
+  const metaBuild = document.querySelector('meta[name="app-build"]');
+  const BUILD = metaBuild ? String(metaBuild.content||'') : '';
+  const BUILD_OK = s => /^\d{10,}$/.test(String(s||''));
+  async function verificarVersao(){
+    if(!BUILD_OK(BUILD) || A.novaVersao) return;           // servidor de desenvolvimento / arquivo local: nada a comparar
+    try{
+      const r = await fetch(location.pathname + '?v=' + Date.now(), { cache:'no-store', headers:{ Range:'bytes=0-5999' } });
+      const t = await r.text(); const m = t.match(/<meta name="app-build" content="([^"]*)"/);
+      if(m && BUILD_OK(m[1]) && m[1] !== BUILD) mostrarFaixa();
+    }catch(e){}
+  }
+  function mostrarFaixa(){
+    if(document.getElementById('ac-versao')) return; A.novaVersao = true;
+    const f = document.createElement('div'); f.id = 'ac-versao'; f.setAttribute('role','status');
+    f.innerHTML = '<span>Saiu uma versão nova do sistema. Salve o que estiver fazendo e clique em Atualizar.</span><button type="button" id="ac-versao-btn">Atualizar</button>';
+    document.body.appendChild(f);
+    document.getElementById('ac-versao-btn').addEventListener('click', ()=> location.reload());   // nunca recarrega sozinho
+  }
+  A.verificarVersao = verificarVersao;
+  setInterval(verificarVersao, 120000);
+  document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) verificarVersao(); });
+
+  /* ---------- PEÇA 2 · registro de uso ---------- */
+  const SESSAO = (self.crypto && crypto.randomUUID) ? crypto.randomUUID().slice(0,12) : Math.random().toString(36).slice(2,14);
+  const FILA = []; let ultimos = [];
+  const NAV_NOME = { operacao:'Aliança', pessoas:'Cadastro do cliente', central:'Central de Apólices', comercial:'Comercial', vendas:'Vendas', reunioes:'Reuniões', indicadores:'Indicadores', analitico:'Analítico', agenda:'Agenda', conhecimento:'Base', sugestoes:'Sugestões', ata:'Ata', login:'Login' };
+  const SUB_NOME = { pro:'Prospecção', cli:'Clientes trabalhados', dem:'Demandas', vend:'Vendas realizadas', nao:'Vendas não realizadas', resumo:'Resumo', orc:'Orçamento', par:'Parâmetros', metas:'Funil', carlas:'Mais Carlas', diario:'Diário', marcos:'Marcos', fluxo:'Fluxo de proteção', protecao:'Proteção' };
+  const viewAtiva = ()=>{ const v = document.querySelector('.view.active'); return v ? v.id.replace(/^view-/,'') : 'login'; };
+  function rotaAtual(){
+    const lg = document.getElementById('login-screen'); if(lg && getComputedStyle(lg).display !== 'none') return '/login';
+    const v = viewAtiva(); let sub = '';
+    try{
+      if(v==='vendas' && typeof VD!=='undefined') sub = VD.tab ? '/'+VD.tab : '';
+      else if(v==='pessoas' && typeof PV!=='undefined') sub = PV.tab ? '/'+PV.tab : '';
+      else if(v==='comercial'){ const t = document.querySelector('#com-tabs .on'); if(t) sub = '/'+t.dataset.ct; }
+      else if(v==='ata'){ const b = document.querySelector('#ata-toggle .active'); if(b) sub = '/'+b.dataset.m; }
+      if(typeof FLOW!=='undefined' && FLOW.open) sub = '/fluxo';
+    }catch(e){}
+    return ('/' + v + sub).replace(/\d+/g, ':n').split('?')[0];
+  }
+  const secao = r => { const v = String(r||'').split('/')[1] || ''; return (v==='pessoas') ? 'operacao' : v; };   // ficha do cliente faz parte da seção Aliança
+  const nomeTela = r => { const p = String(r||'').split('/').filter(Boolean); if(!p.length) return 'Tela'; const base = NAV_NOME[p[0]] || p[0]; return p[1] ? base + ' · ' + (SUB_NOME[p[1]] || p[1]) : base; };
+  A.nomeTela = nomeTela;
+  // some números, e-mails e nomes próprios das mensagens do sistema antes de guardar
+  const mascarar = t => String(t||'').replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g,'…').replace(/\d[\d.\-\/() ]{4,}\d/g,'…').replace(/(\s)([A-ZÁÉÍÓÚÂÊÔÃÕÇ][\p{L}'.-]+(?:\s+(?:de|da|do|dos|das|e)?\s*[A-ZÁÉÍÓÚÂÊÔÃÕÇ][\p{L}'.-]+)+)/gu,'$1…');
+  function uso(tipo, alvo, detalhe, rota){
+    if(!email()) return;                                   // antes do login não grava nada
+    const ev = { em:new Date().toISOString(), sessao:SESSAO, tipo, rota: rota || rotaAtual(), alvo: String(alvo||'').slice(0,200) || null, detalhe: detalhe || null };
+    FILA.push(ev); if(FILA.length > 500) FILA.shift();
+    ultimos.push({ em:ev.em, tipo, rota:ev.rota, alvo:ev.alvo }); if(ultimos.length > 20) ultimos.shift();
+  }
+  A.uso = uso;
+  let flushando = false;
+  async function flush(){
+    if(flushando || !FILA.length || !email()) return; flushando = true;
+    const lote = FILA.splice(0, FILA.length);
+    try{ const { error } = await sb.from('uso_eventos').insert(lote); if(error) throw error; }
+    catch(e){ FILA.unshift(...lote); if(FILA.length > 500) FILA.splice(0, FILA.length-500); }
+    flushando = false;
+  }
+  A.flush = flush;
+  setInterval(flush, 15000);
+
+  // telas: troca de tela, tempo em cada uma e vai-e-volta
+  let rotaCur = null, tsTela = Date.now(); const hist = [];
+  function checarTela(){
+    if(!email()) return;                                   // só começa a contar depois do login
+    const r = rotaAtual(); if(r === rotaCur) return;
+    const agora = Date.now(), ant = rotaCur, ms = agora - tsTela;
+    rotaCur = r; tsTela = agora;
+    uso('tela', nomeTela(r), { anterior: ant, ms_na_anterior: ant ? ms : null }, r);
+    hist.push({ rota:r, ts:agora }); if(hist.length > 4) hist.shift();
+    const n = hist.length;
+    if(n >= 3){ const [a,b,c] = hist.slice(-3);                          // A → B → A em menos de 30 s, B de outra seção
+      if(c.rota === a.rota && b.rota !== a.rota && secao(b.rota) !== secao(a.rota) && c.ts - a.ts < 30000) duvida('voltou'); }
+  }
+  setInterval(checarTela, 700);
+  document.addEventListener('click', ()=> setTimeout(checarTela, 60), true);
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden){ uso('saida', nomeTela(rotaCur||rotaAtual()), { ms_na_tela: Date.now() - tsTela }); flush(); }
+    else tsTela = Date.now();
+  });
+
+  // cliques: só o rótulo do botão/aba/link, nunca o que se digita
+  const RE_REPETE = /^[+＋−\-‹›<>«»×x✕]/i;
+  function rotulo(t){
+    if(t.closest('input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]),textarea,[contenteditable="true"],select')) return null;
+    const el = t.closest('button,a,[role=button],[role=tab],.nav-btn,.pv-tab,.sg-chip,summary,label,tr,td'); if(!el) return null;
+    if(el.matches('tr,td')){ const tab = el.closest('table'); const th = tab && tab.querySelector('th'); return { texto:'linha: ' + (th ? th.textContent.trim().slice(0,40) : 'tabela'), el:'tr' }; }   // não grava o conteúdo da linha (nome do cliente)
+    const tx = (el.getAttribute('aria-label') || el.getAttribute('title') || el.textContent || '').replace(/\s+/g,' ').trim().slice(0,60);
+    return { texto: tx || (el.id ? '#'+el.id : el.tagName.toLowerCase()), el: el.tagName.toLowerCase(), node: el };
+  }
+  let cliques = [];
+  document.addEventListener('click', e=>{
+    const t = e.target; if(!(t instanceof Element) || t.closest('#ac-root,#ac-versao')) return;
+    const r = rotulo(t); if(!r) return;
+    uso('clique', r.texto, { elemento: r.el });
+    if(t.closest('.leaflet-control,[data-repetir]') || RE_REPETE.test(r.texto)) return;
+    const agora = Date.now(); cliques.push({ t:agora, x:e.clientX, y:e.clientY, k:r.texto });
+    cliques = cliques.filter(c=>agora - c.t <= 1000);
+    const g = cliques.filter(c=>c.k===r.texto && Math.abs(c.x-e.clientX) <= 30 && Math.abs(c.y-e.clientY) <= 30);
+    if(g.length >= 3){ uso('raiva', r.texto, { cliques: g.length }); cliques = []; duvida('travou'); }
+  }, true);
+  document.addEventListener('change', e=>{
+    const s = e.target; if(!(s instanceof HTMLSelectElement) || s.closest('#ac-root')) return;
+    const lb = (s.closest('label') && s.closest('label').querySelector('span') && s.closest('label').querySelector('span').textContent) || s.getAttribute('aria-label') || s.title || s.id || 'filtro';
+    const op = s.options[s.selectedIndex] ? s.options[s.selectedIndex].textContent.trim() : '';
+    uso('clique', (lb.trim().slice(0,40) + ': ' + op.slice(0,40)), { elemento:'select' });
+  }, true);
+
+  // mensagens do sistema (toast) e erros
+  const RE_ERRO = /^erro|n[aã]o (consegui|foi poss|aceit|encontr)|preench|informe|escolh|escrev|selecion|falt|inv[aá]lid|obrigat|permita|primeiro|antes de/i;
+  let ultimoSalvo = 0;
+  const _toast = window.showToast;
+  if(typeof _toast === 'function'){
+    window.showToast = function(msg){
+      try{
+        const m = String(msg||''), erro = RE_ERRO.test(m);
+        uso('aviso', mascarar(m), { erro });
+        if(erro) duvida('recusa');
+        else if(/salv|criad|registrad|agendad|anotad|atualizad/i.test(m)) ultimoSalvo = Date.now();
+        else if(/apagad|exclu[ií]d|removid/i.test(m) && Date.now() - ultimoSalvo < 300000) duvida('desfez');
+      }catch(e){}
+      return _toast.apply(this, arguments);
+    };
+  }
+  window.addEventListener('error', e=>{ try{ uso('erro', String(e.message||'erro').slice(0,200), { arquivo:String(e.filename||'').split('/').pop(), linha:e.lineno }); }catch(x){} });
+  window.addEventListener('unhandledrejection', e=>{ try{ uso('erro', String((e.reason && e.reason.message) || e.reason || 'promessa recusada').slice(0,200), { promessa:true }); }catch(x){} });
+
+  /* ---------- PEÇA 3 · acompanhante (balão 💬) ---------- */
+  const PERGUNTAS = {
+    travou:'Parece que algo não respondeu como você esperava. O que você queria que acontecesse?',
+    recusa:'O sistema não aceitou. A mensagem ficou clara? Se não, conta o que você estava tentando fazer.',
+    desfez:'Vi que você apagou algo que tinha acabado de salvar. Ficou alguma dúvida nesta tela?',
+    voltou:'Procurando alguma coisa? Se não achou, me conta o que era que eu anoto.',
+    experimento:'É assim que o balão aparece. O que você tem achado do sistema até agora?'
+  };
+  const TIPO_PADRAO = { travou:'problema', recusa:'problema', desfez:'duvida', voltou:'duvida', primeira:'ideia', botao:'ideia', experimento:'ideia' };
+  const TIPOS = [['melhoria','Ideia de melhoria'],['problema','Algo não funciona'],['duvida','Dúvida']];
+  const ac = { motivo:null, pergunta:null, tipo:'melhoria', print:null, audio:null, voz:false, rec:null, media:null, chunks:[], timerBalao:null, ultimoAuto:0, ultimaDuvida:0 };
+  const dentro = ()=> document.getElementById('ac-root');
+  function montar(){
+    if(dentro() || !document.body) return;
+    const root = document.createElement('div'); root.id = 'ac-root';
+    root.innerHTML = '<div id="ac-bubble" hidden></div><div id="ac-box" hidden></div><button type="button" id="ac-btn" title="Dar uma ideia, avisar de um problema ou tirar uma dúvida" aria-label="Falar com a equipe">💬</button>';
+    document.body.appendChild(root);
+    document.getElementById('ac-btn').addEventListener('click', ()=> abrirCaixa('botao', ''));
+  }
+  const bloqueado = ()=>{ const d = document.getElementById('dlg'); return (d && getComputedStyle(d).display !== 'none' && d.innerHTML) || ac.rec || !document.getElementById('ac-box').hidden || !document.getElementById('ac-bubble').hidden; };
+  function fecharBalao(como){
+    const b = document.getElementById('ac-bubble'); clearTimeout(ac.timerBalao);
+    if(!b.hidden){ b.hidden = true; uso('balao', ac.motivo, { evento:'fechou', resposta:como }); }
+  }
+  function mostrarBalao(motivo, pergunta, forcar){
+    montar();
+    if(!forcar && (email()==='' || SEM_BALAO.includes(email()) || bloqueado())) return false;
+    if(forcar && !document.getElementById('ac-bubble').hidden) fecharBalao('ignorou');
+    ac.motivo = motivo; ac.pergunta = pergunta;
+    const b = document.getElementById('ac-bubble');
+    b.innerHTML = '<p>'+esc(pergunta)+'</p><div class="ac-acoes"><button type="button" data-ac="ok">👍 Tudo certo</button><button type="button" data-ac="falar">💬 Tenho algo a dizer</button><button type="button" data-ac="x" aria-label="Fechar">✕</button></div>';
+    b.hidden = false; uso('balao', motivo, { evento:'abriu', pergunta });
+    b.querySelector('[data-ac=ok]').onclick = ()=> fecharBalao('ok');
+    b.querySelector('[data-ac=x]').onclick = ()=> fecharBalao('desistiu');
+    b.querySelector('[data-ac=falar]').onclick = ()=>{ b.hidden = true; clearTimeout(ac.timerBalao); abrirCaixa(motivo, pergunta, true); };
+    ac.timerBalao = setTimeout(()=> fecharBalao('ignorou'), 40000);
+    return true;
+  }
+  A.mostrarBalao = mostrarBalao;
+  // sinal de dúvida vindo do registro de uso (no máximo um a cada 15 min, 1,5 s depois do sinal)
+  function duvida(motivo){ window.dispatchEvent(new CustomEvent('alianca-duvida', { detail:{ motivo } })); }
+  window.addEventListener('alianca-duvida', e=>{
+    const motivo = e.detail && e.detail.motivo; if(!PERGUNTAS[motivo]) return;
+    if(Date.now() - ac.ultimaDuvida < 900000) return;
+    setTimeout(()=>{ if(Date.now() - ac.ultimaDuvida < 900000) return; if(mostrarBalao(motivo, PERGUNTAS[motivo])) ac.ultimaDuvida = Date.now(); }, 1500);
+  });
+  // primeira vez numa tela: depois de 25 s, no máximo um balão a cada 5 min
+  setInterval(()=>{
+    if(!email() || SEM_BALAO.includes(email()) || !rotaCur || rotaCur==='/login') return;
+    if(Date.now() - tsTela < 25000 || Date.now() - ac.ultimoAuto < 300000) return;
+    const chave = 'ac_telas:' + email(), vistas = lsGet(chave, []); if(vistas.includes(rotaCur)) return;
+    if(mostrarBalao('primeira', 'Primeira vez em ' + nomeTela(rotaCur) + '. Está funcionando como você esperava?')){ vistas.push(rotaCur); lsSet(chave, vistas); ac.ultimoAuto = Date.now(); }
+  }, 1500);
+
+  // print da tela (html2canvas, que o sistema já usa nos PDFs) com limite de 8 s
+  async function tirarPrint(){
+    const el = document.getElementById('ac-print'); if(el) el.innerHTML = '<span class="ac-mut">tirando o print…</span>';
+    try{
+      await Promise.race([ (async()=>{
+        if(typeof html2canvas === 'undefined') await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+        const cv = await html2canvas(document.body, { x:window.scrollX, y:window.scrollY, width:window.innerWidth, height:window.innerHeight, windowWidth:window.innerWidth, windowHeight:window.innerHeight, scale:Math.min(1, 1100/window.innerWidth), useCORS:true, logging:false, backgroundColor:'#ffffff', ignoreElements: n => n.id==='ac-root' || n.id==='toast' || n.id==='ac-versao' });
+        ac.print = await new Promise(res=>cv.toBlob(res, 'image/jpeg', 0.75));
+      })(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('demorou')), 8000)) ]);
+    }catch(e){ ac.print = null; }
+    desenharPrint();
+  }
+  function desenharPrint(){
+    const el = document.getElementById('ac-print'); if(!el) return;
+    el.innerHTML = ac.print ? '<img alt="Print da tela" src="'+URL.createObjectURL(ac.print)+'"><button type="button" id="ac-reprint">Tirar de novo</button>' : '<span class="ac-mut">Sem print desta vez.</span> <button type="button" id="ac-reprint">Tirar</button>';
+    const b = document.getElementById('ac-reprint'); if(b) b.onclick = tirarPrint;
+  }
+  // voz: ditado (pt-BR) + gravação do áudio original
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  async function alternarVoz(){
+    const btn = document.getElementById('ac-mic'), ta = document.getElementById('ac-texto');
+    if(ac.rec){ const r = ac.rec; ac.rec = null; try{ r.stop(); }catch(e){} try{ ac.media && ac.media.state!=='inactive' && ac.media.stop(); }catch(e){} btn.textContent = '🎤 Falar'; return; }
+    if(!SR){ showToast('Este navegador não faz ditado por voz. Use o Chrome ou o Edge.'); return; }
+    ac.audio = null; ac.chunks = [];
+    try{ const st = await navigator.mediaDevices.getUserMedia({ audio:true }); ac.media = new MediaRecorder(st);
+      ac.media.ondataavailable = e=>{ if(e.data.size) ac.chunks.push(e.data); };
+      ac.media.onstop = ()=>{ st.getTracks().forEach(t=>t.stop()); ac.audio = new Blob(ac.chunks, { type: ac.media.mimeType || 'audio/webm' }); };
+      ac.media.start(); }catch(e){ ac.media = null; }
+    const base = ta.value ? ta.value.replace(/\s+$/,'') + ' ' : ''; let fin = '';
+    const rec = new SR(); rec.lang = 'pt-BR'; rec.continuous = true; rec.interimResults = true; ac.rec = rec;
+    rec.onresult = ev=>{ let parcial = ''; for(let i=ev.resultIndex;i<ev.results.length;i++){ const tx = ev.results[i][0].transcript; if(ev.results[i].isFinal) fin += tx + ' '; else parcial += tx; } ta.value = base + fin + parcial; ac.voz = true; };
+    rec.onerror = ev=>{ if(ev.error==='not-allowed') showToast('Permita o uso do microfone no navegador.'); };
+    rec.onend = ()=>{ if(ac.rec){ try{ rec.start(); }catch(e){} } };
+    rec.start(); btn.textContent = '⏹ Parar';
+  }
+  function fecharCaixa(como){
+    const bx = document.getElementById('ac-box'); if(bx.hidden) return;
+    if(ac.rec){ const r = ac.rec; ac.rec = null; try{ r.stop(); }catch(e){} try{ ac.media && ac.media.state!=='inactive' && ac.media.stop(); }catch(e){} }
+    bx.hidden = true; ac.print = null; ac.audio = null; ac.voz = false; uso('balao', ac.motivo, { evento:'fechou', resposta:como });
+  }
+  function abrirCaixa(motivo, pergunta, veioDoBalao){
+    montar(); const bx = document.getElementById('ac-box');
+    if(!bx.hidden) return;
+    const b = document.getElementById('ac-bubble'); if(!b.hidden && !veioDoBalao){ b.hidden = true; clearTimeout(ac.timerBalao); uso('balao', ac.motivo, { evento:'fechou', resposta:'falou' }); }
+    ac.motivo = motivo; ac.pergunta = pergunta || ''; ac.tipo = TIPO_PADRAO[motivo] === 'ideia' ? 'melhoria' : (TIPO_PADRAO[motivo] || 'melhoria');
+    if(!veioDoBalao) uso('balao', motivo, { evento:'abriu', pergunta: pergunta || null });
+    bx.innerHTML = '<div class="ac-cab"><b>Conta pra gente</b><button type="button" id="ac-fechar" aria-label="Fechar">✕</button></div>'
+      + (pergunta ? '<p class="ac-perg">'+esc(pergunta)+'</p>' : '<p class="ac-perg">Escreva ou fale. O print desta tela vai junto para a equipe ver o que você viu.</p>')
+      + '<div class="ac-chips">' + TIPOS.map(([k,l])=>'<button type="button" data-tipo="'+k+'" class="'+(k===ac.tipo?'on':'')+'">'+l+'</button>').join('') + '</div>'
+      + '<textarea id="ac-texto" rows="4" placeholder="O que você quer dizer?"></textarea>'
+      + '<div class="ac-linha"><button type="button" id="ac-mic">🎤 Falar</button><span class="ac-mut" id="ac-aviso-print">Mapas e fotos de fundo podem sair em branco no print.</span></div>'
+      + '<div id="ac-print"></div>'
+      + '<div class="ac-linha"><button type="button" id="ac-enviar" class="ac-pri">Enviar</button></div><div id="ac-ok" hidden></div>';
+    bx.hidden = false;
+    bx.querySelector('#ac-fechar').onclick = ()=> fecharCaixa('fechou');
+    bx.querySelectorAll('[data-tipo]').forEach(btn=>btn.onclick = ()=>{ ac.tipo = btn.dataset.tipo; bx.querySelectorAll('[data-tipo]').forEach(x=>x.classList.toggle('on', x===btn)); });
+    bx.querySelector('#ac-mic').onclick = alternarVoz;
+    bx.querySelector('#ac-enviar').onclick = enviar;
+    setTimeout(()=>{ const t = document.getElementById('ac-texto'); if(t) t.focus(); }, 50);
+    tirarPrint();
+  }
+  A.abrirCaixa = abrirCaixa;
+  async function enviar(){
+    const ta = document.getElementById('ac-texto'), btn = document.getElementById('ac-enviar');
+    if(ac.rec) await alternarVoz();
+    const texto = ta.value.trim(); if(!texto){ showToast('Escreva ou fale algo primeiro.'); return; }
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    try{
+      await new Promise(r=>setTimeout(r, 400));
+      const anexos = []; let audio_path = null;
+      if(ac.print){ try{ const f = new File([ac.print], 'print-'+Date.now()+'.jpg', { type:'image/jpeg' }); anexos.push({ path: await docsUpload(f,'sugestoes'), nome:f.name, mime:'image/jpeg', tamanho:f.size }); }catch(e){} }
+      if(ac.audio){ try{ audio_path = await docsUpload(new File([ac.audio], 'sugestao-'+Date.now()+'.webm', { type: ac.audio.type || 'audio/webm' }), 'sugestoes'); }catch(e){} }
+      const autor = (typeof curUserName === 'function') ? curUserName() : (email().split('@')[0] || 'Equipe');
+      const rota = rotaAtual(), tela = (NAV_NOME[(rota.split('/')[1]||'')] || 'Outro');
+      const contexto = { via:'balao', motivo:ac.motivo, pergunta:ac.pergunta || null, rota, largura: window.innerWidth, ultimos: ultimos.slice(-20) };
+      const { error } = await sb.from('crm_sugestoes').insert({ autor, texto, anexos, origem: (ac.voz || audio_path) ? 'voz' : 'texto', tipo: ac.tipo, tela, prioridade:'normal', status:'nova', audio_path, contexto,
+        historico:[{ em:new Date().toISOString(), por:autor, de:'nova', para:'nova', nota:'Registrada pelo balão 💬' }] });
+      if(error) throw error;
+      const ok = document.getElementById('ac-ok'); ok.hidden = false; ok.textContent = 'Anotado! Sua sugestão já está na aba Sugestões. 🙌';
+      uso('balao', ac.motivo, { evento:'fechou', resposta:'enviou' });
+      const bx = document.getElementById('ac-box'); ac.print = null; ac.audio = null; ac.voz = false;
+      setTimeout(()=>{ bx.hidden = true; }, 3500);
+      try{ if(document.getElementById('view-sugestoes').classList.contains('active') && typeof renderSugestoes === 'function') renderSugestoes(); }catch(e){}
+    }catch(e){ showToast('Erro ao enviar: ' + (e.message || e)); btn.disabled = false; btn.textContent = 'Enviar'; }
+  }
+
+  // cartão na capa explicando o balão
+  function cartao(){
+    const v = document.getElementById('view-operacao'); if(!v || document.getElementById('ac-card')) return;
+    const c = document.createElement('div'); c.id = 'ac-card'; v.insertBefore(c, v.firstChild);
+    const chave = 'ac_card_recolhido:' + (email() || 'x');
+    const desenha = ()=>{
+      if(lsGet(chave, false)){ c.className = 'ac-card ac-card-min'; c.innerHTML = '<span>Tem alguém do seu lado anotando 💬</span> <a href="#" id="ac-card-ver">Ver como funciona</a>'; c.querySelector('#ac-card-ver').onclick = e=>{ e.preventDefault(); lsSet(chave, false); desenha(); }; return; }
+      c.className = 'ac-card';
+      c.innerHTML = '<div class="ac-card-corpo"><h3>Tem alguém do seu lado anotando 💬</h3><ul>'
+        + '<li><b>O botão 💬</b> no canto da tela abre a caixa de escrever, em cima da tela em que você está.</li>'
+        + '<li><b>Escreva ou fale:</b> o microfone dita para você, e o sistema tira um print da tela para a equipe ver o que você viu.</li>'
+        + '<li><b>De vez em quando o balão pergunta</b> como está indo: na primeira vez em uma tela, ou quando algo não respondeu como esperado.</li>'
+        + '<li><b>Tudo vai para a aba Sugestões,</b> e a equipe responde por lá.</li></ul>'
+        + '<p class="ac-mut">O sistema anota quais telas você abre e onde clica, só para melhorar o CRM. Ele <b>nunca</b> anota o que você digita nos campos.</p>'
+        + '<div class="ac-card-bt"><button type="button" id="ac-card-exp" class="ac-pri">💬 Experimentar agora</button><button type="button" id="ac-card-ok">Entendi</button></div></div>'
+        + '<div class="ac-desenho" aria-hidden="true"><div class="ac-d-balao"><i></i><i></i></div><div class="ac-d-btn">💬</div></div>';
+      c.querySelector('#ac-card-exp').onclick = ()=> mostrarBalao('experimento', PERGUNTAS.experimento, true);
+      c.querySelector('#ac-card-ok').onclick = ()=>{ lsSet(chave, true); desenha(); };
+    };
+    desenha();
+    A.redesenharCartao = desenha;
+  }
+
+  // estilo
+  const css = document.createElement('style'); css.textContent = `
+    .toast{ right:96px !important; }
+    #ac-root{ position:fixed; right:22px; bottom:22px; z-index:60; font-family:'Inter',sans-serif; }
+    #ac-btn{ width:52px; height:52px; border-radius:50%; border:0; background:var(--brand,#0018fc); color:#fff; font-size:22px; cursor:pointer; box-shadow:0 8px 24px -8px rgba(11,20,51,.45); }
+    #ac-btn:hover{ background:var(--brand-hover,#0012c4); }
+    #ac-bubble{ position:absolute; right:0; bottom:64px; width:300px; background:#fff; border:1px solid var(--border,#e3e6ee); border-radius:14px; padding:14px; box-shadow:0 12px 32px -10px rgba(11,20,51,.35); font-size:13px; line-height:1.45; color:var(--ink,#0b1433); }
+    #ac-bubble p{ margin:0 0 10px; }
+    .ac-acoes{ display:flex; gap:6px; flex-wrap:wrap; } .ac-acoes button, .ac-chips button, .ac-linha button, #ac-card button{ border:1px solid var(--border-control,#8a90a8); background:#fff; border-radius:999px; padding:5px 11px; font-size:12px; cursor:pointer; }
+    .ac-acoes [data-ac=x]{ margin-left:auto; }
+    #ac-box *{ box-sizing:border-box; } #ac-box{ overflow-x:hidden; position:absolute; right:0; bottom:64px; width:340px; max-height:78vh; overflow:auto; background:#fff; border:1px solid var(--border,#e3e6ee); border-radius:14px; padding:14px; box-shadow:0 12px 32px -10px rgba(11,20,51,.35); font-size:13px; color:var(--ink,#0b1433); }
+    .ac-cab{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; } .ac-cab button{ border:0; background:none; font-size:16px; cursor:pointer; }
+    .ac-perg{ margin:0 0 8px; color:var(--ink-soft,#4a5270); } .ac-mut{ color:var(--ink-faint,#646b89); font-size:11.5px; }
+    .ac-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; } .ac-chips .on, .ac-pri{ background:var(--brand,#0018fc) !important; color:#fff !important; border-color:var(--brand,#0018fc) !important; }
+    #ac-texto{ width:100%; border:1px solid var(--border-control,#8a90a8); border-radius:8px; padding:8px; font:inherit; resize:vertical; }
+    .ac-linha{ display:flex; gap:8px; align-items:center; margin:8px 0; flex-wrap:wrap; } #ac-print img{ max-width:100%; max-height:130px; border:1px solid var(--border,#e3e6ee); border-radius:8px; display:block; margin-bottom:4px; }
+    #ac-ok{ background:#eaf7f1; border-radius:8px; padding:8px 10px; color:#0f7a53; font-weight:600; }
+    #ac-versao{ position:fixed; top:0; left:0; right:0; z-index:300; background:#c8790b; color:#fff; text-align:center; padding:9px 14px; font-size:13.5px; font-weight:600; display:flex; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap; }
+    #ac-versao button{ background:#fff; color:#8a5406; border:0; border-radius:999px; padding:5px 14px; font-weight:700; cursor:pointer; }
+    .ac-card{ display:flex; gap:18px; align-items:center; justify-content:space-between; background:var(--brand-soft,#eef0ff); border:1px solid var(--border,#e3e6ee); border-radius:12px; padding:14px 18px; margin:0 0 14px; }
+    .ac-card h3{ margin:0 0 6px; font-size:15px; } .ac-card ul{ margin:0 0 6px; padding-left:18px; font-size:12.5px; line-height:1.5; } .ac-card p{ margin:4px 0 8px; }
+    .ac-card-bt{ display:flex; gap:8px; flex-wrap:wrap; } .ac-card-min{ padding:8px 14px; font-size:12.5px; justify-content:flex-start; }
+    .ac-desenho{ position:relative; width:150px; height:110px; flex:none; } .ac-d-balao{ position:absolute; left:0; top:0; width:130px; height:62px; background:#fff; border:1px solid var(--border,#e3e6ee); border-radius:12px; padding:10px; box-shadow:0 6px 16px -8px rgba(11,20,51,.3); }
+    .ac-d-balao i{ display:block; height:7px; border-radius:4px; background:#d6dbef; margin-bottom:7px; } .ac-d-balao i:last-child{ width:60%; }
+    .ac-d-btn{ position:absolute; right:6px; bottom:0; width:40px; height:40px; border-radius:50%; background:var(--brand,#0018fc); color:#fff; display:flex; align-items:center; justify-content:center; }
+    @media print{ #ac-root, #ac-versao, #ac-card{ display:none !important; } }
+    @media (max-width:700px){ .ac-desenho{ display:none; } #ac-box, #ac-bubble{ width:calc(100vw - 44px); } }`;
+  document.head.appendChild(css);
+
+  function iniciar(){ montar(); cartao(); checarTela(); verificarVersao(); }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+})();
+
+</script>
 </body>
 </html>
