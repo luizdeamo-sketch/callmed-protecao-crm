@@ -1369,7 +1369,10 @@ async function vdRegistrar(r){
   if(!r) return;
   const nome = String(r.nome||'').trim(); if(!nome && !r.pessoa_id){ showToast('Informe o nome do contato antes de registrar.'); return; }
   if(!r.pessoa_id){ r._lig = false; await vdTentaLigar('crm_prospeccao', r, r.nome, r.cpf, r.telefone); }
-  if(r.registrado_em && !confirm('Este contato já foi registrado em '+vdDtHora(r.registrado_em)+'. Registrar de novo como uma nova atividade?')) return;
+  VD.draft = VD.draft || {};
+  const novoDigitado = String(VD.draft[r.id]||'').trim();
+  if(r.registrado_em && !novoDigitado){ showToast('Escreva em “Novo registro” o que aconteceu agora e clique em Registrar.'); return; }
+  const novo = novoDigitado || String(r.historico||'').trim();
   if(!r.canal){ showToast('Escolha o canal do contato (WhatsApp, Ligação, E-mail...) antes de registrar.'); return; }
   const sem = r.status==='Sem interesse', fim = sem || r.status==='Virou cliente';
   const acao = fim ? null : (r.proxima_acao || vdAcaoPadrao(r) || 'Realizar follow-up');
@@ -1377,7 +1380,7 @@ async function vdRegistrar(r){
   const agora = new Date().toISOString(), por = curUserName()||null;
   try{
     if(r.pessoa_id){
-      const resumo = ['Prospecção · canal: '+r.canal+(r.origem?' · origem: '+r.origem:'')+' · '+r.status, (r.historico||'').trim()].filter(Boolean).join(String.fromCharCode(10));
+      const resumo = ['Prospecção · canal: '+r.canal+(r.origem?' · origem: '+r.origem:'')+' · '+r.status, novo].filter(Boolean).join(String.fromCharCode(10));
       const { error } = await sb.from('crm_atividades').insert({ pessoa_id:r.pessoa_id, tipo:VD_CANAIS[r.canal]||'outro', data_hora:r.contato_em||agora, resumo, resultado:VD_RES_ST[r.status]||'Outro', responsavel:por,
         proxima_acao:acao, proxima_data:fim?null:r.retorno_data, proximo_responsavel:fim?null:por, motivo_perda:sem?'Sem interesse':null });
       if(error) throw error;
@@ -1388,17 +1391,23 @@ async function vdRegistrar(r){
     let naoMsg = '';
     if(sem){
       const { data: ex } = await sb.from('crm_nao_vendas').select('id').eq('prospeccao_id', r.id).maybeSingle();
-      const reg = { pessoa_id:r.pessoa_id||null, cliente:nome, produto:'', motivo:'Desistiu / sem interesse', justificativa:(r.historico||'').trim(), prospeccao_id:r.id, data_registro:ymd(new Date()), criado_por:por };
+      const reg = { pessoa_id:r.pessoa_id||null, cliente:nome, produto:'', motivo:'Desistiu / sem interesse', justificativa:novo, prospeccao_id:r.id, data_registro:ymd(new Date()), criado_por:por };
       if(ex){ const { error } = await sb.from('crm_nao_vendas').update({ justificativa:reg.justificativa, updated_at:agora }).eq('id', ex.id); if(error) throw error; }
       else { const { data, error } = await sb.from('crm_nao_vendas').insert(reg).select('*').single(); if(error) throw error; VD.nao.unshift(data); }
       naoMsg = ' e levado para Vendas não realizadas';
     }
-    const { error: e3 } = await sb.from('crm_prospeccao').update({ registrado_em:agora, updated_at:agora }).eq('id', r.id); if(e3) throw e3;
-    r.registrado_em = agora;
+    let histNovo = r.historico;
+    if(novoDigitado){ const d = new Date(), nl = String.fromCharCode(10), cab = '['+d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' · '+(por||'—')+' · '+r.canal+' · '+r.status+']';
+      histNovo = cab+nl+novoDigitado+(r.historico?nl+nl+r.historico:''); }
+    const { error: e3 } = await sb.from('crm_prospeccao').update({ historico:histNovo, registrado_em:agora, updated_at:agora }).eq('id', r.id); if(e3) throw e3;
+    r.registrado_em = agora; r.historico = histNovo; delete VD.draft[r.id];
     showToast('Registrado'+(r.pessoa_id?' no histórico do cliente':' (sem cadastro ligado: não entrou no histórico do cliente)')+naoMsg+'.');
     vdDraw();
   }catch(e){ showToast('Erro ao registrar: '+(e.message||e)); }
 }
+(function(){ const host = document.getElementById('vd-body'); if(!host) return;
+  host.addEventListener('input', e=>{ const id = e.target && e.target.dataset && e.target.dataset.nr; if(id){ VD.draft = VD.draft || {}; VD.draft[id] = e.target.value; } });
+})();
 function vdProHtml(){
   const l = vdProList(), f = VD.fPro, K = vdProCards(l);
   const atr = l.filter(x=>vdRetornoTipo(x)==='atrasado').length, hoje = l.filter(x=>vdRetornoTipo(x)==='hoje').length, aberto = l.filter(x=>!vdFechado(x)).length;
@@ -1412,7 +1421,8 @@ function vdProHtml(){
       <td><input type="datetime-local" data-k="contato_em" value="${vdLocalInput(x.contato_em)}"></td>
       <td><input type="date" data-k="retorno_data" value="${escapeHtml(x.retorno_data||'')}"><input type="time" data-k="retorno_hora" value="${escapeHtml(x.retorno_hora||'')}" style="margin-top:3px">${rt?`<div class="vd-ret ${rt}">${rt==='atrasado'?'atrasado':'hoje'}</div>`:''}</td>
       <td><select data-k="status" style="color:${VD_PRO_COR[x.status]||'inherit'};font-weight:600">${VD_ST_PRO.map(s=>`<option${s===x.status?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></td>
-      <td><textarea rows="3" data-k="historico" placeholder="Histórico do contato">${escapeHtml(x.historico||'')}</textarea></td>
+      <td style="min-width:300px">${(()=>{ const he = !!(VD.hEdit&&VD.hEdit[x.id]); return `<textarea${he?'':' readonly'} rows="5" data-k="historico" style="width:100%;${he?'':'background:#f6f8fc'}" placeholder="Histórico do contato (acumulado)">${escapeHtml(x.historico||'')}</textarea><a href="#" data-act="h-edit" data-id="${x.id}" style="font-size:11px">${he?'concluir correção':'corrigir texto'}</a>`; })()}
+        <textarea rows="2" data-nr="${x.id}" placeholder="Novo registro: o que aconteceu agora?" style="width:100%;margin-top:4px;border-color:#1b5fc7">${escapeHtml((VD.draft||{})[x.id]||'')}</textarea></td>
       <td><select data-k="proxima_acao" title="Próxima ação (a data é a do Retorno)"><option value="">${escapeHtml(vdAcaoPadrao(x)||'—')} (sugerida)</option>${ACOES.map(a=>`<option${a===x.proxima_acao?' selected':''}>${escapeHtml(a)}</option>`).join('')}</select></td>
       <td style="white-space:nowrap"><select data-k="canal" title="Por qual canal foi o contato?" style="margin-bottom:4px"><option value="">Canal…</option>${Object.keys(VD_CANAIS).map(c=>`<option${c===x.canal?' selected':''}>${c}</option>`).join('')}</select><br><button class="om-save vd-btn" data-act="reg-p" data-id="${x.id}">Registrar</button>${x.registrado_em?`<div style="font-size:10.5px;color:#1a7f37;margin-top:3px">✓ registrado ${escapeHtml(vdDtHora(x.registrado_em))}</div>`:''}</td>
       <td style="font-size:11px;color:var(--ink-faint);white-space:nowrap">${escapeHtml(x.criado_por||'—')}</td>
@@ -1427,7 +1437,7 @@ function vdProHtml(){
     <div class="vd-bar"><button class="om-save" data-act="nova-p">＋ Novo contato</button><span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-p">Baixar PDF com os números</button></div>
     <datalist id="vd-org">${VD_ORIGENS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>${vdBaseList()}
     <div class="hint" style="margin:6px 0">${l.length} contato(s) na lista, do mais recente para o mais antigo. Reunião agendada em amarelo, cotação em andamento em azul, retorno de hoje ou atrasado em laranja. Tudo é salvo ao sair do campo. <span id="vd-msg"></span></div>
-    <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1500px"><thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Origem</th><th>Contato</th><th>Retorno</th><th>Status</th><th>Histórico do contato</th><th>Próxima ação</th><th></th><th>Por</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="12" style="color:var(--ink-faint)">Nenhum contato registrado nesta visão. Use “Novo contato”.</td></tr>'}</tbody></table></div>`;
+    <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1600px"><thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Origem</th><th>Contato</th><th>Retorno</th><th>Status</th><th>Histórico do contato · novo registro</th><th>Próxima ação</th><th></th><th>Por</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="12" style="color:var(--ink-faint)">Nenhum contato registrado nesta visão. Use “Novo contato”.</td></tr>'}</tbody></table></div>`;
 }
 async function vdProPdf(){
   const l = vdProList(), K = vdProCards(l), esc = escapeHtml, hoje = new Date().toLocaleDateString('pt-BR');
@@ -1829,6 +1839,13 @@ async function vdCliBuild(an, ct, es){
   for(let i=0;i<ids.length;i+=150){ const { data } = await sb.from('crm_pessoas').select('id,nome,cpf').in('id', ids.slice(i,i+150)); (data||[]).forEach(p=>nomes.set(p.id,p)); }
   VD.cli = ids.map(id=>Object.assign(m.get(id), {nome:(nomes.get(id)||{}).nome||'(sem nome)', cpf:(nomes.get(id)||{}).cpf||''})).filter(r=>nomes.has(r.pid));
 }
+async function vdAbrirConsultoria(pid){
+  try{
+    goToPersonView(pid, 'protecao');
+    for(let i=0;i<50;i++){ if(typeof PV!=='undefined' && PV.person && String(PV.person.id)===String(pid)) break; await new Promise(r=>setTimeout(r,100)); }
+    if(typeof PV!=='undefined' && PV.person && String(PV.person.id)===String(pid)) pvFluxo(PV.person); else showToast('Não consegui abrir a consultoria deste cliente.');
+  }catch(e){ showToast('Erro: '+(e.message||e)); }
+}
 function vdCliStatus(r){
   if(VD.vend.some(v=>v.pessoa_id===r.pid)) return 'Venda realizada';
   if(VD.nao.some(v=>v.pessoa_id===r.pid)) return 'Não virou venda';
@@ -1850,7 +1867,7 @@ function vdCliHtml(){
   const STs = ['Estudo iniciado','Análise feita','Cotações lançadas','Venda realizada','Não virou venda'];
   const rows = l.map(r=>{ const st = vdCliStatus(r);
     return `<tr data-id="${r.pid}"><td><a href="#" data-act="abrir" data-pid="${r.pid}"><b>${escapeHtml(r.nome)}</b></a><div style="font-size:11px;color:var(--ink-faint)">${escapeHtml(r.cpf||'')}</div></td><td>${r.comApolice?'<span class="vd-chip ok">Com apólice</span>':'<span class="vd-chip">Sem apólice</span>'}</td><td>${escapeHtml(st)}</td><td>${r.cot?r.cot+' cobertura(s) cotada(s)':'—'}</td><td>${r.quando?vdDtHora(r.quando):'—'}</td>
-      <td style="white-space:nowrap"><button class="om-cancel vd-btn" data-act="abrir" data-pid="${r.pid}">Abrir</button> <button class="om-save vd-btn" data-act="cli-virou" data-pid="${r.pid}">Virou venda</button> <button class="om-cancel vd-btn" data-act="cli-nao" data-pid="${r.pid}">Não virou venda</button></td></tr>`; }).join('');
+      <td style="white-space:nowrap"><button class="om-save vd-btn" data-act="cli-abrir" data-pid="${r.pid}" title="Abre a consultoria de proteção feita para este cliente">Abrir</button> <button class="om-save vd-btn" data-act="cli-virou" data-pid="${r.pid}">Virou venda</button> <button class="om-cancel vd-btn" data-act="cli-nao" data-pid="${r.pid}">Não virou venda</button></td></tr>`; }).join('');
   return `<div class="vd-bar"><label class="fl"><span>Situação</span><select id="vd-c-sit"><option value="">Todas</option><option value="com"${f.sit==='com'?' selected':''}>Com apólice</option><option value="sem"${f.sit==='sem'?' selected':''}>Sem apólice</option></select></label>
       <label class="fl"><span>Status</span><select id="vd-c-st"><option value="">Todos</option>${STs.map(x=>`<option${f.st===x?' selected':''}>${x}</option>`).join('')}</select></label>
       <label class="fl"><span>Ordem</span><select id="vd-c-ord"><option value="rec"${f.ord==='rec'?' selected':''}>Mais recentes</option><option value="ant"${f.ord==='ant'?' selected':''}>Mais antigos</option></select></label>
@@ -2030,6 +2047,8 @@ async function vdPdfDemandas(){
     else if(a==='nova-p'){ const { data, error } = await sb.from('crm_prospeccao').insert({ nome:'', status:'Novo', contato_em:new Date().toISOString(), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.pro.unshift(data); VD.foco = data.id; vdDraw(); }
     else if(a==='edit-n'){ VD.nEdit = VD.nEdit||{}; VD.nEdit[id] = true; vdDraw(); }
     else if(a==='ok-n'){ if(VD.nEdit) delete VD.nEdit[id]; vdDraw(); }
+    else if(a==='h-edit'){ VD.hEdit = VD.hEdit||{}; VD.hEdit[id] = !VD.hEdit[id]; vdDraw(); }
+    else if(a==='cli-abrir'){ vdAbrirConsultoria(t.dataset.pid); }
     else if(a==='reg-p'){ vdRegistrar(VD.pro.find(x=>x.id===id)); }
     else if(a==='del-p'){ if(!confirm('Excluir este contato da prospecção?')) return; const { error } = await sb.from('crm_prospeccao').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; } VD.pro = VD.pro.filter(x=>x.id!==id); vdDraw(); }
     else if(a==='pdf-p') vdProPdf();
@@ -2073,7 +2092,7 @@ async function vdPdfDemandas(){
       r[k] = v; if(k==='nome' && v==null) r.nome = '';
       vdSalvarCampo('crm_prospeccao', r.id, k, k==='nome'&&v==null ? '' : v);
       if(k==='nome' || k==='cpf' || k==='telefone') vdTentaLigar('crm_prospeccao', r, r.nome, r.cpf, r.telefone);
-      if(k==='status' && v==='Sem interesse') showToast('Escreva o motivo no histórico e clique em Registrar: o contato vai para Vendas não realizadas.');
+      if(k==='status' && v==='Sem interesse') showToast('Escreva o motivo em “Novo registro” e clique em Registrar: o contato vai para Vendas não realizadas.');
       if(k==='status' || k==='retorno_data'){ vdDraw(); }
       return;
     }
