@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261016124329">
+<meta name="app-build" content="20261016125014">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -4826,7 +4826,7 @@ async function opLoadFunilApo(){
   ]);
   OP.funil = new Map(); fun.forEach(r=>{ if(!OP.funil.has(r.pessoa_id)) OP.funil.set(r.pessoa_id,new Map()); OP.funil.get(r.pessoa_id).set(r.etapa, r); });
   OP.apo = new Map(); apo.forEach(r=>{ if(!OP.apo.has(r.pessoa_id)) OP.apo.set(r.pessoa_id,[]); OP.apo.get(r.pessoa_id).push(r); });
-  try{ const pl = await opFetchAll('crm_plantoes_resumo','pessoa_id,ultimo_plantao,qtde_mes_atual,qtde_mes_ref,valor_mes_ref,valor_12m,meses_12m',['pessoa_id']);
+  try{ const pl = await opFetchAll('crm_plantoes_resumo','pessoa_id,primeiro_plantao,ultimo_plantao,qtde_mes_atual,qtde_mes_ref,valor_mes_ref,valor_12m,meses_12m',['pessoa_id']);
        OP.plant = new Map(); pl.forEach(r=>OP.plant.set(r.pessoa_id, r)); }catch(e){ console.warn('plantoes', e); }
   OP.tempCache = null; OP.prosp = new Map();
   try{ const pp = await opFetchAll('crm_prospeccao','id,pessoa_id,status,updated_at',['id']);
@@ -4903,7 +4903,9 @@ function opApplyFilters(keep, scrollToList){
       if(fpl==='nenhum'){ if(dias!==null && dias<=90) return false; } else if(dias===null || dias>parseInt(fpl,10)) return false;
     }
     if(sf){
-      if(opIsTempKey(sf.st)){ if(sf.st==='inc' ? !opIncompleto(p) : opTemp(p)!==sf.st) return false; }
+      if(opIsTempKey(sf.st)){ if(sf.st==='inc'){ if(!opIncompleto(p)) return false; } else { const mo = OP.months[sf.mi], h = new Date(); h.setHours(0,0,0,0);
+          let dd = sf.d ? new Date(mo.s.getFullYear(), mo.s.getMonth(), sf.d) : new Date(mo.e.getTime()-DAY); if(dd>h) dd = h;
+          if(opTempAt(p, dd)!==sf.st) return false; } }
       else if(sf.st === 'cli'){ if(!opClienteNoMes(p.id, sf.mi)) return false; }
       else if(typeof sf.st === 'string' && sf.st.indexOf('acao_')===0){ if(!opClienteNoMes(p.id, sf.mi) || opAcaoStatusMes(p.id, sf.mi)!==sf.st) return false; }
       else if(opStageAt(p.id, sf.mi) !== sf.st) return false;
@@ -4934,30 +4936,50 @@ const OP_TEMP = [
   {k:'t_morno', l:'Morno', d:'Plantão nos últimos 90 dias e ainda sem apólice', c:'#c8790b'},
   {k:'t_frio', l:'Frio', d:'Lead do COPA, sem contato comercial relevante', c:'#1b5fc7'},
   {k:'t_adorm', l:'Adormecido', d:'Base CallMed sem plantão há mais de 90 dias', c:'#8b90a3'},
-  {k:'t_sem', l:'Sem interesse', d:'Disse não na Prospecção (volta a ser abordado depois de 90 dias)', c:'#c23636'} ];
+  {k:'t_sem', l:'Sem interesse', d:'Disse não na Prospecção (volta a ser abordado depois de 90 dias)', c:'#c23636'},
+  {k:'t_none', l:'Sem classificação', d:'Sem origem conhecida (nem base CallMed, nem COPA, nem apólice)', c:'#bdbdbd'} ];
 const opIsTempKey = k => typeof k==='string' && (k.indexOf('t_')===0 || k==='inc');
 const opIncompleto = p => !String(p.telefone||'').trim() && !String(p.email||'').trim();
+const OP_COPA_DATA = new Date(2026,3,25);     // dia do evento COPA SAESP: os leads do jogo entram como "Frio" a partir daí
+function opTempAt(p, d){
+  const sem = (OP.prosp||new Map()).get(p.id);
+  if(sem){ const s0 = new Date(sem.getFullYear(), sem.getMonth(), sem.getDate()); if(d>=s0 && (d - s0)/DAY < OP_TEMP_DIAS) return 't_sem'; }
+  const apos = OP.apo.get(p.id);
+  if(apos && apos.some(a=>{ if(a.status==='cancelada') return false; const r = opApoRange(a); return r.start && r.end && r.start<=d && r.end>d; })) return 't_cliente';
+  const pr = OP.plant.get(p.id), pi = pr && pr.primeiro_plantao ? opD(pr.primeiro_plantao) : null, ui = pr && pr.ultimo_plantao ? opD(pr.ultimo_plantao) : null;
+  if(ui && (pi ? d>=pi : true) && (d - ui)/DAY <= OP_TEMP_DIAS) return 't_morno';        // entre o 1º plantão e 90 dias depois do último
+  if(((p.tags||[]).includes('lead-copa') || p.origem==='Sorteio COPA SAESP') && d>=OP_COPA_DATA) return 't_frio';
+  if((ui && pi && d>pi) || ['cadastro','financeiro','financeiro+cadastro'].includes(p.vinculo_callmed)) return 't_adorm';
+  return 't_none';
+}
 function opTemp(p){
   OP.tempCache = OP.tempCache || new Map(); if(OP.tempCache.has(p.id)) return OP.tempCache.get(p.id);
-  const hoje = new Date(); hoje.setHours(0,0,0,0);
-  const pr = OP.plant.get(p.id), ud = pr && pr.ultimo_plantao ? opD(pr.ultimo_plantao) : null, sem = (OP.prosp||new Map()).get(p.id);
-  let t = null;                                              // prioridade: sem interesse > cliente > morno > frio > adormecido
-  if(sem && (hoje - sem) < OP_TEMP_DIAS*DAY) t = 't_sem';
-  else if(opIsClienteAtivo(p.id)) t = 't_cliente';
-  else if(ud && (hoje - ud)/DAY <= OP_TEMP_DIAS) t = 't_morno';
-  else if((p.tags||[]).includes('lead-copa') || p.origem==='Sorteio COPA SAESP') t = 't_frio';
-  else if(ud || ['cadastro','financeiro','financeiro+cadastro'].includes(p.vinculo_callmed)) t = 't_adorm';
-  OP.tempCache.set(p.id, t); return t;
+  const h = new Date(); h.setHours(0,0,0,0); const t = opTempAt(p, h); OP.tempCache.set(p.id, t); return t;
 }
-function opTempBadge(p){ const t = OP_TEMP.find(x=>x.k===opTemp(p)); const inc = opIncompleto(p);
+function opTempBadge(p){ const t = OP_TEMP.find(x=>x.k===opTemp(p) && x.k!=='t_none'); const inc = opIncompleto(p);
   return (t?`<span class="cli" style="background:${t.c}1f;color:${t.c}" title="${escapeHtml(t.d)}">${t.l.toUpperCase()}</span>`:'') + (inc?'<span class="cli" style="background:#fdeec4;color:#8a5406" title="Sem telefone nem e-mail: completar o cadastro">SEM CONTATO</span>':''); }
-function opTempRowsHtml(){
-  const c = {}; OP_TEMP.forEach(t=>c[t.k]=0); c.inc = 0;
-  OP.pessoas.forEach(p=>{ const t = opTemp(p); if(t) c[t]++; if(opIncompleto(p)) c.inc++; });
-  const now = new Date(); let mi = OP.months.findIndex(m=>now>=m.s && now<m.e); if(mi<0) mi = 0;
-  const arr = v => OP.months.map((m,i)=> i===mi ? v : 0);
-  return OP_TEMP.map(t=>opSumRowMonthHtml(`<span title="${escapeHtml(t.d)}">${t.l}</span>`, t.c, arr(c[t.k]), t.k)).join('')
-    + opSumRowMonthHtml('<span title="Sem telefone nem e-mail: completar o cadastro">Sem contato (completar)</span>', '#b36b00', arr(c.inc), 'inc');
+function opTempRowsHtml(sm){
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const mk = ()=> sm.dayList.map(days=>days.map(()=>0));
+  const cnt = {}; OP_TEMP.forEach(t=>cnt[t.k] = mk()); const tot = mk();
+  OP.pessoas.forEach(p=>{
+    sm.dayList.forEach((days,mi)=>{ const mo = OP.months[mi];
+      days.forEach((dt,di)=>{
+        let ef = dt;
+        if(!mo.exp && dt>hoje) ef = mo.s<=hoje ? hoje : null;       // mês fechado mostra o último dia; o mês em andamento mostra hoje
+        if(!ef || ef>hoje) return;                                  // dias futuros ficam em branco
+        const k = opTempAt(p, ef); cnt[k][mi][di]++; tot[mi][di]++; });
+    });
+  });
+  const totRow = (()=>{ const cells = OP.months.map((mo,mi)=>{
+      if(!mo.exp){ const v = tot[mi][0]; return `<div class="op-sumcell z" style="left:${mo.l}%;width:${mo.w}%;font-weight:700">${v||'·'}</div>`; }
+      return sm.dayList[mi].map((dt,di)=>{ const v = tot[mi][di], left = mo.l + di/mo.visDays*mo.w, width = mo.w/mo.visDays; return `<div class="op-sumcell z" style="left:${left}%;width:${width}%;font-weight:700">${v||'·'}</div>`; }).join('');
+    }).join('');
+    return `<div class="op-sumrow"><div class="op-left"><b>Σ Total</b> <span style="color:var(--ink-faint);font-size:11px">(todos têm um status)</span></div><div class="op-right">${cells}</div></div>`; })();
+  const incN = OP.pessoas.filter(opIncompleto).length;
+  const mi0 = (()=>{ const i = OP.months.findIndex(m=>hoje>=m.s && hoje<m.e); return i<0 ? 0 : i; })();
+  const incRow = opSumRowMonthHtml('<span title="Sem telefone nem e-mail: completar o cadastro">Sem contato (completar)</span>', '#b36b00', OP.months.map((m,i)=> i===mi0 ? incN : 0), 'inc');
+  return OP_TEMP.map(t=>opSumRowHtml(`<span title="${escapeHtml(t.d)}">${t.l}</span>`, t.c, cnt[t.k], sm.dayList, t.k)).join('') + totRow + incRow;
 }
 // o que cada visualização mostra para agir com precisão
 function opTempInfo(p){
@@ -5008,7 +5030,8 @@ function opRenderChip(){
   if(!sf){ box.innerHTML = ''; return; }
   if(opIsTempKey(sf.st)){
     const tn = sf.st==='inc' ? 'Sem contato (completar)' : OP_TEMP.find(t=>t.k===sf.st).l;
-    box.innerHTML = `<span class="op-chip">Filtro de temperatura: <b>${escapeHtml(tn)}</b> · ${OP.filtered.length} pessoa(s) <button id="op-chip-x" title="Limpar filtro">✕</button></span> <button class="om-save" id="op-fila" style="margin-left:8px" title="Marca “Realizar primeiro contato” para hoje nas 20 primeiras pessoas da lista que têm telefone">Montar fila de hoje (20)</button>`; return; }
+    const mo0 = OP.months[sf.mi]; const quando = (sf.st!=='inc' && mo0) ? ' em <b>'+(sf.d ? String(sf.d).padStart(2,'0')+'/'+String(mo0.s.getMonth()+1).padStart(2,'0') : mo0.name+'/'+mo0.yr)+'</b>' : '';
+    box.innerHTML = `<span class="op-chip">Filtro de temperatura: <b>${escapeHtml(tn)}</b>${quando} · ${OP.filtered.length} pessoa(s) <button id="op-chip-x" title="Limpar filtro">✕</button></span> <button class="om-save" id="op-fila" style="margin-left:8px" title="Marca “Realizar primeiro contato” para hoje nas 20 primeiras pessoas da lista que têm telefone">Montar fila de hoje (20)</button>`; return; }
   const mo = OP.months[sf.mi];
   const nm = sf.st==='cli' ? 'Clientes com apólice vigente' : (typeof sf.st==='string' ? ACAO_LABEL[sf.st] : ETAPAS_FUNIL[sf.st].label);
   box.innerHTML = `<span class="op-chip">Filtro do resumo: <b>${nm}</b> em <b>${mo.name}/${mo.yr}</b> · ${OP.filtered.length} médico(s) <button id="op-chip-x" title="Limpar filtro">✕</button></span>`;
@@ -5020,12 +5043,22 @@ function opDupGroups(){
     const tk = normNome(p.nome); if(tk.length>=2){ const k = tk.join(' '); if(!byName.has(k)) byName.set(k,[]); byName.get(k).push(p); } });
   const seen = new Set();
   byCpf.forEach((l,k)=>{ if(l.length>1){ groups.push({why:'CPF igual', list:l}); l.forEach(p=>seen.add(p.id)); } });
-  byName.forEach((l,k)=>{ if(l.length>1 && !l.every(p=>seen.has(p.id))) groups.push({why:'nome igual', list:l}); });
+  // nome igual com CPFs diferentes são pessoas diferentes (homônimos): só entram juntos o CPF igual ou o nome igual sem CPF conflitante
+  byName.forEach((l,k)=>{ if(l.length<2) return;
+    const cpfs = [...new Set(l.map(p=>dOnly(p.cpf)).filter(c=>c.length===11))];
+    const subs = cpfs.length>=2 ? cpfs.map(c=>l.filter(p=>{ const d = dOnly(p.cpf); return d.length!==11 || d===c; })) : [l];
+    subs.forEach(sb=>{ if(sb.length>1 && !sb.every(p=>seen.has(p.id))) groups.push({why:'nome igual', list:sb}); }); });
+  // mesmo telefone e mesmo primeiro nome: provavelmente a mesma pessoa cadastrada duas vezes
+  const byPh = new Map();
+  OP.pessoas.forEach(p=>{ const d = dOnly(p.telefone); if(d.length>=10){ const k = d.slice(-9); if(!byPh.has(k)) byPh.set(k,[]); byPh.get(k).push(p); } });
+  byPh.forEach(l=>{ if(l.length<2) return; const byFirst = new Map();
+    l.forEach(p=>{ const f = normNome(p.nome)[0]; if(f){ if(!byFirst.has(f)) byFirst.set(f,[]); byFirst.get(f).push(p); } });
+    byFirst.forEach(sb=>{ if(sb.length>1 && !groups.some(g=>sb.every(p=>g.list.includes(p)))) groups.push({why:'mesmo telefone e nome parecido', list:sb}); }); });
   return groups;
 }
 function opDupDialog(){
   const gs = opDupGroups();
-  const box = dlgOpen(`<div class="om-title"><div><h3>Possíveis duplicados (${gs.length})</h3><div class="om-sub">CPF igual sugere unir os cadastros. Nome igual pode ser homônimo — confira antes.</div></div><button data-close>✕</button></div>
+  const box = dlgOpen(`<div class="om-title"><div><h3>Possíveis duplicados (${gs.length})</h3><div class="om-sub">CPF igual sugere unir os cadastros. Nome igual com CPFs diferentes não aparece (são pessoas diferentes). Mesmo telefone e nome parecido pode ser a mesma pessoa — confira antes.</div></div><button data-close>✕</button></div>
     <div class="dlg-body">${gs.length ? gs.map(g=>`<div class="q"><div class="ql">${g.why}</div>${g.list.map(p=>`<div style="padding:3px 0">• <a href="#" data-openp="${p.id}" style="color:var(--brand);font-weight:600">${escapeHtml(p.nome)}</a> <small style="color:var(--ink-faint)">${p.cpf||''} ${p.crm?'CRM '+p.crm:''} ${p.telefone||''}</small></div>`).join('')}</div>`).join('') : '<div class="op-more">Nenhum possível duplicado encontrado.</div>'}</div>`, true);
   box.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(a.dataset.openp); }));
 }
@@ -5207,7 +5240,7 @@ function opSumRowHtml(label, dotColor, countsPerMonth, dayListPerMonth, stKey){
 }
 function opSumRowsHtml(){
   const sm = opSummary();
-  return opTempRowsHtml() + ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], sm.dayList, i)).join('')
+  return opTempRowsHtml(sm) + ETAPAS_FUNIL.map((e,i)=> opSumRowHtml(e.label, OP_STAGE_COLORS[i], sm.stageCounts[i], sm.dayList, i)).join('')
     + opSumRowHtml('Clientes com apólice vigente', '#2bbf8a', sm.cliCounts, sm.dayList, 'cli')
     + opSumRowMonthHtml(ACAO_LABEL.acao_feita, '#0f7a53', sm.acaoCounts.acao_feita, 'acao_feita')
     + opSumRowMonthHtml(ACAO_LABEL.acao_andamento, '#c8790b', sm.acaoCounts.acao_andamento, 'acao_andamento')
@@ -5418,8 +5451,9 @@ document.getElementById('view-operacao').addEventListener('click', (e)=>{
   const sc = e.target.closest('.op-sumcell.clk');
   if(sc){
     const ds = sc.dataset.st, st = (ds==='cli' || ds.indexOf('acao_')===0 || opIsTempKey(ds)) ? ds : parseInt(ds,10), mi = parseInt(sc.dataset.mi,10);
-    const same = OP.sumFilter && OP.sumFilter.st===st && OP.sumFilter.mi===mi;
-    OP.sumFilter = same ? null : {st, mi};
+    const dd = sc.dataset.d ? parseInt(sc.dataset.d,10) : null;
+    const same = OP.sumFilter && OP.sumFilter.st===st && OP.sumFilter.mi===mi && (OP.sumFilter.d||null)===dd;
+    OP.sumFilter = same ? null : {st, mi, d:dd};
     if(!same && opIsTempKey(st)){ const so = document.getElementById('op-sort'), want = {t_morno:'plantoes', t_adorm:'plantao', t_cliente:'nome'}[st]; if(so && want && [...so.options].some(o=>o.value===want)) so.value = want; }
     opApplyFilters(false, !same); return;
   }
