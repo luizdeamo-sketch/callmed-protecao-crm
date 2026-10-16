@@ -2295,11 +2295,13 @@ function pvRender(){
       <div class="tags" style="margin-top:8px"><span class="tag">${TIPOS_PESSOA[p.tipo||'medico']||p.tipo}</span>${p.crm?`<span class="tag">CRM ${escapeHtml(p.crm)}</span>`:''}${p.especialidade?`<span class="tag">${escapeHtml(p.especialidade)}</span>`:''}${pvClassChip(p)}${(p.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="person-actions"><button class="om-cancel" id="pa-editar">Editar cadastro</button><button class="om-save" id="pa-fluxo">Fluxo de proteção</button><button class="om-cancel" id="pa-apolice">Anexar apólice</button><button class="om-cancel" id="pa-wa">WhatsApp com script</button><button class="om-cancel" id="pa-audit" title="Quem alterou o quê, e quando">Histórico de alterações</button><button class="om-save" id="pa-intel" title="Pesquisa pública e perguntas personalizadas para a abordagem">Inteligência</button><button class="om-cancel" id="pa-reuniao" title="Gravar/enviar uma reunião com esta pessoa">Nova reunião</button><button class="om-cancel" id="pa-del" style="color:var(--red)" title="Apaga o cadastro e tudo ligado a ele">Excluir cadastro</button></div>
       <div id="pv-next">${pvNextHtml(p)}</div>
+      <div id="pv-redes"></div>
     </div></div>
     <div class="pv-tabs">${PV_TABS.map(([k,l])=>`<button class="pv-tab${PV.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
     <div id="pv-body"></div>`;
     document.getElementById('pa-audit').addEventListener('click', ()=> auditDialog(p.id, p.nome));
     document.getElementById('pa-intel').addEventListener('click', ()=> intelDialog(p));
+    pvRedesCard(p).catch(()=>{});
     document.getElementById('pa-reuniao').addEventListener('click', ()=> ruNovaDialog(p));
     document.getElementById('pa-del').addEventListener('click', ()=> pvDelConfirm(p));
     pvShowTab(PV.tab);
@@ -5710,15 +5712,58 @@ const ruBox = (t,h) => '<div class="es-box" style="margin-bottom:10px"><div clas
 const ruWho = async () => { try{ const { data } = await sb.auth.getUser(); return (data.user&&data.user.email||'').split('@')[0]||'sistema'; }catch(e){ return 'sistema'; } };
 const ruErr = async (error) => { let m = error.message||String(error); try{ if(error.context && error.context.json){ const j = await error.context.json(); if(j&&j.error) m = j.error; } }catch(e){} return m; };
 
+// ===== Redes sociais: busca manual, links clicáveis (@) e card para quem ainda não tem apólice =====
+const redeUrlOk = u => /^https?:\/\//i.test(String(u||'').trim()) ? String(u).trim() : '';
+function redeHandle(url){
+  try{ const u = new URL(url), h = u.hostname.replace(/^www\./,''), seg = u.pathname.split('/').filter(Boolean);
+    if(/instagram\.com|tiktok\.com|x\.com|twitter\.com/.test(h) && seg[0]) return '@'+seg[0].replace(/^@/,'');
+    if(/linkedin\.com/.test(h)){ const i = seg.indexOf('in'); return i>=0 && seg[i+1] ? 'in/'+seg[i+1] : ''; }
+    if(/facebook\.com/.test(h) && seg[0]) return seg[0]; }catch(e){}
+  return '';
+}
+const redeChipStyle = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border:1px solid var(--border);border-radius:999px;font-size:12px;text-decoration:none;color:inherit;background:#fff';
+function redeLinksBusca(p){
+  const nome = String(p.nome||'').trim(), esp = p.especialidade ? ' '+p.especialidade : '';
+  const L = [['Instagram','https://www.google.com/search?q='+encodeURIComponent('site:instagram.com "'+nome+'" médico'+esp)],
+    ['LinkedIn','https://www.linkedin.com/search/results/people/?keywords='+encodeURIComponent(nome+' médico'+esp)],
+    ['Facebook','https://www.facebook.com/search/people/?q='+encodeURIComponent(nome)],
+    ['Google','https://www.google.com/search?q='+encodeURIComponent('"'+nome+'"'+(p.crm?' CRM '+p.crm:'')+' médico')]];
+  return L.map(([l,u])=>`<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" style="${redeChipStyle}">🔎 ${l}</a>`).join(' ');
+}
+function redeChip(r){
+  const url = redeUrlOk(r.url); if(!url) return '';
+  const h = r.handle || redeHandle(url), conf = r.confianca;
+  const cor = conf==='alta' ? '#0f7a53' : conf==='media' ? '#c8790b' : conf==='baixa' ? '#c23636' : 'var(--ink-faint)';
+  return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="${redeChipStyle}" title="${escapeHtml(r.observacao||r.observacoes||'')}"><b>${escapeHtml(r.rede||'Rede')}</b>${h?' '+escapeHtml(h):''}${conf?` <small style="color:${cor};font-weight:700">· ${escapeHtml(conf)}</small>`:''} ↗</a>`;
+}
+async function pvRedesCard(p){
+  const host = document.getElementById('pv-redes'); if(!host) return;
+  const [{ count }, { data: redes }, { data: intel }] = await Promise.all([
+    sb.from('crm_apolices').select('id',{count:'exact',head:true}).eq('pessoa_id', p.id),
+    sb.from('crm_redes_sociais').select('id,rede,url,observacoes').eq('pessoa_id', p.id),
+    sb.from('crm_inteligencia').select('relatorio,gerado_em').eq('pessoa_id', p.id).order('gerado_em',{ascending:false}).limit(1) ]);
+  if(count>0){ host.innerHTML = ''; return; }
+  const rel = ((intel||[])[0]||{}).relatorio || null, quando = ((intel||[])[0]||{}).gerado_em;
+  const salvas = (redes||[]).map(redeChip).filter(Boolean).join(' ');
+  const gat = rel ? (rel.gatilhos_rapport||[]).slice(0,3) : [];
+  host.innerHTML = `<div class="es-box" style="margin:10px 0"><div class="ql">Contato pelas redes <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— ainda sem apólice</small></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0">${salvas || '<span style="color:var(--ink-faint);font-size:12.5px">Nenhuma rede cadastrada ainda.</span>'}</div>
+    <div class="hint" style="margin:4px 0">Buscar manualmente:</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${redeLinksBusca(p)}</div>
+    ${rel ? `<div style="font-size:12.5px;margin:6px 0"><b>Para o rapport</b> <small style="color:var(--ink-faint)">(pesquisa de ${escapeHtml(audWhen(quando))})</small>${gat.length?'<ul style="margin:4px 0 0;padding-left:18px">'+gat.map(g=>'<li>'+escapeHtml(g)+'</li>').join('')+'</ul>':''}${rel.abertura_sugerida?'<div style="margin-top:4px"><i>Abertura: '+escapeHtml(rel.abertura_sugerida)+'</i></div>':''}</div>`:''}
+    <button class="om-save" id="pv-redes-ia">${rel?'Ver pesquisa completa / atualizar':'Pesquisar nas redes com IA'}</button></div>`;
+  document.getElementById('pv-redes-ia').addEventListener('click', ()=> intelDialog(p));
+}
 // ===== Inteligência (pesquisa pública + pool de perguntas personalizadas) =====
 function intelRelHtml(rel){
   const porBloco = {}; (rel.perguntas||[]).forEach(q=>{ (porBloco[q.bloco||'Geral'] = porBloco[q.bloco||'Geral'] || []).push(q); });
   const conf = (rel.identificacao||{}).confianca||'';
   return `${ruBox('Identificação','Confiança de que é a mesma pessoa: <b>'+escapeHtml(conf||'—')+'</b>'+(rel.identificacao&&rel.identificacao.observacao?'<br>'+escapeHtml(rel.identificacao.observacao):''))}
     ${ruBox('Perfil profissional', escapeHtml(rel.perfil_profissional||'não encontrado'))}
-    ${ruBox('Interesses e lazer', ruLi(rel.interesses_hobbies))}
+    ${ruBox('Do que a pessoa gosta (pelo que ela publica)', ruLi((rel.interesses_hobbies||[]).map(x=>typeof x==='string'?x:((x&&(x.tema||x.interesse))||'')+(x&&x.evidencia?' — '+x.evidencia:''))))}
     ${ruBox('Vida pública (divulgada pela própria pessoa)', ruLi(rel.vida_publica))}
-    ${ruBox('Presença digital', (rel.presenca_digital||[]).length ? ruLi((rel.presenca_digital||[]).map(r=>r.rede+': '+r.url+(r.observacao?' — '+r.observacao:''))) : '<div style="color:var(--ink-faint)">não encontrado</div>')}
+    ${ruBox('Presença digital', (rel.presenca_digital||[]).filter(r=>redeUrlOk(r.url)).length ? `<div style="display:flex;flex-direction:column;gap:8px">${(rel.presenca_digital||[]).filter(r=>redeUrlOk(r.url)).map((r,i)=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${redeChip(r)}<button class="om-cancel" data-savered="${i}" style="padding:2px 8px;font-size:11px">Salvar no cadastro</button>${r.observacao?`<span style="font-size:11.5px;color:var(--ink-faint)">${escapeHtml(r.observacao)}</span>`:''}</div>`).join('')}</div><div class="hint" style="margin-top:6px">Confira sempre se é a pessoa certa antes de abordar: perfis com confiança “baixa” podem ser homônimos.</div>` : '<div style="color:var(--ink-faint)">não encontrado nas buscas automáticas — use as buscas manuais abaixo</div>')}
+    <div class="es-box" style="margin-bottom:10px"><div class="ql">Buscar manualmente</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${redeLinksBusca(PV.person||{})}</div></div>
     ${ruBox('Ganchos de rapport', ruLi(rel.gatilhos_rapport))}
     ${rel.abertura_sugerida?ruBox('Abertura sugerida', escapeHtml(rel.abertura_sugerida)):''}
     <div class="es-box" style="margin-bottom:10px"><div class="ql">Pool de perguntas personalizadas <button class="om-cancel" id="intel-copy" style="padding:2px 8px;font-size:11px;margin-left:8px">Copiar</button></div>
@@ -5736,6 +5781,14 @@ async function intelDialog(p){
       <div id="intel-msg" class="hint"></div>
       <div style="max-height:58vh;overflow:auto">${rel?intelRelHtml(rel):'<div class="no-rec">Ainda sem pesquisa para esta pessoa.</div>'}</div>
       <div style="margin-top:12px;text-align:right"><button class="om-cancel" data-close>Fechar</button></div>`, true);
+    document.querySelectorAll('#dlg [data-savered]').forEach(b=>b.addEventListener('click', async ()=>{
+      const r = ((rel||{}).presenca_digital||[]).filter(x=>redeUrlOk(x.url))[parseInt(b.dataset.savered,10)]; if(!r) return;
+      const url = redeUrlOk(r.url), obs = [r.handle||redeHandle(url), r.confianca?('confiança '+r.confianca):'', r.observacao].filter(Boolean).join(' · ');
+      const { data: ex } = await sb.from('crm_redes_sociais').select('id').eq('pessoa_id', p.id).eq('url', url).maybeSingle();
+      if(ex){ showToast('Esta rede já está no cadastro.'); return; }
+      const { error } = await sb.from('crm_redes_sociais').insert({ pessoa_id:p.id, rede:r.rede||'Rede', url, observacoes:obs, pesquisado_em:new Date().toISOString() });
+      if(error){ showToast('Erro: '+error.message); return; } b.textContent = 'Salvo ✓'; b.disabled = true; showToast('Rede salva no cadastro'); pvRedesCard(p);
+    }));
     const cp = document.getElementById('intel-copy');
     if(cp) cp.addEventListener('click', ()=>{ const t = (rel.perguntas||[]).map(q=>'['+q.bloco+'] '+q.pergunta).join('\n'); navigator.clipboard.writeText(t).then(()=>showToast('Perguntas copiadas')); });
     document.getElementById('intel-run').addEventListener('click', async ()=>{
