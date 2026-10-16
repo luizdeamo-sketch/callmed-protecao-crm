@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261016143042">
+<meta name="app-build" content="20261016144301">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -227,6 +227,7 @@
     <button class="nav-btn" data-view="conhecimento"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="7.5" ry="2.75"/><path d="M4.5 6v6c0 1.5 3.4 2.75 7.5 2.75s7.5-1.25 7.5-2.75V6"/><path d="M4.5 12v6c0 1.5 3.4 2.75 7.5 2.75s7.5-1.25 7.5-2.75v-6"/></svg><span>Base</span></button>
     <button class="nav-btn" data-view="sugestoes" title="Sugestões de melhoria do sistema"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 17.5h6"/><path d="M10 20.5h4"/><path d="M12 3.5a5.5 5.5 0 0 0-3.3 9.9c.5.4.8 1 .8 1.6v.5h5v-.5c0-.6.3-1.2.8-1.6A5.5 5.5 0 0 0 12 3.5z"/></svg><span>Sugestões</span></button>
     <button class="nav-btn" data-view="ata"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4.5" width="14" height="16" rx="2"/><path d="M9 3h6v3H9z"/><path d="M8.5 11l1.2 1.2 2-2.2M8.5 16l1.2 1.2 2-2.2M13.5 11.5h2.5M13.5 16.5h2.5"/></svg><span>Ata</span></button>
+    <button class="nav-btn" id="nav-admin" data-view="admin" style="display:none" title="Usuários, acessos e auditoria (só master)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.500-7-10V6z"/><path d="M9.500 12l2 2 3.500-4"/></svg><span>Admin</span></button>
   </nav>
 
   <div class="view-container">
@@ -427,6 +428,15 @@
     </div>
     <div id="an-pres" hidden></div>
 
+    <div id="view-admin" class="view" style="overflow-y:auto; padding:30px 36px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:4px;">
+        <h2 style="margin:0;">Admin</h2>
+        <div id="adm-tabs" class="seg-toggle"><button type="button" class="active" data-at="aud">Auditoria</button><button type="button" data-at="usr">Usuários e acessos</button></div>
+      </div>
+      <div class="hint" style="margin:0 0 14px">Quem mexeu em quê, quando e com qual valor, e quem pode entrar no sistema. Visível só para o master.</div>
+      <div id="adm-body"></div>
+    </div>
+
     <div id="view-ata" class="view" style="overflow-y:auto; padding:30px 36px;">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:4px;">
         <h2 style="margin:0;">Ata de Entregáveis</h2>
@@ -559,6 +569,20 @@
   .op-lane{ position:absolute; left:0; right:0; height:22px;}
   .op-lane.funil{ cursor:copy;}
   .seg{ position:absolute; top:1px; height:20px; border-radius:5px; color:#fff; font-size:10.5px; font-weight:600; padding:0 7px; line-height:20px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:6px; cursor:pointer;}
+  .adm-filtros{ display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin:6px 0 10px;}
+  .adm-filtros label{ display:flex; flex-direction:column; gap:3px; font-size:11px; font-weight:600; color:var(--ink-soft);}
+  .adm-filtros select,.adm-filtros input{ padding:7px 9px; border:1px solid var(--line,#d9dce8); border-radius:8px; font-size:12.5px; background:#fff; min-width:120px;}
+  .adm-b{ border:1px solid var(--line,#d9dce8); background:#fff; color:var(--brand); border-radius:8px; padding:7px 12px; font-size:12.5px; font-weight:600; cursor:pointer;}
+  .adm-b.pri{ background:var(--brand); color:#fff; border-color:var(--brand);} .adm-b:disabled{ opacity:.4; cursor:default;}
+  .adm-nav{ display:flex; justify-content:space-between; align-items:center; margin:6px 0 8px;}
+  .adm-t{ width:100%; border-collapse:collapse; font-size:12.5px; background:#fff; border:1px solid var(--line,#e3e6f0); border-radius:10px; overflow:hidden;}
+  .adm-t th{ text-align:left; background:#f4f5fb; padding:8px 10px; font-size:11px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-soft);}
+  .adm-t td{ padding:8px 10px; border-top:1px solid #eceef6; vertical-align:top;} .adm-row{ cursor:pointer;} .adm-row:hover{ background:#f8f9ff;}
+  .adm-t input,.adm-t select{ padding:5px 7px; border:1px solid #d9dce8; border-radius:6px; font-size:12.5px; width:100%;}
+  .adm-ac{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; background:#e8ecff; color:#2438c9;}
+  .adm-ac.INSERT{ background:#dff6ea; color:#0f7a53;} .adm-ac.DELETE{ background:#fde4e4; color:#c23636;}
+  .adm-ch{ margin:1px 0; word-break:break-word;} .adm-ch .old{ color:#c23636; text-decoration:line-through; opacity:.8;} .adm-ch .new{ color:#0f7a53; font-weight:600;}
+  .adm-json{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:10px;} .adm-json pre{ background:#f4f5fb; padding:10px; border-radius:8px; font-size:11.5px; max-height:55vh; overflow:auto; white-space:pre-wrap; word-break:break-word;}
   .seg.tmp{ cursor:default; color:var(--c); background:color-mix(in srgb, var(--c) 16%, transparent); border:1px solid color-mix(in srgb, var(--c) 45%, transparent); height:18px; line-height:16px; font-size:10px; letter-spacing:.02em; text-transform:uppercase; background-image:repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--c) 14%, transparent) 5px 7px);}
   .apo-bar.out{ opacity:.45; font-weight:500; border:1px dashed rgba(255,255,255,.8);}
   .seg.tmp.none{ opacity:.6;}
@@ -867,6 +891,7 @@ function boot(){
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
   sb.auth.getUser().then(({data})=>{ window._userEmail = data.user ? data.user.email : ''; document.getElementById('who-email').textContent = window._userEmail; ensureUserName(data.user); });
+  sb.rpc('crm_is_master').then(({data})=>{ window._isMaster = data===true; const nb = document.getElementById('nav-admin'); if(nb) nb.style.display = window._isMaster ? '' : 'none'; });
   backupReminder();
   document.getElementById('ics-url').value = `${SUPABASE_URL}/functions/v1/agenda-ics?token=${ICS_TOKEN}`;
   renderCalendar();
@@ -2136,6 +2161,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
     if(btn.dataset.view === 'agenda') renderCalendar();
     if(btn.dataset.view === 'conhecimento') renderConhecimento();
     if(btn.dataset.view === 'ata') renderAta();
+    if(btn.dataset.view === 'admin') renderAdmin();
     if(btn.dataset.view === 'analitico') renderAnalitico();
   });
 });
@@ -9495,6 +9521,107 @@ checkSession();
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
 })();
 
+</script>
+<script>
+// ============ ADMIN: usuários e acessos + auditoria (só master) ============
+const ADM = { tab:'aud', off:0, pag:100, rows:[], total:0, usr:[], f:{u:'',t:'',a:'',de:'',ate:'',q:''}, tabelas:[] };
+const ADM_TAB_NOMES = { crm_pessoas:'Cadastro de pessoas', crm_apolices:'Apólices', crm_prospeccao:'Prospecção', crm_vendas:'Vendas realizadas', crm_nao_vendas:'Vendas não realizadas', crm_demandas:'Demandas', crm_sugestoes:'Sugestões', crm_agenda:'Agenda', crm_reunioes:'Reuniões', crm_atividades:'Atividades', crm_funil:'Funil', crm_documentos:'Documentos', crm_estudos:'Estudos de proteção', crm_analise_apolices:'Análise de apólices', crm_redes_sociais:'Redes sociais', crm_acoes:'Ações', crm_meta_comercial:'Orçamento comercial', crm_metas:'Metas e parâmetros', crm_config:'Configurações', crm_usuarios:'Usuários e acessos', crm_ata_entregaveis:'Ata de entregáveis', crm_ata_semanal:'Ata semanal', crm_base_conhecimento:'Base de conhecimento', crm_inteligencia:'Inteligência', crm_diagnostico:'Diagnóstico', crm_pendencias_ceo:'Pendências do CEO', crm_comercial_produtos:'Produtos comerciais' };
+const admTab = t=> ADM_TAB_NOMES[t] || t;
+const admAcao = a=> a==='INSERT' ? 'Criou' : a==='UPDATE' ? 'Alterou' : a==='DELETE' ? 'Excluiu' : a;
+const admDh = iso=>{ const d = new Date(iso); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}); };
+function admVal(v, n){ if(v===null || v===undefined) return '—'; let s = typeof v==='object' ? JSON.stringify(v) : String(v); if(s==='') return '(vazio)'; return s.length>(n||110) ? s.slice(0,n||110)+'…' : s; }
+function admResumo(r){
+  const a = r.antes||{}, d = r.depois||{};
+  if(r.acao==='UPDATE') return Object.keys(d).map(k=>`<div class="adm-ch"><b>${escapeHtml(k)}</b>: <span class="old">${escapeHtml(admVal(a[k]))}</span> → <span class="new">${escapeHtml(admVal(d[k]))}</span></div>`).join('');
+  const src = r.acao==='DELETE' ? a : d; const ks = Object.keys(src).filter(k=>src[k]!==null && src[k]!=='' && !['id','created_at','criado_em','atualizado_em','updated_at'].includes(k)).slice(0,6);
+  return ks.map(k=>`<div class="adm-ch"><b>${escapeHtml(k)}</b>: ${escapeHtml(admVal(src[k], 90))}</div>`).join('') || '<span class="hint">sem campos</span>';
+}
+function admFiltroQuery(q){
+  const f = ADM.f;
+  if(f.u) q = q.eq('usuario_email', f.u); if(f.t) q = q.eq('tabela', f.t); if(f.a) q = q.eq('acao', f.a);
+  if(f.de) q = q.gte('em', new Date(f.de+'T00:00:00').toISOString()); if(f.ate) q = q.lte('em', new Date(f.ate+'T23:59:59').toISOString());
+  return q;
+}
+async function admCarregarAud(){
+  const box = document.getElementById('adm-aud-list'); if(!box) return;
+  box.innerHTML = '<div class="op-more">Carregando…</div>';
+  const { data, error, count } = await admFiltroQuery(sb.from('crm_auditoria').select('*',{count:'exact'})).order('em',{ascending:false}).range(ADM.off, ADM.off+ADM.pag-1);
+  if(error){ box.innerHTML = '<div class="om-err">Não consegui ler a auditoria: '+escapeHtml(error.message)+'</div>'; return; }
+  ADM.rows = data||[]; ADM.total = count||0; admPintarAud();
+}
+function admPintarAud(){
+  const box = document.getElementById('adm-aud-list'); if(!box) return;
+  const q = ADM.f.q.trim().toLowerCase();
+  const rows = q ? ADM.rows.filter(r=>JSON.stringify([r.antes,r.depois,r.registro,r.tabela,r.usuario_email]).toLowerCase().includes(q)) : ADM.rows;
+  const ini = ADM.total ? ADM.off+1 : 0, fim = ADM.off+ADM.rows.length;
+  document.getElementById('adm-aud-info').textContent = `${ini}–${fim} de ${ADM.total} registro(s)${q?` · ${rows.length} com “${ADM.f.q}” nesta página`:''}`;
+  document.getElementById('adm-prev').disabled = ADM.off<=0; document.getElementById('adm-next').disabled = fim>=ADM.total;
+  box.innerHTML = rows.length ? `<table class="adm-t"><thead><tr><th>Quando</th><th>Quem</th><th>O quê</th><th>Onde</th><th>Detalhe (antes → depois)</th></tr></thead><tbody>${rows.map(r=>`<tr class="adm-row" data-id="${r.id}"><td>${escapeHtml(admDh(r.em))}</td><td>${escapeHtml(r.usuario_email||'—')}</td><td><span class="adm-ac ${r.acao}">${admAcao(r.acao)}</span></td><td>${escapeHtml(admTab(r.tabela))}${r.registro?`<div class="hint" style="margin:0">${escapeHtml(String(r.registro).slice(0,12))}</div>`:''}</td><td>${admResumo(r)}</td></tr>`).join('')}</tbody></table>` : '<div class="es-box"><div class="hint">Nenhum registro com esses filtros.</div></div>';
+}
+function admCsv(rows){
+  const esc = v=>{ const s = v==null ? '' : (typeof v==='object' ? JSON.stringify(v) : String(v)); return '"'+s.replace(/"/g,'""')+'"'; };
+  return '﻿'+['quando;usuario;acao;tabela;registro;pessoa_id;antes;depois'].concat(rows.map(r=>[admDh(r.em),r.usuario_email,admAcao(r.acao),r.tabela,r.registro,r.pessoa_id,r.antes,r.depois].map(esc).join(';'))).join('\r\n');
+}
+async function admExportar(){
+  const st = document.getElementById('adm-aud-info'); const txt = st.textContent; let all = [], off = 0;
+  for(;;){ st.textContent = 'Exportando… '+all.length;
+    const { data, error } = await admFiltroQuery(sb.from('crm_auditoria').select('*')).order('em',{ascending:false}).range(off, off+999);
+    if(error){ showToast('Erro: '+error.message); st.textContent = txt; return; }
+    all = all.concat(data||[]); if(!data || data.length<1000) break; off += 1000; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([admCsv(all)],{type:'text/csv;charset=utf-8'})); a.download = 'auditoria-crm-'+ymd(new Date())+'.csv'; document.body.appendChild(a); a.click(); a.remove();
+  st.textContent = txt; showToast(all.length+' registros exportados.');
+}
+async function admAudHtml(){
+  const { data:us } = await sb.from('crm_auditoria').select('usuario_email').order('em',{ascending:false}).limit(1000);
+  const usuarios = [...new Set((us||[]).map(x=>x.usuario_email).filter(Boolean))].sort();
+  const tabs = Object.keys(ADM_TAB_NOMES).sort((a,b)=>admTab(a).localeCompare(admTab(b),'pt-BR'));
+  return `<div class="adm-filtros">
+    <label>Quem<select id="adm-f-u"><option value="">Todos</option>${usuarios.map(u=>`<option ${ADM.f.u===u?'selected':''}>${escapeHtml(u)}</option>`).join('')}</select></label>
+    <label>Onde<select id="adm-f-t"><option value="">Todas as telas e tabelas</option>${tabs.map(t=>`<option value="${t}" ${ADM.f.t===t?'selected':''}>${escapeHtml(admTab(t))}</option>`).join('')}</select></label>
+    <label>O quê<select id="adm-f-a"><option value="">Tudo</option><option value="INSERT" ${ADM.f.a==='INSERT'?'selected':''}>Criou</option><option value="UPDATE" ${ADM.f.a==='UPDATE'?'selected':''}>Alterou</option><option value="DELETE" ${ADM.f.a==='DELETE'?'selected':''}>Excluiu</option></select></label>
+    <label>De<input type="date" id="adm-f-de" value="${ADM.f.de}"></label><label>Até<input type="date" id="adm-f-ate" value="${ADM.f.ate}"></label>
+    <label style="flex:1;min-width:180px">Buscar nesta página<input type="search" id="adm-f-q" placeholder="nome, valor, campo…" value="${escapeHtml(ADM.f.q)}"></label>
+    <button class="adm-b pri" id="adm-aplicar">Filtrar</button><button class="adm-b" id="adm-limpar">Limpar</button><button class="adm-b" id="adm-csv" title="Baixa todos os registros do filtro atual">Exportar CSV</button></div>
+    <div class="adm-nav"><span id="adm-aud-info" class="hint" style="margin:0"></span><span><button class="adm-b" id="adm-prev">‹ Anteriores</button> <button class="adm-b" id="adm-next">Próximos ›</button></span></div>
+    <div id="adm-aud-list"></div>
+    <div class="hint" style="margin-top:10px">Cada criação, alteração e exclusão de dados fica gravada com quem fez, quando, o valor antigo e o novo. Os registros não podem ser editados nem apagados pelo sistema. Clique numa linha para ver o registro completo.</div>`;
+}
+async function admUsrHtml(){
+  const { data, error } = await sb.rpc('crm_admin_usuarios');
+  if(error) return '<div class="om-err">Não consegui ler os usuários: '+escapeHtml(error.message)+'</div>';
+  ADM.usr = data||[]; const eu = (window._userEmail||'').toLowerCase();
+  return `<table class="adm-t"><thead><tr><th>Usuário</th><th>Nome</th><th>Papel</th><th>Acesso</th><th>Último acesso</th><th>Criado em</th></tr></thead><tbody>${ADM.usr.map(u=>{ const bl = u.bloqueado || !u.ativo, voce = u.email.toLowerCase()===eu;
+    return `<tr><td><b>${escapeHtml(u.email)}</b>${voce?' <span class="hint">(você)</span>':''}</td>
+      <td><input class="adm-nome" data-e="${escapeHtml(u.email)}" value="${escapeHtml(u.nome||'')}" placeholder="Nome"></td>
+      <td><select class="adm-papel" data-e="${escapeHtml(u.email)}" ${voce?'disabled title="Você é o master"':''}>${['master','especialista','leitura'].map(p=>`<option value="${p}" ${u.papel===p?'selected':''}>${p==='master'?'Master (tudo)':p==='especialista'?'Especialista':'Somente leitura'}</option>`).join('')}</select></td>
+      <td><span class="adm-ac ${bl?'DELETE':'INSERT'}">${bl?'Bloqueado':'Ativo'}</span> ${voce?'':`<button class="adm-b adm-acesso" data-e="${escapeHtml(u.email)}" data-a="${bl?1:0}">${bl?'Liberar':'Bloquear'}</button>`}</td>
+      <td>${u.ultimo_acesso?escapeHtml(admDh(u.ultimo_acesso)):'—'}</td><td>${u.criado_em?escapeHtml(new Date(u.criado_em).toLocaleDateString('pt-BR')):'—'}</td></tr>`; }).join('')}</tbody></table>
+    <div class="hint" style="margin-top:10px"><b>Master</b> vê esta aba, a auditoria completa e gerencia acessos. <b>Bloquear</b> impede o login na hora (o usuário é desconectado quando a sessão renovar). Para <b>criar</b> um usuário novo, cadastre o e-mail em Supabase › Authentication; ele aparece aqui e você define o papel.</div>`;
+}
+async function renderAdmin(){
+  const host = document.getElementById('adm-body'); if(!host) return;
+  if(!window._isMaster){ host.innerHTML = '<div class="es-box"><div class="hint">Esta aba é só para o master.</div></div>'; return; }
+  document.querySelectorAll('#adm-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.at===ADM.tab));
+  host.innerHTML = '<div class="op-more">Carregando…</div>';
+  if(ADM.tab==='usr'){ host.innerHTML = await admUsrHtml(); return; }
+  host.innerHTML = await admAudHtml(); await admCarregarAud();
+}
+document.addEventListener('click', async e=>{
+  const t = e.target.closest('#adm-tabs button'); if(t){ ADM.tab = t.dataset.at; renderAdmin(); return; }
+  if(e.target.closest('#adm-aplicar')){ ADM.f = {u:document.getElementById('adm-f-u').value, t:document.getElementById('adm-f-t').value, a:document.getElementById('adm-f-a').value, de:document.getElementById('adm-f-de').value, ate:document.getElementById('adm-f-ate').value, q:document.getElementById('adm-f-q').value}; ADM.off = 0; admCarregarAud(); return; }
+  if(e.target.closest('#adm-limpar')){ ADM.f = {u:'',t:'',a:'',de:'',ate:'',q:''}; ADM.off = 0; renderAdmin(); return; }
+  if(e.target.closest('#adm-prev')){ ADM.off = Math.max(0, ADM.off-ADM.pag); admCarregarAud(); return; }
+  if(e.target.closest('#adm-next')){ ADM.off += ADM.pag; admCarregarAud(); return; }
+  if(e.target.closest('#adm-csv')){ admExportar(); return; }
+  const row = e.target.closest('.adm-row'); if(row){ const r = ADM.rows.find(x=>String(x.id)===row.dataset.id); if(r) dlgOpen(`<h3 style="margin-top:0">${admAcao(r.acao)} · ${escapeHtml(admTab(r.tabela))}</h3><div class="hint">${escapeHtml(admDh(r.em))} · ${escapeHtml(r.usuario_email||'')} · registro ${escapeHtml(String(r.registro||''))}</div><div class="adm-json"><div><b>Antes</b><pre>${escapeHtml(r.antes?JSON.stringify(r.antes,null,2):'—')}</pre></div><div><b>Depois</b><pre>${escapeHtml(r.depois?JSON.stringify(r.depois,null,2):'—')}</pre></div></div><div style="text-align:right;margin-top:10px"><button class="adm-b" onclick="dlgClose()">Fechar</button></div>`, true); return; }
+  const ac = e.target.closest('.adm-acesso'); if(ac){ const lib = ac.dataset.a==='1'; if(!confirm((lib?'Liberar':'Bloquear')+' o acesso de '+ac.dataset.e+'?')) return;
+    const { error } = await sb.rpc('crm_admin_acesso',{p_email:ac.dataset.e, p_ativo:lib}); if(error){ showToast('Erro: '+error.message); return; } showToast(lib?'Acesso liberado.':'Acesso bloqueado.'); renderAdmin(); }
+});
+document.addEventListener('change', async e=>{
+  const pa = e.target.closest('.adm-papel'); const no = e.target.closest('.adm-nome'); const el = pa || no; if(!el) return;
+  const em = el.dataset.e, u = ADM.usr.find(x=>x.email===em) || {}; const papel = pa ? pa.value : (u.papel && u.papel!=='sem cadastro' ? u.papel : 'especialista'), nome = no ? no.value.trim() : (u.nome||'');
+  const { error } = await sb.from('crm_usuarios').upsert({email:em, nome, papel, atualizado_em:new Date().toISOString()},{onConflict:'email'}); showToast(error ? 'Erro: '+error.message : 'Salvo ✓');
+});
 </script>
 </body>
 </html>
