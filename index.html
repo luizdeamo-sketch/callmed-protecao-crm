@@ -8104,7 +8104,7 @@ function sgDraw(){
       ${(r.anexos&&r.anexos.length)?`<div class="sg-atts">${r.anexos.map(a=>/^image\//.test(a.mime||'')?`<a href="#" data-att="${escapeHtml(a.path)}" title="${escapeHtml(a.nome||'')}"><img class="sg-thumb" data-thumb="${escapeHtml(a.path)}" alt="${escapeHtml(a.nome||'print')}"></a>`:`<a href="#" class="sg-file" data-att="${escapeHtml(a.path)}">${sgIco(a.mime)} ${escapeHtml(a.nome||'arquivo')}</a>`).join('')}</div>`:''}
       ${r.audio_path?`<div class="sg-audio"><a href="#" data-act="audio">▶ ouvir o áudio original</a></div>`:''}
       ${r.resposta?`<div class="sg-resp"${(r.resposta||'').startsWith('🔴')?' style="background:#fde8e8;border:2px solid #c23636"':''}><b>Resposta:</b> ${escapeHtml(r.resposta).replace(/\n/g,'<br>')}</div>`:''}
-      <div class="sg-actions"><button class="om-cancel" data-act="status">Alterar status / responder</button><button class="btn-ghost" data-act="hist">Histórico (${hist.length})</button></div>
+      <div class="sg-actions"><button class="om-cancel" data-act="status">Alterar status / responder</button><button class="btn-ghost" data-act="hist">Histórico (${hist.length})</button><span style="flex:1"></span><button class="btn-ghost sg-del" data-act="del" style="color:var(--red)" title="Excluir esta sugestão">Excluir</button></div>
       <div class="sg-hist" style="display:none">${hist.length ? hist.slice().reverse().map(h=>`<div class="rec"><span class="k">${fmtDateTime(h.em)}</span><b>${escapeHtml(h.por||'—')}</b>: ${escapeHtml(sgLabel(h.de)[1])} → <b>${escapeHtml(sgLabel(h.para)[1])}</b>${h.nota?'<br>'+escapeHtml(h.nota):''}</div>`).join('') : '<div class="no-rec">Sem movimentações ainda.</div>'}</div>
     </div>`; }).join('') : '<div class="op-more">Nenhuma sugestão nesta seleção.</div>';
   sgThumbs();
@@ -8117,6 +8117,13 @@ document.getElementById('sg-list').addEventListener('click', async e=>{
   if(a.dataset.act==='hist'){ const h = card.querySelector('.sg-hist'); h.style.display = h.style.display==='none' ? 'block' : 'none'; }
   if(a.dataset.act==='audio'){ try{ const url = await docsSignedUrl(r.audio_path); a.parentElement.innerHTML = `<audio controls autoplay src="${url}"></audio>`; }catch(x){ showToast('Erro: '+x.message); } }
   if(a.dataset.act==='status') sgStatusDialog(r);
+  if(a.dataset.act==='del'){
+    if(!confirm('Excluir esta sugestão de '+(r.autor||'—')+'?\n\n“'+String(r.texto||'').slice(0,120)+((r.texto||'').length>120?'…':'')+'”\n\nA sugestão, as respostas e os anexos serão apagados e não dá para desfazer.')) return;
+    const { error } = await sb.from('crm_sugestoes').delete().eq('id', r.id);
+    if(error){ showToast('Erro ao excluir: '+error.message); return; }
+    try{ const paths = (r.anexos||[]).map(x=>x.path).concat(r.audio_path?[r.audio_path]:[]).filter(Boolean); if(paths.length) await sb.storage.from('crm-docs').remove(paths); }catch(x){}
+    SG.list = SG.list.filter(x=>x.id!==r.id); showToast('Sugestão excluída'); sgDraw();
+  }
 });
 function sgStatusDialog(r){
   window._sgRespFiles = [];
