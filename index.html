@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261016144301">
+<meta name="app-build" content="20261016145734">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1376,6 +1376,9 @@ const vdBaseList = ()=>`<datalist id="vd-cli">${(OP.pessoas||[]).slice(0,8000).m
 const vdPessoaDe = pid => (OP.pessoas||[]).find(x=>x.id===pid);
 const vdAbrirLink = x => x.pessoa_id ? `<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>${(vdPessoaDe(x.pessoa_id)||{}).cpf?` <small style="color:var(--ink-faint)">CPF ${escapeHtml(vdPessoaDe(x.pessoa_id).cpf)}</small>`:''}` : (String(x.nome||x.cliente||'').trim() ? `<small style="color:var(--ink-faint)">sem cadastro ligado</small>` : '');
 // ao digitar nome/CPF/telefone, procura na base de contatos e liga a linha ao cadastro (CPF ou nome idêntico liga direto; parecido pergunta)
+// Vendas (dia a dia) alimenta o funil da Aliança (visão gerencial): cada status da Prospecção leva a pessoa à etapa correspondente (só avança, nunca volta)
+const VD_FUNIL = {'Em contato':'contato','Retornar':'contato','Respondeu':'atendimento','Desmarcou reunião':'atendimento','Agendou reunião':'agendamento','Reunião realizada':'reuniao','Cotação em andamento':'diagnostico','Apresentei cotação':'proposta','Virou cliente':'fechamento'};
+async function vdFunilDoStatus(r){ if(!r || !r.pessoa_id) return; const k = VD_FUNIL[r.status]; if(k) await syncFunilComOpp(r.pessoa_id, k, 'Atualizado pela Prospecção (Vendas): '+r.status); }
 async function vdTentaLigar(tabela, r, nome, cpf, tel){
   if(!r || r.pessoa_id || r._lig) return;
   const nm = String(nome||'').trim(); if(!nm && !String(cpf||'').trim()) return;
@@ -1388,7 +1391,7 @@ async function vdTentaLigar(tabela, r, nome, cpf, tel){
   const upd = { pessoa_id: alvo.id, updated_at:new Date().toISOString() };
   if(tabela==='crm_prospeccao'){ if(!String(r.cpf||'').trim() && alvo.cpf){ upd.cpf = alvo.cpf; r.cpf = alvo.cpf; } if(!String(r.telefone||'').trim() && alvo.telefone){ upd.telefone = alvo.telefone; r.telefone = alvo.telefone; } }
   const { error } = await sb.from(tabela).update(upd).eq('id', r.id); if(error){ showToast('Erro ao ligar ao cadastro: '+error.message); return; }
-  r.pessoa_id = alvo.id; showToast('Ligado ao cadastro de '+alvo.nome); vdDraw();
+  r.pessoa_id = alvo.id; showToast('Ligado ao cadastro de '+alvo.nome); if(tabela==='crm_prospeccao') vdFunilDoStatus(r); vdDraw();
 }
 const VD_CANAIS = {'WhatsApp':'whatsapp','Ligação':'ligacao','E-mail':'email','Reunião':'reuniao','Instagram':'outro','LinkedIn':'outro','Outro':'outro'};
 const VD_ACAO_ST = {'Novo':'Realizar primeiro contato','Em contato':'Realizar follow-up','Respondeu':'Realizar follow-up','Agendou reunião':'Confirmar reunião','Desmarcou reunião':'Fazer nova tentativa','Reunião realizada':'Preparar proposta','Retornar':'Fazer nova tentativa','Cotação em andamento':'Apresentar proposta','Apresentei cotação':'Realizar follow-up'};
@@ -1430,7 +1433,7 @@ async function vdRegistrar(r){
     if(novoDigitado){ const d = new Date(), nl = String.fromCharCode(10), cab = '['+d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+' · '+(por||'—')+' · '+r.canal+' · '+r.status+']';
       histNovo = cab+nl+novoDigitado+(r.historico?nl+nl+r.historico:''); }
     const { error: e3 } = await sb.from('crm_prospeccao').update({ historico:histNovo, registrado_em:agora, updated_at:agora }).eq('id', r.id); if(e3) throw e3;
-    r.registrado_em = agora; r.historico = histNovo; delete VD.draft[r.id];
+    r.registrado_em = agora; r.historico = histNovo; delete VD.draft[r.id]; await vdFunilDoStatus(r);
     showToast('Registrado'+(r.pessoa_id?' no histórico do cliente':' (sem cadastro ligado: não entrou no histórico do cliente)')+naoMsg+'.');
     vdDraw();
   }catch(e){ showToast('Erro ao registrar: '+(e.message||e)); }
@@ -1959,6 +1962,7 @@ async function vdVirouVendaDem(d, p){
     if(ex) vid = ex.id; else {
       const { data, error } = await sb.from('crm_vendas').insert({ pessoa_id:d.pessoa_id, cliente:nome, produto: d.produto && d.produto!=='Geral' ? d.produto : '', demanda_id:d.id, data_venda:ymd(new Date()), criado_por:curUserName()||null }).select('id').single();
       if(error) throw error; vid = data.id; }
+    if(d.pessoa_id) syncFunilComOpp(d.pessoa_id, 'fechamento', 'Venda registrada em Vendas');
     const { error: e2 } = await sb.from('crm_demandas').update({ status:'Venda fechada', concluida_em:new Date().toISOString(), updated_at:new Date().toISOString() }).eq('id', d.id);
     if(e2) throw e2;
     showToast('Venda registrada. Preencha produto e prêmio.'); vdIrPara('vend', vid);
@@ -1979,7 +1983,7 @@ async function vdNaoVirouDem(d, p){
 }
 async function vdVendaPessoa(p){
   const { data, error } = await sb.from('crm_vendas').insert({ pessoa_id:p.id, cliente:p.nome||'', data_venda:ymd(new Date()), criado_por:curUserName()||null }).select('id').single();
-  if(error){ showToast('Erro: '+error.message); return; } showToast('Venda registrada. Preencha produto e prêmio.'); vdIrPara('vend', data.id);
+  if(error){ showToast('Erro: '+error.message); return; } syncFunilComOpp(p.id, 'fechamento', 'Venda registrada em Vendas'); showToast('Venda registrada. Preencha produto e prêmio.'); vdIrPara('vend', data.id);
 }
 async function vdNaoVendaPessoa(p){
   const { data, error } = await sb.from('crm_nao_vendas').insert({ pessoa_id:p.id, cliente:p.nome||'', data_registro:ymd(new Date()), criado_por:curUserName()||null }).select('id').single();
@@ -1991,7 +1995,9 @@ async function vdSalvarCampo(tabela, id, k, v){
   clearTimeout(VD.timers[id+k]);
   VD.timers[id+k] = setTimeout(async ()=>{
     const { error } = await sb.from(tabela).update({ [k]: v, updated_at:new Date().toISOString() }).eq('id', id);
-    vdMsg(error ? 'Erro ao salvar: '+error.message : 'Salvo ✓'); if(error) showToast('Erro: '+error.message); }, 350);
+    vdMsg(error ? 'Erro ao salvar: '+error.message : 'Salvo ✓'); if(error) showToast('Erro: '+error.message);
+    if(!error && tabela==='crm_prospeccao' && k==='status'){ const rr = (VD.pro||[]).find(x=>x.id===id); if(rr){ rr.status = v; vdFunilDoStatus(rr); } }
+    if(!error && tabela==='crm_vendas' && k==='pessoa_id' && v) syncFunilComOpp(v, 'fechamento', 'Venda registrada em Vendas'); }, 350);
 }
 async function vdReabrir(tabela, id){
   const arr = tabela==='crm_vendas' ? VD.vend : VD.nao, r = arr.find(x=>x.id===id); if(!r) return;
@@ -3601,7 +3607,7 @@ function dictateInto(taId, btn){
 document.addEventListener('click', e=>{ const b = e.target.closest('[data-dictate]'); if(b){ e.preventDefault(); dictateInto(b.dataset.dictate, b); } });
 
 // ---------- FONTE ÚNICA DA ETAPA: oportunidades alimentam o funil da pessoa ----------
-async function syncFunilComOpp(pid, etapaKey){
+async function syncFunilComOpp(pid, etapaKey, obs){
   try{
     const idx = ETAPAS_FUNIL.findIndex(e=>e.key===etapaKey); if(idx<0) return;
     const { data } = await sb.from('crm_funil').select(OP_FUNIL_COLS).eq('pessoa_id', pid); const rows = data||[];
@@ -3611,9 +3617,10 @@ async function syncFunilComOpp(pid, etapaKey){
     const hoje = ymdToday();
     const abertos = rows.filter(r=>!r.data_fim).sort((a,b)=>String(a.data_inicio||a.created_at).localeCompare(String(b.data_inicio||b.created_at)));
     const prev = abertos[abertos.length-1];
-    if(prev){ const ini = String(prev.data_inicio||prev.data_combinada||prev.created_at).slice(0,10); if(ini>=hoje) return;
+    if(prev){ const ini = String(prev.data_inicio||prev.data_combinada||prev.created_at).slice(0,10);
+      if(ini>=hoje){ const { error } = await sb.from('crm_funil').update({etapa:etapaKey, observacao:obs||'Atualizado pela oportunidade'}).eq('id', prev.id); if(!error) OP.dirty = true; return; }   // etapa que começou hoje: avança no mesmo registro
       const d = opD(hoje); d.setDate(d.getDate()-1); const { error } = await sb.from('crm_funil').update({data_fim:ymd(d)}).eq('id', prev.id); if(error) return; }
-    await sb.from('crm_funil').insert({pessoa_id:pid, etapa:etapaKey, data_inicio:hoje, data_combinada:hoje, observacao:'Atualizado pela oportunidade'});
+    await sb.from('crm_funil').insert({pessoa_id:pid, etapa:etapaKey, data_inicio:hoje, data_combinada:hoje, observacao:obs||'Atualizado pela oportunidade'});
     OP.dirty = true;
   }catch(e){ console.warn('sync funil', e); }
 }
@@ -9160,7 +9167,9 @@ checkSession();
   .vd-chips{ display:flex; gap:8px; flex-wrap:wrap; }
   .vd-chip{ border:1px solid var(--border); border-radius:999px; padding:4px 11px; font-size:12px; background:var(--surface); color:var(--ink-soft); }
   .vd-chip b{ color:inherit; } .vd-chip.ok{ border-color:#0f7a53; color:#0f7a53; } .vd-chip.warn{ border-color:#c8790b; color:#8a5406; background:#fbeed9; }
-  .vd-wrap{ overflow-x:auto; border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+  .vd-wrap{ overflow:auto; max-height:calc(100vh - 210px); border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+  .vd-wrap thead th{ position:sticky; top:0; z-index:3; background:#f4f5fb; box-shadow:0 1px 0 var(--border); }
+  .vd-wrap::-webkit-scrollbar{ height:14px; width:12px; } .vd-wrap::-webkit-scrollbar-thumb{ background:#9aa3c7; border-radius:8px; border:3px solid #eef0f8; } .vd-wrap::-webkit-scrollbar-track{ background:#eef0f8; }
   .vd-btn{ padding:4px 10px !important; font-size:12px !important; }
   table.vd-edit input, table.vd-edit select, table.vd-edit textarea{ width:100%; min-width:90px; border:1px solid var(--border); border-radius:6px; padding:5px 7px; font:inherit; font-size:12.5px; background:#fff; }
   table.vd-edit textarea{ min-width:180px; resize:vertical; }
