@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261019165727">
+<meta name="app-build" content="20261019170632">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -443,6 +443,7 @@
         <div id="adm-tabs" class="seg-toggle"><button type="button" class="active" data-at="aud">Auditoria</button><button type="button" data-at="usr">Usuários e acessos</button></div>
       </div>
       <div class="hint" style="margin:0 0 14px">Quem mexeu em quê, quando e com qual valor, e quem pode entrar no sistema. Visível só para o master.</div>
+      <div class="hint" id="adm-bkp" style="margin:-6px 0 12px"></div>
       <div id="adm-body"></div>
     </div>
 
@@ -9189,8 +9190,14 @@ async function backupNow(){
 }
 document.getElementById('btn-backup').addEventListener('click', backupNow);
 function backupReminder(){
-  try{ const t = parseInt(localStorage.getItem('crm_backup_em')||'0',10); const dias = t ? Math.floor((Date.now()-t)/86400000) : null;
-    if(dias===null || dias>=7) setTimeout(()=>showToast(dias===null?'Você ainda não fez backup — botão “Backup” no topo.':'Último backup há '+dias+' dias.'), 4000); }catch(e){}
+  // O backup é automático (todo dia às 3h, dentro do banco). Só avisa se o automático falhou ou parou.
+  (async()=>{ try{
+    const { data } = await sb.from('crm_backup_log').select('em,ok').eq('ok', true).order('em',{ascending:false}).limit(1);
+    const u = data && data[0]; if(u && (Date.now()-new Date(u.em).getTime())/3600000 < 36) return;
+    const t = parseInt(localStorage.getItem('crm_backup_em')||'0',10); const dias = t ? Math.floor((Date.now()-t)/86400000) : null;
+    if(!u) setTimeout(()=>showToast('O backup automático ainda não rodou. Avise o Luiz.'), 4000);
+    else setTimeout(()=>showToast('O backup automático não roda desde '+fmtDate(u.em)+'. Avise o Luiz.'), 4000);
+  }catch(e){} })();
 }
 
 // ---- WhatsApp com script da Base ----
@@ -9999,6 +10006,8 @@ async function renderAdmin(){
   const host = document.getElementById('adm-body'); if(!host) return;
   if(!window._isMaster){ host.innerHTML = '<div class="es-box"><div class="hint">Esta aba é só para o master.</div></div>'; return; }
   document.querySelectorAll('#adm-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.at===ADM.tab));
+  sb.from('crm_backup_log').select('em,tabelas,linhas,ok,erro').order('em',{ascending:false}).limit(1).then(({data})=>{ const u = data && data[0], el = document.getElementById('adm-bkp'); if(!el) return;
+    el.innerHTML = u ? (u.ok ? `💾 <b>Backup automático em dia:</b> último em ${admDh(u.em)}${u.tabelas?` · ${u.tabelas} tabelas · ${Number(u.linhas).toLocaleString('pt-BR')} linhas`:''}. Roda todo dia às 3h e guarda 10 dias e o dia 1 de cada mês.` : `⚠️ <b>O último backup automático falhou</b> (${admDh(u.em)}): ${escapeHtml(u.erro||'')}`) : '💾 O backup automático ainda não rodou (primeiro às 3h).'; });
   host.innerHTML = '<div class="op-more">Carregando…</div>';
   if(ADM.tab==='usr'){ host.innerHTML = await admUsrHtml(); return; }
   host.innerHTML = await admAudHtml(); await admCarregarAud();
