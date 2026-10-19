@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261016151117">
+<meta name="app-build" content="20261019100726">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -3213,10 +3213,10 @@ async function pvFase4(p){
   const draw = ()=>{
     host.innerHTML = `<style>.f4-t input[type=text],.f4-t input[type=number],.f4-t input[type=date],.f4-t select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font:inherit}.f4-t input.unread{background:#eef0ff;border-color:#0018fc}.f4-t td{padding:3px 4px}</style>
       <div class="ql">Fase 5 · Cotações e plano novo <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— lance as cotações das seguradoras, marque em quais soluções entram e veja os totais</small></div>
-      <div class="hint" style="margin-bottom:8px">Escolha o PDF ou a foto e use <b>Ler a cotação com IA</b> (ou preencha as linhas à mão). Marque em <b>Sol. 1</b> (mais completa) e <b>Sol. 2</b> (a necessária). Se o cliente tem apólice, diga qual linha da Fase 2 cada cotação substitui.</div>
+      <div class="hint" style="margin-bottom:8px">Escolha o PDF ou a foto — <b>ou vários de uma vez</b> (um por seguradora) — e use <b>Ler a cotação com IA</b>: com vários arquivos, o sistema lê todos e acrescenta cada cotação à tabela, sem substituir as anteriores (ou preencha as linhas à mão). Marque em <b>Sol. 1</b> (mais completa) e <b>Sol. 2</b> (a necessária). Se o cliente tem apólice, diga qual linha da Fase 2 cada cotação substitui.</div>
       <details ${rows.length?'':'open'} style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:600">＋ Nova cotação</summary>
         <div class="fgrid" style="margin-top:8px"><label class="fl"><span>Seguradora</span><input id="f4-seg" value="${escapeHtml(draft.seg)}"></label><label class="fl"><span>Prêmios do documento são</span><select id="f4-per"><option>Mensal</option><option>Anual</option></select></label><label class="fl"><span>Válida até</span><input type="date" id="f4-val"></label>
-        <label class="fl"><span>Arquivo da cotação (fica salvo no cadastro)</span><input type="file" id="f4-file" accept=".pdf,image/*"></label></div>
+        <label class="fl"><span>Arquivo(s) da cotação (ficam salvos no cadastro) — pode escolher vários de uma vez</span><input type="file" id="f4-file" accept=".pdf,image/*" multiple></label></div>
         <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-save" id="f4-ia">Ler a cotação com IA</button><span id="f4-iast" class="hint" style="margin:0">Escolha o PDF ou a foto e clique: o sistema preenche seguradora, coberturas, capitais e prêmios mensais. Confira antes de adicionar.</span></div>
         <div style="overflow-x:auto;margin-top:8px"><table class="f4-t" style="min-width:880px;border-collapse:collapse"><thead><tr><th style="text-align:left;min-width:220px">Cobertura (como está escrita)</th><th style="text-align:left;min-width:190px">Categoria</th><th style="width:120px">Capital</th><th style="width:120px">Prêmio lido</th><th style="width:120px">Prazo</th><th style="text-align:left;min-width:160px">Observação</th><th style="width:34px"></th></tr></thead><tbody id="f4-dl"></tbody></table></div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="f4-dadd">＋ Linha</button><button class="om-save" id="f4-dgo">Adicionar esta cotação à tabela</button></div><div id="f4-dav"></div></details>
@@ -3260,8 +3260,9 @@ async function pvFase4(p){
       dl.querySelectorAll('[data-dd]').forEach(b=>b.addEventListener('click', ()=>{ draft.linhas.splice(+b.dataset.dd,1); if(!draft.linhas.length) draft.linhas.push({cob:'',cat:'Morte',cap:'',prem:'',prazo:'',nota:''}); drawDraft(); })); };
     drawDraft();
     host.querySelector('#f4-ia').addEventListener('click', async ()=>{
-      const st = host.querySelector('#f4-iast'), btn = host.querySelector('#f4-ia'), file = host.querySelector('#f4-file').files[0];
+      const st = host.querySelector('#f4-iast'), btn = host.querySelector('#f4-ia'), arqs = [...host.querySelector('#f4-file').files], file = arqs[0];
       if(!file){ st.textContent = 'Escolha primeiro o PDF da cotação.'; return; }
+      if(arqs.length>1){ await lerVarias(arqs, st, btn); return; }
       const mt = aiMedia(file); if(!mt){ st.textContent = 'Formato não suportado para leitura (use PDF, JPG, PNG ou WEBP). Ou preencha as linhas à mão.'; return; }
       btn.disabled = true; st.textContent = 'Lendo a cotação…';
       try{
@@ -3276,6 +3277,29 @@ async function pvFase4(p){
         st.innerHTML = 'Li '+itens.length+' cobertura(s) de <b>'+escapeHtml(c.seguradora||file.name)+'</b>'+(c.periodicidade_original&&c.periodicidade_original!=='mensal'?' (prêmio '+escapeHtml(c.periodicidade_original)+' convertido para mensal)':'')+'. '+(so?'A cotação traz só o prêmio total ('+fm(c.total_mensal)+'/mês): distribua por cobertura. ':'')+'Confira os campos (laranja = não lido), informe a validade e clique em "Adicionar esta cotação à tabela".';
       }catch(err){ st.textContent = ''+(err.message||err); }
       btn.disabled = false; });
+    // vários arquivos de uma vez: lê cada um com a IA e acrescenta todas as cotações à tabela (nunca substitui as que já estão lá)
+    async function lerVarias(arqs, st, btn){
+      btn.disabled = true; const av = [], novas = []; let ok = 0;
+      for(let k=0;k<arqs.length;k++){
+        const file = arqs[k]; st.textContent = 'Lendo '+(k+1)+' de '+arqs.length+': '+file.name+'…';
+        const mt = aiMedia(file); if(!mt){ av.push(file.name+': formato não suportado (use PDF, JPG, PNG ou WEBP).'); continue; }
+        try{
+          const { data, error } = await sb.functions.invoke('extrair-cotacao', { body: { file_base64: await proFileB64(file), media_type: mt, filename: file.name } });
+          if(error || (data&&data.error)) throw new Error(data&&data.error ? data.error : await ruErr(error));
+          const c = data.cotacao||{}, itens = (c.itens||[]).filter(i=>i.cobertura); if(!itens.length) throw new Error('não encontrei coberturas neste arquivo');
+          const seg = c.seguradora||'';
+          try{ const path = await docsUpload(file, 'cotacoes'); await sb.from('crm_documentos').insert({enviado_por:curUserName(), pessoa_id:p.id, categoria:'cotacao', nome_arquivo:file.name, path, mime:file.type||null, tamanho:file.size, dados_extraidos:{tipo:'Cotação', seguradora:seg||null, origem:'fase4'}}); }catch(x){ av.push(file.name+': li a cotação, mas não consegui salvar o arquivo ('+x.message+').'); }
+          itens.forEach(i=>novas.push({...f4Blank(), cat:anlCatFromCob(i.cobertura)||'Morte', seg, cob:i.cobertura, cap:i.capital==null?'':Number(i.capital), prem:i.premio_mensal==null?'':Number(i.premio_mensal), prazo:'', nota:i.capital_texto&&/dia/i.test(i.capital_texto)?i.capital_texto:'', arq:file.name}));
+          if(!seg) av.push(file.name+': seguradora não identificada, preencha na tabela.');
+          if(itens.some(i=>i.capital==null || i.premio_mensal==null)) av.push(file.name+': há campo não lido (em laranja), preencha antes de apresentar.');
+          ok++;
+        }catch(err){ av.push(file.name+': '+(err.message||err)); }
+      }
+      if(novas.length){ rows = rows.concat(novas); autoMarcar(); autoSubst(); try{ pvDocumentos(p); }catch(e){} }
+      av.push('Informe a validade de cada cotação antes de apresentar.');
+      avisos = av; resumo = ok+' de '+arqs.length+' cotação(ões) lida(s): '+novas.length+' linha(s) acrescentada(s) à tabela, sem substituir as anteriores. Confira e ajuste.';
+      await persist(); draw();
+    }
     host.querySelector('#f4-dadd').addEventListener('click', ()=>{ draft.linhas.push({cob:'',cat:'Morte',cap:'',prem:'',prazo:'',nota:''}); drawDraft(); });
     host.querySelector('#f4-dgo').addEventListener('click', async ()=>{
       draft.seg = host.querySelector('#f4-seg').value.trim(); draft.period = host.querySelector('#f4-per').value; draft.validade = host.querySelector('#f4-val').value;
