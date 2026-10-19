@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261019115923">
+<meta name="app-build" content="20261019165300">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -369,6 +369,7 @@
       <div class="pg">
         <div class="pg-head"><h2>Indicadores</h2><span class="sub">Funil contra as metas, tempo parado, produção CallMed e oportunidades.</span>
           <span style="margin-left:auto;display:flex;gap:8px"><select id="ind-periodo" class="ca-inp" style="width:170px"><option value="semana">Esta semana</option><option value="mes" selected>Este mês</option><option value="30d">Últimos 30 dias</option><option value="tri">Últimos 3 meses</option><option value="tudo">Todo o período</option></select><button class="om-cancel" id="ind-metas">Metas</button></span></div>
+        <div class="es-box" style="margin:0 0 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>📱 CRM Aliança no celular</b><div class="mut" style="font-size:12.5px">Versão enxuta para quem está na rua: buscar cliente, ver o que fazer hoje, resumo do dia por IA e registrar reunião.</div></div><a class="om-save" href="app/" target="_blank" rel="noopener" style="text-decoration:none">Abrir o app</a></div>
         <details id="ind-tour" class="es-box" style="margin:0 0 14px" open><summary class="tour-sum"><span class="tour-a">🎬 Visão do gestor: como o CRM Aliança funciona <span style="font-weight:500;color:var(--ink-soft);font-size:12.5px">(vídeo de 5 minutos · quem vende vê o vídeo em Vendas)</span></span><span class="tour-b">▶ Rever o vídeo: visão do gestor (5 min)</span></summary>
           <div style="margin-top:10px;display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><video controls preload="metadata" style="width:100%;max-width:760px;border-radius:10px;background:#00125e" src="tutorial-boas-vindas.mp4"></video>
           <div style="flex:1;min-width:240px;font-size:13px;line-height:1.6;color:var(--ink-soft)"><b style="color:var(--ink)">O caminho, passo a passo</b><br>1. Cadastrar o lead<br>2. Botões de inteligência da ficha<br>3. Registrar cada contato em Vendas<br>4. Mudar o status<br>5. Acompanhar na Aliança<br>6. Dúvida? Botão 💬 com print marcado</div></div></details>
@@ -2365,16 +2366,18 @@ function pvRender(){
   const wa = waLink(p.telefone);
   view.innerHTML = `<div class="person-header"><div>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><button class="btn-ghost" id="btn-op-back">← Aliança</button><h2 style="margin:0">${escapeHtml(p.nome)}</h2></div>
-      <div class="tags" style="margin-top:8px"><span class="tag">${TIPOS_PESSOA[p.tipo||'medico']||p.tipo}</span>${p.crm?`<span class="tag">CRM ${escapeHtml(p.crm)}</span>`:''}${p.especialidade?`<span class="tag">${escapeHtml(p.especialidade)}</span>`:''}${pvClassChip(p)}${(p.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
+      <div class="tags" style="margin-top:8px"><span class="tag">${TIPOS_PESSOA[p.tipo||'medico']||p.tipo}</span>${p.crm?`<span class="tag">CRM ${escapeHtml(p.crm)}</span>`:''}${p.especialidade?`<span class="tag">${escapeHtml(p.especialidade)}</span>`:''}${pvClassChip(p)}${pvDadosChips(p)}${(p.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>
       <div class="person-actions"><button class="om-cancel" id="pa-editar">Editar cadastro</button><button class="om-save" id="pa-fluxo">Fluxo de proteção</button><button class="om-cancel" id="pa-apolice">Anexar apólice</button><button class="om-cancel" id="pa-wa">WhatsApp com script</button><button class="om-cancel" id="pa-audit" title="Quem alterou o quê, e quando">Histórico de alterações</button><button class="om-save" id="pa-intel" title="Pesquisa pública e perguntas personalizadas para a abordagem">Inteligência</button><button class="om-cancel" id="pa-reuniao" title="Gravar/enviar uma reunião com esta pessoa">Nova reunião</button><button class="om-cancel" id="pa-del" style="color:var(--red)" title="Apaga o cadastro e tudo ligado a ele">Excluir cadastro</button></div>
       <div id="pv-next">${pvNextHtml(p)}</div>
       <div id="pv-redes"></div>
+      <div id="pv-familia"></div>
     </div></div>
     <div class="pv-tabs">${PV_TABS.map(([k,l])=>`<button class="pv-tab${PV.tab===k?' on':''}" data-tab="${k}">${l}</button>`).join('')}</div>
     <div id="pv-body"></div>`;
     document.getElementById('pa-audit').addEventListener('click', ()=> auditDialog(p.id, p.nome));
     document.getElementById('pa-intel').addEventListener('click', ()=> intelDialog(p));
     pvRedesCard(p).catch(()=>{});
+    pvFamiliaCard(p).catch(()=>{});
     document.getElementById('pa-reuniao').addEventListener('click', ()=> ruNovaDialog(p));
     document.getElementById('pa-del').addEventListener('click', ()=> pvDelConfirm(p));
     pvShowTab(PV.tab);
@@ -5970,6 +5973,44 @@ function redeChip(r){
   const cor = conf==='alta' ? '#0f7a53' : conf==='media' ? '#c8790b' : conf==='baixa' ? '#c23636' : 'var(--ink-faint)';
   return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="${redeChipStyle}" title="${escapeHtml(r.observacao||r.observacoes||'')}"><b>${escapeHtml(r.rede||'Rede')}</b>${h?' '+escapeHtml(h):''}${conf?` <small style="color:${cor};font-weight:700">· ${escapeHtml(conf)}</small>`:''} ↗</a>`;
 }
+// ===== Família e herdeiros mapeados (cada data de nascimento vira um lembrete de aniversário) =====
+const FAM_PARENTESCO = [['conjuge','Cônjuge'],['filho','Filho'],['filha','Filha'],['mae','Mãe'],['pai','Pai'],['irmao','Irmão'],['irma','Irmã'],['outro','Outro familiar']];
+// sinalizadores de sexo e nascimento: mostram de onde veio o dado e o que falta (para conferir ou completar)
+function pvDadosChips(p){
+  const sx = p.sexo ? (p.sexo==='F'?'♀ Feminino':'♂ Masculino') : '';
+  const infer = p.sexo_origem==='inferido_nome';
+  const chipSexo = p.sexo ? `<span class="tag" ${infer?'style="background:#fbeed9;color:#8a5406" title="O sistema deduziu pelo primeiro nome. Confira e corrija em Editar cadastro, se precisar."':''}>${sx}${infer?' · inferido pelo nome'+(p.sexo_confianca==='media'?' (confira)':''):''}</span>` : '<span class="tag" style="background:#fde4e4;color:#c23636" title="Nome ambíguo: informe o sexo em Editar cadastro.">sexo não identificado</span>';
+  const orig = {cadastro_plantoes:' · do cadastro de plantões'}[p.nascimento_origem]||'';
+  const chipNasc = p.data_nascimento ? `<span class="tag" title="Cada aniversário vira um lembrete de parabéns.">🎂 ${fmtDate(p.data_nascimento)}${orig}</span>` : '<span class="tag" style="background:#fde4e4;color:#c23636" title="Sem a data de nascimento o sistema não lembra o aniversário. Informe em Editar cadastro.">sem data de nascimento</span>';
+  return chipSexo + chipNasc;
+}
+async function pvFamiliaCard(p){
+  const box = document.getElementById('pv-familia'); if(!box) return;
+  const { data, error } = await sb.from('crm_familiares').select('*').eq('pessoa_id', p.id).order('data_nascimento', {ascending:true, nullsFirst:false});
+  if(error){ box.innerHTML = ''; return; }
+  const lista = data||[], rot = Object.fromEntries(FAM_PARENTESCO);
+  box.innerHTML = `<div class="es-box" style="margin-top:10px"><div class="ql" style="display:flex;align-items:center;gap:8px">Família e herdeiros <button class="om-cancel" id="fam-add" style="padding:2px 10px;font-size:11px">＋ Adicionar</button></div>
+    ${lista.length ? `<div style="display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:12.5px">${lista.map(f=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${escapeHtml(f.nome)}</b><span class="tag">${escapeHtml(rot[f.parentesco]||f.parentesco)}</span>${f.herdeiro?'<span class="tag" style="background:#e8ecff;color:#0018fc">herdeiro</span>':''}<span style="color:var(--ink-soft)">${f.data_nascimento?'🎂 '+fmtDate(f.data_nascimento):'<i>sem data de nascimento: sem lembrete</i>'}</span>${f.observacao?`<span style="color:var(--ink-faint)">· ${escapeHtml(f.observacao)}</span>`:''}<span style="flex:1"></span><button class="om-cancel" data-fam-ed="${f.id}" style="padding:1px 8px;font-size:11px">editar</button><button class="om-cancel" data-fam-del="${f.id}" style="padding:1px 8px;font-size:11px;color:var(--red)">excluir</button></div>`).join('')}</div>`
+      : '<div class="hint" style="margin-top:4px">Cônjuge, filhos, pais e demais herdeiros. Com a data de nascimento, o sistema lembra de parabenizar na hora certa.</div>'}</div>`;
+  const abre = (f)=>{
+    const bx = dlgOpen(`<div class="om-title"><div><h3>${f?'Editar':'Novo'} familiar ou herdeiro</h3><div class="om-sub">${escapeHtml(p.nome)}</div></div><button data-close>✕</button></div>
+      <div class="dlg-body"><div class="fgrid">
+        <label class="fl"><span>Parentesco</span><select id="fm-par">${FAM_PARENTESCO.map(([k,l])=>`<option value="${k}" ${f&&f.parentesco===k?'selected':''}>${l}</option>`).join('')}</select></label>
+        <label class="fl"><span>Nome *</span><input id="fm-nome" value="${escapeHtml(f?f.nome:'')}"></label>
+        <label class="fl"><span>Data de nascimento</span><input id="fm-nasc" type="date" value="${escapeHtml(f&&f.data_nascimento?f.data_nascimento:'')}"></label>
+        <label class="chk" style="align-self:end"><input type="checkbox" id="fm-her" ${f&&f.herdeiro?'checked':''}> É herdeiro / beneficiário</label>
+        <label class="fl" style="grid-column:1/-1"><span>Observação (opcional)</span><input id="fm-obs" value="${escapeHtml(f&&f.observacao?f.observacao:'')}"></label></div><div class="om-err" id="fm-err"></div></div>
+      <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="fm-ok">Salvar</button></div>`);
+    bx.querySelector('#fm-ok').addEventListener('click', async ()=>{
+      const nome = bx.querySelector('#fm-nome').value.trim(); if(!nome){ bx.querySelector('#fm-err').textContent = 'Informe o nome.'; return; }
+      const row = { pessoa_id:p.id, parentesco:bx.querySelector('#fm-par').value, nome, data_nascimento:bx.querySelector('#fm-nasc').value||null, herdeiro:bx.querySelector('#fm-her').checked, observacao:bx.querySelector('#fm-obs').value.trim()||null };
+      const { error } = f ? await sb.from('crm_familiares').update(row).eq('id', f.id) : await sb.from('crm_familiares').insert(row);
+      if(error){ bx.querySelector('#fm-err').textContent = 'Erro: '+error.message; return; } dlgClose(); showToast('Família atualizada'); pvFamiliaCard(p); });
+  };
+  box.querySelector('#fam-add').addEventListener('click', ()=>abre(null));
+  box.querySelectorAll('[data-fam-ed]').forEach(b=>b.addEventListener('click', ()=>abre(lista.find(x=>x.id===b.dataset.famEd))));
+  box.querySelectorAll('[data-fam-del]').forEach(b=>b.addEventListener('click', async ()=>{ if(!confirm('Excluir este familiar?')) return; const { error } = await sb.from('crm_familiares').delete().eq('id', b.dataset.famDel); if(error){ showToast('Erro: '+error.message); return; } pvFamiliaCard(p); }));
+}
 async function pvRedesCard(p){
   const host = document.getElementById('pv-redes'); if(!host) return;
   const [{ count }, { data: redes }, { data: intel }] = await Promise.all([
@@ -7229,7 +7270,8 @@ function impStatus(v){ const t = String(v||'').toLowerCase(); if(/cancel/.test(t
 let IMP = null;
 document.getElementById('ca-import').addEventListener('click', ()=>{
   const box = dlgOpen(`<div class="om-title"><div><h3>Importar apólices de uma planilha</h3><div class="om-sub">CSV ou Excel (.xlsx). A primeira linha deve ter os títulos das colunas. O sistema cruza cada linha com os clientes já cadastrados (CPF e nome) para não duplicar.</div></div><button data-close>✕</button></div>
-    <div class="dlg-body"><div class="dz" id="imp-dz">Arraste a planilha (Excel/CSV) aqui ou clique para escolher — PDF de apólices/certificados também funciona<input type="file" id="imp-file" accept=".csv,.xlsx,.xls" hidden></div><div id="imp-step"></div></div>`, true);
+    <div class="dlg-body"><div class="hint" style="margin:0 0 10px">Sua planilha tem <b>clientes</b> com poucos dados da apólice (seguradora, tipo, vencimento)? Use <a href="#" id="imp-ir-cli">Importar clientes e apólices</a>: ela também cria os avisos de renovação.</div><div class="dz" id="imp-dz">Arraste a planilha (Excel/CSV) aqui ou clique para escolher — PDF de apólices/certificados também funciona<input type="file" id="imp-file" accept=".csv,.xlsx,.xls" hidden></div><div id="imp-step"></div></div>`, true);
+  box.querySelector('#imp-ir-cli').addEventListener('click', e=>{ e.preventDefault(); dlgClose(); const b = document.getElementById('op-import'); if(b) b.click(); });
   const dz = box.querySelector('#imp-dz'), inp = box.querySelector('#imp-file');
   dz.addEventListener('click', ()=>inp.click()); dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); }); dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
   dz.addEventListener('drop', e=>{ e.preventDefault(); impLoad(e.dataTransfer.files[0]); }); inp.addEventListener('change', ()=>impLoad(inp.files[0]));
@@ -8603,13 +8645,14 @@ function opFillTagFilter(){
 
 // ---- importar contatos em massa (Excel/CSV) ----
 const CT_FIELDS = [
-  ['nome','Nome *',/^nome|^cliente|^contato/i],['sobrenome','Sobrenome',/sobrenome/i],['cpf','CPF',/cpf/i],['data_nascimento','Data de nascimento',/nasc/i],['sexo','Gênero',/g[êe]nero|sexo/i],
+  ['nome','Nome *',/^nome|^cliente|^contato|^first name|^given name|^name$/i],['sobrenome','Sobrenome',/sobrenome|^last name|^family name/i],['cpf','CPF',/cpf/i],['data_nascimento','Data de nascimento',/nasc|birthday|anivers/i],['sexo','Gênero',/g[êe]nero|sexo/i],
   ['profissao','Profissão',/profiss/i],['crm','CRM',/^crm/i],['especialidade','Especialidade',/especial/i],['regime_trabalho','Regime de trabalho',/regime/i],
-  ['telefone','Telefone',/telefone|celular|whats|fone/i],['email','E-mail',/e-?mail/i],['cep','CEP',/^cep/i],['logradouro','Logradouro',/logradouro|rua|endere[çc]o/i],['numero','Número',/^n[úu]mero|^n[ºo]$/i],
+  ['telefone','Telefone',/telefone|celular|whats|fone|phone/i],['email','E-mail',/e-?mail/i],['cep','CEP',/^cep/i],['logradouro','Logradouro',/logradouro|rua|endere[çc]o/i],['numero','Número (endereço)',/^n[úu]mero$|^n[ºo]$|^n[úu]mero (do )?(endere|resid)/i],
   ['complemento','Complemento',/complemento/i],['bairro','Bairro',/bairro/i],['cidade','Cidade',/cidade|munic/i],['uf','Estado (UF)',/^estado|^uf$/i],
   ['origem','Origem',/^origem/i],['quem_indicou','Quem indicou',/indic/i],['campanha','Campanha',/campanha/i],['parceiro','Parceiro',/parceiro/i],['observacoes','Observação',/observa/i],
-  ['classificacao','Classificação (Frio/Quente/Call Hot)',/classifica|temperatura/i],['tags','Tags (separadas por ; ou ,)',/tag/i]];
-const CT_TEMPLATE_HEADS = ['Nome*','Sobrenome','CPF','Data de nascimento','Gênero','Profissão','CRM','Especialidade','Regime de trabalho','Telefone','E-mail','CEP','Logradouro','Número','Complemento','Bairro','Cidade','Estado','Origem','Quem indicou','Campanha','Parceiro','Observação','Classificação','Tags'];
+  ['classificacao','Classificação (Frio/Quente/Call Hot)',/classifica|temperatura/i],['tags','Tags (separadas por ; ou ,)',/tag/i],
+  ['seguradora','Seguradora',/seguradora|companhia|^cia\b/i],['tipo_seguro','Tipo de apólice / seguro',/tipo.*(ap[óo]lice|seguro)|^produto|^ramo|^seguro$/i],['numero_apolice','Nº da apólice',/n[úu]mero.*ap[óo]lice|n[ºo].*ap[óo]lice|^ap[óo]lice$/i],['vencimento','Vencimento da apólice',/vencimento|renova[çc][ãa]o|fim.*vig/i]];
+const CT_TEMPLATE_HEADS = ['Nome*','Sobrenome','CPF','Data de nascimento','Gênero','Profissão','CRM','Especialidade','Regime de trabalho','Telefone','E-mail','CEP','Logradouro','Número','Complemento','Bairro','Cidade','Estado','Origem','Quem indicou','Campanha','Parceiro','Observação','Classificação','Tags','Seguradora','Tipo de apólice','Nº da apólice','Vencimento da apólice'];
 // ---- exportar contatos filtrados (Aliança), com colunas escolhidas ----
 const OP_EXPORT_COLS = [
   ['nome','Nome', p=>p.nome], ['cpf','CPF', p=>p.cpf?fmtCPF(p.cpf):''], ['telefone','Telefone', p=>p.telefone||''], ['email','E-mail', p=>p.email||''],
@@ -8636,15 +8679,26 @@ document.getElementById('op-export-contatos').addEventListener('click', ()=>{
 });
 let CT = null;
 document.getElementById('op-import').addEventListener('click', ()=>{
-  const box = dlgOpen(`<div class="om-title"><div><h3>Importar contatos em massa</h3><div class="om-sub">Excel (.xlsx) ou CSV. Só o nome é obrigatório; colunas que você não tiver podem ficar de fora. O sistema cruza cada linha com o cadastro (CPF, CRM e nome) para não duplicar.</div></div><button data-close>✕</button></div>
-    <div class="dlg-body"><div style="margin-bottom:10px"><button class="om-cancel" id="ct-modelo">Baixar modelo de planilha (Excel)</button></div>
-    <div class="dz" id="ct-dz">Arraste a planilha aqui ou clique para escolher<input type="file" id="ct-file" accept=".csv,.xlsx,.xls,.pdf" hidden></div><div id="ct-step"></div></div>`, true);
+  const box = dlgOpen(`<div class="om-title"><div><h3>Importar clientes e apólices</h3><div class="om-sub">Excel (.xlsx) ou CSV. Só o nome é obrigatório; colunas que você não tiver podem ficar de fora. O sistema cruza cada linha com o cadastro pelo CPF e, sem CPF, pelo telefone (também CRM e nome idêntico) e atualiza em vez de duplicar. Se a linha trouxer a apólice (seguradora, tipo, vencimento), ela é criada e os avisos de renovação de 30, 15 e 7 dias saem sozinhos.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="sg-row" style="margin-bottom:10px"><button class="om-save" id="ct-t-pl" type="button">📄 Planilha de clientes</button><button class="om-cancel" id="ct-t-cel" type="button">📱 Contatos do celular (WhatsApp)</button></div>
+    <div id="ct-pl"><div style="margin-bottom:10px"><button class="om-cancel" id="ct-modelo">Baixar modelo de planilha (Excel)</button></div>
+      <div class="hint" style="margin:0 0 10px">Sua planilha é só de <b>apólices</b>, com prêmio, capital, comissão ou vendedor? Use <a href="#" id="ct-ir-apo">Importar apólices (Central de Apólices)</a>.</div></div>
+    <div id="ct-guia" hidden class="es-box" style="margin:0 0 10px"><div class="ql">Como exportar os contatos do celular</div>
+      <div style="font-size:12.5px;line-height:1.55"><b>O WhatsApp não deixa ler a sua lista direto.</b> Ele usa os contatos do celular, então o caminho é exportar o arquivo de contatos (.vcf) ou o CSV do Google e enviar aqui.<br>
+      <b>Android:</b> abra o app <b>Contatos</b> › menu (≡ ou ⋮) › <b>Corrigir e gerenciar</b> ou <b>Gerenciar contatos</b> › <b>Exportar</b> › salvar como arquivo <b>.vcf</b>. Os nomes dos menus mudam por marca. Se os contatos estão no Google, no computador entre em <b>contacts.google.com</b> › <b>Exportar</b> › <b>Google CSV</b> ou vCard.<br>
+      <b>iPhone:</b> o app Contatos não exporta arquivo. No computador, entre em <b>icloud.com</b> › <b>Contatos</b> › selecione todos (Ctrl+A) › ícone de engrenagem › <b>Exportar vCard</b>. Se os contatos estão no Gmail, use o caminho do Google acima.<br>
+      <b>O que entra:</b> só nome, telefone, e-mail, aniversário e empresa. Como o arquivo traz também amigos e família, <b>confira a prévia</b> antes de importar. Os novos entram como leads, com origem <b>WhatsApp/contatos</b>.</div></div>
+    <div class="dz" id="ct-dz">Arraste o arquivo aqui ou clique para escolher<input type="file" id="ct-file" accept=".csv,.xlsx,.xls,.pdf,.vcf,text/vcard,text/x-vcard" hidden></div><div id="ct-step"></div></div>`, true);
+  window.CT_MODE = 'planilha';
+  const aba = m=>{ window.CT_MODE = m; box.querySelector('#ct-guia').hidden = m!=='celular'; box.querySelector('#ct-pl').hidden = m==='celular'; box.querySelector('#ct-t-pl').className = m==='celular' ? 'om-cancel' : 'om-save'; box.querySelector('#ct-t-cel').className = m==='celular' ? 'om-save' : 'om-cancel'; };
+  box.querySelector('#ct-ir-apo').addEventListener('click', e=>{ e.preventDefault(); dlgClose(); const b = document.getElementById('ca-import'); if(b) b.click(); });
+  box.querySelector('#ct-t-pl').addEventListener('click', ()=>aba('planilha')); box.querySelector('#ct-t-cel').addEventListener('click', ()=>aba('celular'));
   const dz = box.querySelector('#ct-dz'), inp = box.querySelector('#ct-file');
   dz.addEventListener('click', ()=>inp.click()); dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); }); dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
   dz.addEventListener('drop', e=>{ e.preventDefault(); ctLoad(e.dataTransfer.files[0]); }); inp.addEventListener('change', ()=>ctLoad(inp.files[0]));
   box.querySelector('#ct-modelo').addEventListener('click', async ()=>{
     try{ await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
-      const ws = XLSX.utils.aoa_to_sheet([CT_TEMPLATE_HEADS, ['Maria','Souza Lima','529.982.247-25','12/03/1985','Feminino','Médica','123456','Anestesiologia','CLT','(11) 98765-4321','maria@exemplo.com','01310-100','Av. Paulista','1000','Sala 12','Bela Vista','São Paulo','SP','Indicação','Carla','Lançamento Set/26','','Pediu retorno após dia 15','Quente','Contato; Atendimento']]);
+      const ws = XLSX.utils.aoa_to_sheet([CT_TEMPLATE_HEADS, ['Maria','Souza Lima','529.982.247-25','12/03/1985','Feminino','Médica','123456','Anestesiologia','CLT','(11) 98765-4321','maria@exemplo.com','01310-100','Av. Paulista','1000','Sala 12','Bela Vista','São Paulo','SP','Indicação','Carla','Lançamento Set/26','','Pediu retorno após dia 15','Quente','Contato; Atendimento','Porto Seguro','Vida','123456','31/12/2026']]);
       ws['!cols'] = CT_TEMPLATE_HEADS.map(h=>({wch:Math.max(14,h.length+4)}));
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Contatos'); XLSX.writeFile(wb, 'modelo-contatos-callmed.xlsx');
     }catch(e){ showToast('Não consegui gerar o modelo: '+e.message); }
@@ -8654,77 +8708,179 @@ async function ctLoad(file){
   if(!file) return;
   if(/\.pdf$/i.test(file.name) || file.type==='application/pdf'){ dlgClose(); showToast('PDF: usando a leitura da Central de Apólices (identifica as pessoas, cruza com o cadastro e cria as apólices).'); caEnqueue([file]); return; } const step = document.getElementById('ct-step'); step.innerHTML = '<div class="op-more">Lendo planilha...</div>';
   try{
-    let rows;
-    if(/\.xlsx?$/i.test(file.name)){ await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    let rows, vcf = false;
+    if(/\.vcf$/i.test(file.name) || /vcard/i.test(file.type)){ rows = ctParseVcf(await file.text()); vcf = true; }
+    else if(/\.xlsx?$/i.test(file.name)){ await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
       const wb = XLSX.read(await file.arrayBuffer(), {type:'array'}); rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, raw:false, dateNF:'dd/mm/yyyy', defval:''}); }
     else rows = impCsv(await file.text());
     rows = rows.filter(r=>r.some(x=>String(x).trim()!==''));
-    if(rows.length<2) throw new Error('A planilha precisa ter os títulos na primeira linha e ao menos um contato.');
+    if(rows.length<2) throw new Error(vcf ? 'Não encontrei contatos com nome neste arquivo .vcf.' : 'A planilha precisa ter os títulos na primeira linha e ao menos um contato.');
     const heads = rows[0].map(h=>String(h||'').replace(/\*/g,'').trim());
-    CT = { file:file.name, heads, rows:rows.slice(1), map:{} };
+    const google = heads.some(h=>/^(first name|last name|phone 1 - value|e-?mail 1 - value|telefone 1 - valor)$/i.test(h));
+    CT = { file:file.name, heads, rows:rows.slice(1), map:{}, mode: (vcf || google || window.CT_MODE==='celular') ? 'celular' : 'planilha' };
     const used = new Set();
-    CT_FIELDS.forEach(([k,,re])=>{ const i = heads.findIndex((h,ix)=>!used.has(ix) && re.test(h)); CT.map[k] = i; if(i>=0) used.add(i); });
+    CT_FIELDS.forEach(([k,,re])=>{ const i = heads.findIndex((h,ix)=>!used.has(ix) && re.test(h) && !/label|r[óo]tulo/i.test(h)); CT.map[k] = i; if(i>=0) used.add(i); });
     step.innerHTML = `<div class="hint">Arquivo: <b>${escapeHtml(file.name)}</b> — ${CT.rows.length} linhas. Confira as colunas (o que não tiver, deixe “não importar”):</div>
       <div class="fgrid" style="margin-top:10px">${CT_FIELDS.map(([k,l])=>`<label class="fl"><span>${l}</span><select data-ct="${k}"><option value="-1">— não importar —</option>${heads.map((h,i)=>`<option value="${i}" ${CT.map[k]===i?'selected':''}>${escapeHtml(h||('coluna '+(i+1)))}</option>`).join('')}</select></label>`).join('')}
-      <label class="fl"><span>Perfil dos contatos novos</span><select id="ct-tipo">${tipoOptions('medico')}</select></label></div>
+      <label class="fl"><span>Perfil dos contatos novos</span><select id="ct-tipo">${tipoOptions(CT.mode==='celular'?'outro':'medico')}</select></label></div>${CT.mode==='celular'?'<div class="hint" style="margin-top:6px">Contatos do celular: os novos entram como leads com origem <b>WhatsApp/contatos</b> e a tag <b>whatsapp-contatos</b>.</div>':''}
       <label class="chk" style="margin-top:10px"><input type="checkbox" id="ct-upd" checked> Contato já existente: preencher só os campos que estão vazios no cadastro (recomendado)</label>
       <div style="margin-top:12px"><button class="om-save" id="ct-prev">Conferir antes de importar</button></div><div id="ct-result"></div>`;
     step.querySelector('#ct-prev').addEventListener('click', ctPreview);
   }catch(e){ step.innerHTML = '<div class="om-err">Erro: '+escapeHtml(e.message||e)+'</div>'; }
 }
+function ctTipoSeguro(t){
+  const x = String(t||'').trim(); if(!x) return '';
+  const n = x.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+  if(/grupo|coletiv/.test(n) && /vida/.test(n)) return 'Vida em grupo';
+  if(/vida/.test(n)) return 'Vida'; if(/saude|plano de saude/.test(n)) return 'Saúde'; if(/\brc\b|responsabilidade/.test(n)) return 'RC Profissional';
+  if(/odont/.test(n)) return 'Odontológico'; if(/previd/.test(n)) return 'Previdência'; if(/autom|carro|veicul/.test(n)) return 'Automóvel'; if(/resid/.test(n)) return 'Residencial';
+  if(/consorc/.test(n)) return 'Consórcio'; if(/\bdit\b|renda/.test(n)) return 'DIT / renda'; if(/empres|patrimon/.test(n)) return 'Patrimonial / Empresarial'; if(/prestamista/.test(n)) return 'Prestamista'; if(/d&o|d ?e ?o\b/.test(n)) return 'D&O';
+  return x;
+}
+// telefone do contato do celular: só dígitos, sem 55, vários números no mesmo campo viram o primeiro
+function ctFone(v){
+  const primeiro = String(v||'').split(/:::|;|\/|,| ou /i).map(x=>x.trim()).filter(Boolean);
+  for(const x of primeiro){ let d = dOnly(x); if(d.length>=12 && d.startsWith('55')) d = d.slice(2); if(d.length>=10 && d.length<=11) return d; if(d.length===8 || d.length===9) return d; }
+  return '';
+}
+// vCard (.vcf) do Android, do iPhone/iCloud e do Google Contatos: versões 2.1, 3.0 e 4.0, com acentos em UTF-8 ou quoted-printable
+function ctParseVcf(text){
+  const bruto = String(text||'').replace(/\r\n?/g,'\n').split('\n'), linhas = [];
+  for(let i=0;i<bruto.length;i++){ let l = bruto[i];
+    if(/ENCODING=QUOTED-PRINTABLE/i.test(l)){ while(/=$/.test(l) && i+1<bruto.length){ l = l.slice(0,-1)+bruto[++i]; } linhas.push(l); continue; }
+    if(/^[ \t]/.test(l) && linhas.length){ linhas[linhas.length-1] += l.slice(1); continue; }
+    linhas.push(l); }
+  const qp = v=>{ try{ const b = []; v.replace(/=([0-9A-F]{2})|([^=])/gi, (m,h,c)=>{ if(h) b.push(parseInt(h,16)); else for(const ch of new TextEncoder().encode(c)) b.push(ch); return ''; }); return new TextDecoder('utf-8').decode(new Uint8Array(b)); }catch(e){ return v; } };
+  const val = l=>{ const i = l.indexOf(':'); const par = l.slice(0,i), v = l.slice(i+1); return { par, v: (/QUOTED-PRINTABLE/i.test(par) ? qp(v) : v).replace(/\\n/gi,' ').replace(/\\([,;\\])/g,'$1').trim() }; };
+  const rows = [['Nome','Telefone','E-mail','Data de nascimento','Observação']]; let c = null;
+  const fecha = ()=>{ if(!c) return; let nome = c.fn || [c.n[1], c.n[0]].filter(Boolean).join(' ').trim(); nome = nome.replace(/\s+/g,' ').trim();
+    const cel = c.tels.find(t=>/CELL|MOBILE|IPHONE|WHATSAPP/i.test(t.par)) || c.tels[0];
+    if(nome) rows.push([nome, cel ? cel.v : '', c.emails[0]||'', c.bday||'', c.org ? 'Empresa: '+c.org : '']); c = null; };
+  for(const l of linhas){ const u = l.toUpperCase();
+    if(u.startsWith('BEGIN:VCARD')){ c = {fn:'', n:['',''], tels:[], emails:[], bday:'', org:''}; continue; }
+    if(u.startsWith('END:VCARD')){ fecha(); continue; } if(!c) continue;
+    const nome = u.replace(/^ITEM\d+\./,'').split(/[;:]/)[0];
+    if(nome==='FN'){ c.fn = val(l).v; } else if(nome==='N'){ const p = val(l).v.split(';'); c.n = [p[0]||'', p[1]||'']; }
+    else if(nome==='TEL'){ const x = val(l); if(x.v) c.tels.push(x); } else if(nome==='EMAIL'){ const x = val(l); if(x.v) c.emails.push(x.v); }
+    else if(nome==='BDAY'){ const x = val(l).v.replace(/-/g,''); if(/^\d{8}/.test(x)) c.bday = x.slice(6,8)+'/'+x.slice(4,6)+'/'+x.slice(0,4); }
+    else if(nome==='ORG'){ c.org = val(l).v.split(';').filter(Boolean).join(' · '); } }
+  return rows;
+}
 function ctNormRow(r){
   const c = (k)=> CT.map[k]>=0 ? String(r[CT.map[k]]||'').trim() : '';
-  const o = {}; CT_FIELDS.forEach(([k])=>{ const v = c(k); if(v) o[k] = v; });
-  if(o.sobrenome){ o.nome = ((o.nome||'')+' '+o.sobrenome).trim(); } delete o.sobrenome;
-  if(o.data_nascimento){ const d = impDate(o.data_nascimento); if(d) o.data_nascimento = d; else delete o.data_nascimento; }
+  const o = {}, avisos = []; CT_FIELDS.forEach(([k])=>{ const v = c(k); if(v) o[k] = v; });
+  if(o.sobrenome){ if(!(o.nome||'').toLowerCase().endsWith(o.sobrenome.toLowerCase())) o.nome = ((o.nome||'')+' '+o.sobrenome).trim(); } delete o.sobrenome;
+  if(o.telefone && CT.mode==='celular'){ o.telefone = ctFone(o.telefone); if(!o.telefone) delete o.telefone; }
+  if(CT.mode==='celular'){ if(!o.origem) o.origem = 'WhatsApp/contatos'; o.tags = [...new Set([...(o.tags||[]), 'whatsapp-contatos'])]; if(!o.telefone && !o.email) avisos.push('contato sem telefone nem e-mail'); }
+  if(o.cpf){ const d = dOnly(o.cpf); if(d.length===11) o.cpf = d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/,'$1.$2.$3-$4'); else { avisos.push('CPF inválido ('+o.cpf+'): ignorado'); delete o.cpf; } }
+  if(o.data_nascimento){ const d = impDate(o.data_nascimento); if(d) o.data_nascimento = d; else { avisos.push('data de nascimento inválida: ignorada'); delete o.data_nascimento; } }
   if(o.sexo){ o.sexo = /^f/i.test(o.sexo) ? 'F' : (/^m/i.test(o.sexo) ? 'M' : null); if(!o.sexo) delete o.sexo; }
   if(o.classificacao){ const t = o.classificacao.toLowerCase(); o.classificacao = /hot/.test(t) ? 'call_hot' : (/quente/.test(t) ? 'quente' : (/frio/.test(t) ? 'frio' : null)); if(!o.classificacao) delete o.classificacao; }
   if(o.tags){ o.tags = o.tags.split(/[;,]/).map(x=>x.trim()).filter(Boolean); }
   if(o.uf) o.uf = o.uf.toUpperCase().slice(0,2);
-  return o;
+  // apólice (opcional): sai de dentro do cadastro da pessoa
+  const apo = {}; ['seguradora','tipo_seguro','numero_apolice','vencimento'].forEach(k=>{ if(o[k]){ apo[k] = o[k]; } delete o[k]; });
+  if(apo.tipo_seguro) apo.tipo_seguro = ctTipoSeguro(apo.tipo_seguro);
+  if(apo.vencimento){ const d = impDate(apo.vencimento); if(d) apo.vencimento = d; else { avisos.push('vencimento inválido ('+apo.vencimento+'): apólice sem vencimento, sem avisos de renovação'); delete apo.vencimento; } }
+  const temApo = Object.keys(apo).length>0;
+  if(temApo && !apo.vencimento && !avisos.some(a=>/vencimento inválido/.test(a))) avisos.push('apólice sem vencimento: não gera avisos de renovação');
+  return {o, apo: temApo ? apo : null, avisos};
 }
 async function ctPreview(){
   document.querySelectorAll('[data-ct]').forEach(s=>{ CT.map[s.dataset.ct] = parseInt(s.value,10); });
   const res = document.getElementById('ct-result');
   if(CT.map.nome<0){ res.innerHTML = '<div class="om-err">Indique qual coluna é o nome.</div>'; return; }
   res.innerHTML = '<div class="op-more">Cruzando com os cadastros...</div>'; await ensurePessoas();
-  const novos = [], existentes = [], revisar = [], semNome = []; const seenKey = new Set();
-  for(const r of CT.rows){
-    const o = ctNormRow(r); if(!o.nome){ semNome.push(r); continue; }
+  const novos = [], existentes = [], revisar = [], problemas = [], leves = []; const seenKey = new Set();
+  for(let li=0; li<CT.rows.length; li++){
+    const r = CT.rows[li], linha = li+2, n = ctNormRow(r), o = n.o;
+    if(!o.nome){ problemas.push({linha, nome:'', motivo:'linha sem nome', raw:r}); continue; }
+    n.avisos.forEach(a=>leves.push({linha, nome:o.nome, motivo:a}));
+    const temCpf = !!o.cpf, tel = dOnly(o.telefone).slice(-9);
     const found = await findPessoas({cpf:o.cpf, crm:o.crm, nome:o.nome, telefone:o.telefone});
-    const forte = found.find(isStrong), fraco = found.find(x=>!isStrong(x));
-    const key = (dOnly(o.cpf).length===11 ? dOnly(o.cpf) : normNome(o.nome).join(' '));
-    if(seenKey.has(key)){ continue; } seenKey.add(key);
-    if(forte) existentes.push({o, id:forte.id, nome:forte.nome}); else if(fraco) revisar.push({o, fraco}); else novos.push(o);
+    let forte = found.find(isStrong), via = forte ? forte.why : '';
+    // sem CPF na linha: o telefone normalizado também identifica a pessoa
+    if(!forte && !temCpf && tel.length>=8){ const t = found.find(x=>x.why==='telefone igual'); if(t){ forte = t; via = 'telefone'; } }
+    const fraco = !forte ? found.find(x=>x.why==='nome semelhante') : null;
+    const key = temCpf ? dOnly(o.cpf) : (tel.length>=8 ? 'tel'+tel : normNome(o.nome).join(' '));
+    if(seenKey.has(key)){ problemas.push({linha, nome:o.nome, motivo:'repetida na própria planilha (mesmo '+(temCpf?'CPF':(tel.length>=8?'telefone':'nome'))+')', raw:r}); continue; } seenKey.add(key);
+    if(forte) existentes.push({o, apo:n.apo, id:forte.id, nome:forte.nome, via, linha});
+    else if(fraco){ revisar.push({o, fraco, linha}); problemas.push({linha, nome:o.nome, motivo:'nome parecido com um cadastro existente ('+fraco.nome+'): revise e importe à mão', raw:r}); }
+    else novos.push({o, apo:n.apo, linha});
   }
-  CT.novos = novos; CT.existentes = existentes;
-  res.innerHTML = `<div class="reco" style="margin-top:12px"><b>Resultado da conferência</b><br>• <b>${novos.length}</b> contato(s) novo(s) serão cadastrados<br>• ${existentes.length} já existem (CPF/CRM/nome idêntico) — ${document.getElementById('ct-upd').checked?'serão completados nos campos vazios':'serão ignorados'}${revisar.length?`<br>• <b>${revisar.length}</b> com nome parecido ou telefone igual a outro cadastro — <b>ficam de fora</b> para você revisar: ${revisar.slice(0,6).map(x=>escapeHtml(x.o.nome)+' ≈ '+escapeHtml(x.fraco.nome)).join('; ')}${revisar.length>6?'…':''}`:''}${semNome.length?`<br>• ${semNome.length} linha(s) sem nome (ignoradas)`:''}</div>
+  CT.novos = novos; CT.existentes = existentes; CT.problemas = problemas; CT.leves = leves; CT.revisar = revisar;
+  const nApo = [...novos, ...existentes].filter(x=>x.apo).length;
+  const amostra = [...novos.slice(0,6).map(x=>({...x, st:'novo'})), ...existentes.slice(0,6).map(x=>({...x, st:'atualiza ('+x.via+')'}))];
+  res.innerHTML = `<div class="reco" style="margin-top:12px"><b>Prévia: nada foi gravado ainda</b><br>• <b>${novos.length}</b> cliente(s) novo(s)<br>• <b>${existentes.length}</b> já existem: serão atualizados (${document.getElementById('ct-upd').checked?'só campos vazios':'ignorados'})<br>• <b>${nApo}</b> linha(s) com apólice<br>• <b>${problemas.length}</b> com problema (ficam de fora)${leves.length?`<br>• ${leves.length} aviso(s) leve(s) (a linha entra, o dado ruim é ignorado)`:''}</div>
+    ${amostra.length?`<div class="orc-wrap" style="margin-top:10px;max-height:200px;overflow:auto"><table class="ca-table"><thead><tr><th>Linha</th><th>Nome</th><th>CPF</th><th>Telefone</th><th>Apólice</th><th>O que acontece</th></tr></thead><tbody>${amostra.map(x=>`<tr><td>${x.linha}</td><td>${escapeHtml(x.o.nome)}</td><td>${escapeHtml(x.o.cpf||'—')}</td><td>${escapeHtml(x.o.telefone||'—')}</td><td>${x.apo?escapeHtml([x.apo.tipo_seguro,x.apo.seguradora,x.apo.vencimento?'vence '+fmtDate(x.apo.vencimento):''].filter(Boolean).join(' · ')||'—'):'—'}</td><td>${escapeHtml(x.st)}</td></tr>`).join('')}</tbody></table></div><div class="hint">Mostrando as primeiras linhas.</div>`:''}
+    ${problemas.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Ver os ${problemas.length} problema(s)</summary><ul style="margin:6px 0 0 18px;font-size:12.5px">${problemas.slice(0,15).map(x=>`<li>Linha ${x.linha}${x.nome?' ('+escapeHtml(x.nome)+')':''}: ${escapeHtml(x.motivo)}</li>`).join('')}${problemas.length>15?`<li>… e mais ${problemas.length-15}</li>`:''}</ul></details>`:''}
     ${(novos.length||existentes.length)?`<div style="margin-top:10px"><button class="om-save" id="ct-go">Importar agora</button></div>`:''}<div class="om-err" id="ct-err"></div>`;
   const go = document.getElementById('ct-go'); if(go) go.addEventListener('click', ctRun);
 }
+function ctCsvProblemas(lista){
+  const esc = v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const linhas = [['Linha da planilha','Nome','Motivo',...CT.heads].map(esc).join(';')].concat(lista.map(x=>[x.linha,x.nome,x.motivo,...(x.raw||[])].map(esc).join(';')));
+  return '﻿'+linhas.join('\r\n');
+}
 async function ctRun(){
   const btn = document.getElementById('ct-go'), err = document.getElementById('ct-err'); btn.disabled = true;
+  const rel = { novos:0, atualizados:0, apoNovas:0, apoAtualizadas:0, avisos:0, problemas:[...CT.problemas], leves:[...CT.leves] };
   try{
     const tipo = document.getElementById('ct-tipo').value, upd = document.getElementById('ct-upd').checked;
     const COLS = 'id,nome,crm,especialidade,tipo,cpf,telefone,tags,classificacao,proxima_acao,proxima_data,proximo_responsavel,data_nascimento,datas_relevantes,total_pago_plantoes_2026';
+    const comApolice = []; // {pessoa_id, apo, linha, nome}
     for(let i=0;i<CT.novos.length;i+=100){
       btn.textContent = `Cadastrando ${Math.min(i+100,CT.novos.length)}/${CT.novos.length}...`;
-      const chunk = CT.novos.slice(i,i+100).map(o=>({...o, tipo}));
-      const { data, error } = await sb.from('crm_pessoas').insert(chunk).select(COLS); if(error) throw error; data.forEach(d=>OP.pessoas.push(d));
+      const chunk = CT.novos.slice(i,i+100);
+      let { data, error } = await sb.from('crm_pessoas').insert(chunk.map(x=>({...x.o, tipo}))).select(COLS);
+      if(!error){ data.forEach((d,j)=>{ OP.pessoas.push(d); rel.novos++; if(chunk[j].apo) comApolice.push({pessoa_id:d.id, apo:chunk[j].apo, linha:chunk[j].linha, nome:d.nome}); }); continue; }
+      // o lote falhou: tenta uma a uma para saber exatamente quais linhas têm problema
+      for(const x of chunk){ const r1 = await sb.from('crm_pessoas').insert({...x.o, tipo}).select(COLS).single();
+        if(r1.error) rel.problemas.push({linha:x.linha, nome:x.o.nome, motivo:'não foi possível cadastrar: '+r1.error.message, raw:CT.rows[x.linha-2]});
+        else { OP.pessoas.push(r1.data); rel.novos++; if(x.apo) comApolice.push({pessoa_id:r1.data.id, apo:x.apo, linha:x.linha, nome:r1.data.nome}); } }
     }
-    let atualizados = 0;
-    if(upd){
-      for(let i=0;i<CT.existentes.length;i++){
-        const {o, id} = CT.existentes[i]; const cur = OP.pessoas.find(p=>p.id===id)||{};
-        const { data: full } = await sb.from('crm_pessoas').select('*').eq('id', id).single(); if(!full) continue;
-        const patch = {}; Object.keys(o).forEach(k=>{ if(k==='nome'||k==='tags') return; if(full[k]===null || full[k]===undefined || full[k]==='') patch[k] = o[k]; });
-        if(o.tags && o.tags.length){ const merged = [...new Set([...(full.tags||[]), ...o.tags])]; if(merged.length!==(full.tags||[]).length) patch.tags = merged; }
-        if(Object.keys(patch).length){ btn.textContent = `Completando cadastros ${i+1}/${CT.existentes.length}...`; const { error } = await sb.from('crm_pessoas').update(patch).eq('id', id); if(!error){ atualizados++; Object.assign(cur, patch); } }
+    for(let i=0;i<CT.existentes.length;i++){
+      const {o, id, apo, linha, nome} = CT.existentes[i];
+      if(apo) comApolice.push({pessoa_id:id, apo, linha, nome});
+      if(!upd) continue;
+      const cur = OP.pessoas.find(p=>p.id===id)||{};
+      const { data: full } = await sb.from('crm_pessoas').select('*').eq('id', id).single(); if(!full) continue;
+      const patch = {}; Object.keys(o).forEach(k=>{ if(k==='nome'||k==='tags') return; if(full[k]===null || full[k]===undefined || full[k]==='') patch[k] = o[k]; });
+      if(o.tags && o.tags.length){ const merged = [...new Set([...(full.tags||[]), ...o.tags])]; if(merged.length!==(full.tags||[]).length) patch.tags = merged; }
+      if(Object.keys(patch).length){ btn.textContent = `Atualizando cadastros ${i+1}/${CT.existentes.length}...`; const { error } = await sb.from('crm_pessoas').update(patch).eq('id', id);
+        if(error) rel.problemas.push({linha, nome, motivo:'não foi possível atualizar: '+error.message, raw:CT.rows[linha-2]}); else { rel.atualizados++; Object.assign(cur, patch); } }
+    }
+    // apólices: atualiza a que já existe (nº da apólice, ou mesma seguradora + tipo + vencimento) e cria as que faltam
+    if(comApolice.length){
+      btn.textContent = 'Gravando apólices...';
+      const ids = [...new Set(comApolice.map(x=>x.pessoa_id))], jaTem = new Map();
+      for(let i=0;i<ids.length;i+=100){ const { data } = await sb.from('crm_apolices').select('id,pessoa_id,numero_apolice,seguradora,tipo_seguro,data_vencimento,status').in('pessoa_id', ids.slice(i,i+100)); (data||[]).forEach(a=>{ if(!jaTem.has(a.pessoa_id)) jaTem.set(a.pessoa_id,[]); jaTem.get(a.pessoa_id).push(a); }); }
+      const nz = v=>String(v||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+      const hoje = ymdToday();
+      for(const x of comApolice){
+        const a = x.apo, lista = jaTem.get(x.pessoa_id)||[];
+        const ex = lista.find(e=> (a.numero_apolice && nz(e.numero_apolice)===nz(a.numero_apolice)) || (nz(e.seguradora)===nz(a.seguradora) && nz(e.tipo_seguro)===nz(a.tipo_seguro) && String(e.data_vencimento||'').slice(0,10)===(a.vencimento||'') && (a.seguradora||a.tipo_seguro)) );
+        if(ex){
+          const patch = {}; if(!ex.numero_apolice && a.numero_apolice) patch.numero_apolice = a.numero_apolice; if(!ex.seguradora && a.seguradora) patch.seguradora = a.seguradora; if(!ex.tipo_seguro && a.tipo_seguro) patch.tipo_seguro = a.tipo_seguro; if(!ex.data_vencimento && a.vencimento) patch.data_vencimento = a.vencimento;
+          if(Object.keys(patch).length){ const { error } = await sb.from('crm_apolices').update(patch).eq('id', ex.id); if(error) rel.problemas.push({linha:x.linha, nome:x.nome, motivo:'apólice não atualizada: '+error.message, raw:CT.rows[x.linha-2]}); else rel.apoAtualizadas++; }
+          continue; }
+        const status = a.vencimento && a.vencimento < hoje ? 'encerrada' : 'ativa';
+        const { error } = await sb.from('crm_apolices').insert({ pessoa_id:x.pessoa_id, numero_apolice:a.numero_apolice||null, seguradora:a.seguradora||null, tipo_seguro:a.tipo_seguro||null, data_vencimento:a.vencimento||null, status, origem_apolice:'importada', dados_extraidos:{importado_de:CT.file} });
+        if(error){ rel.problemas.push({linha:x.linha, nome:x.nome, motivo:'apólice não criada: '+error.message, raw:CT.rows[x.linha-2]}); continue; }
+        rel.apoNovas++;
+        if(a.vencimento && status==='ativa'){ [30,15,7].forEach(d=>{ const dt = new Date(a.vencimento+'T12:00:00'); dt.setDate(dt.getDate()-d); if(ymd(dt)>=hoje) rel.avisos++; }); }
       }
+      OP.dirty = true; CA.loaded = false;
     }
-    OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR')); opFillTagFilter();
-    dlgClose(); showToast(`${CT.novos.length} contatos novos cadastrados${upd?` · ${atualizados} existentes completados`:''}`); opApplyFilters(true);
-  }catch(e){ err.textContent = 'Erro durante a importação: '+(e.message||e); btn.disabled = false; btn.textContent = 'Tentar novamente'; }
+    OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR')); opFillTagFilter(); opApplyFilters(true);
+    const prob = rel.problemas.length, leves = rel.leves.length;
+    document.querySelector('#dlg .dlg-body').innerHTML = `<div class="reco"><b>Importação concluída</b><br>• <b>${rel.novos}</b> cliente(s) importado(s)<br>• <b>${rel.atualizados}</b> cliente(s) atualizado(s)<br>• <b>${rel.apoNovas}</b> apólice(s) criada(s) e <b>${rel.apoAtualizadas}</b> atualizada(s)<br>• <b>${rel.avisos}</b> aviso(s) de renovação (30, 15 e 7 dias) criado(s)<br>• <b style="color:${prob?'#c23636':'inherit'}">${prob}</b> com problema${leves?`<br>• ${leves} aviso(s) leve(s) (dado ruim ignorado, linha importada)`:''}</div>
+      ${prob?`<details open style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">O que deu errado</summary><ul style="margin:6px 0 0 18px;font-size:12.5px">${rel.problemas.slice(0,20).map(x=>`<li>Linha ${x.linha}${x.nome?' ('+escapeHtml(x.nome)+')':''}: ${escapeHtml(x.motivo)}</li>`).join('')}${prob>20?`<li>… e mais ${prob-20} no arquivo abaixo</li>`:''}</ul></details>`:''}
+      ${leves?`<details style="margin-top:6px"><summary style="cursor:pointer">Avisos leves</summary><ul style="margin:6px 0 0 18px;font-size:12.5px">${rel.leves.slice(0,15).map(x=>`<li>Linha ${x.linha} (${escapeHtml(x.nome)}): ${escapeHtml(x.motivo)}</li>`).join('')}</ul></details>`:''}
+      <div style="margin-top:12px;display:flex;gap:8px">${prob?'<button class="om-save" id="ct-baixa">Baixar linhas com problema (CSV)</button>':''}<button class="om-cancel" data-close>Fechar</button></div>`;
+    const bx = document.getElementById('ct-baixa'); if(bx) bx.addEventListener('click', ()=>{ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([ctCsvProblemas(rel.problemas)],{type:'text/csv;charset=utf-8'})); a.download = 'importacao-problemas-'+ymd(new Date())+'.csv'; document.body.appendChild(a); a.click(); a.remove(); });
+    showToast(`${rel.novos} importados · ${rel.atualizados} atualizados · ${prob} com problema`);
+  }catch(e){ err.textContent = 'Erro durante a importação: '+(e.message||e)+' (parte dos dados pode já ter sido gravada; use o relatório de uma nova prévia para conferir).'; btn.disabled = false; btn.textContent = 'Tentar novamente'; }
 }
 
 // ---------- HOJE + CALL HOT (dentro da Aliança) ----------
@@ -8755,12 +8911,41 @@ function opDatasRelevantes(){
 }
 const hojeRow = (p, right, sub)=>`<div class="rec hj-row"><a href="#" data-openp="${p.id}" style="font-weight:600;color:var(--brand)">${escapeHtml(p.nome)}</a>${sub?` <small style="color:var(--ink-faint)">${sub}</small>`:''}<span style="float:right;font-size:12px">${right||''}</span></div>`;
 
+// ===== Lembretes de relacionamento: aniversários (cliente e família), 3/6/9/12 meses da apólice, contato a cada 3 meses e datas especiais =====
+function lembPrimeiroNome(n){ const t = String(n||'').trim().split(/\s+/)[0]||''; return t ? t.charAt(0).toUpperCase()+t.slice(1).toLowerCase() : ''; }
+function lembTexto(modelo, r, extra){
+  const ex = Object.assign({}, r.extra||{}, extra||{});
+  const v = { primeiro_nome:lembPrimeiroNome(r.nome), corretor:lembPrimeiroNome(curUserName()), produto:ex.produto||'sua proteção', seguradora:ex.seguradora||'', vencimento:ex.vencimento?fmtDate(ex.vencimento):'', familiar:ex.familiar||'', parentesco:ex.parentesco||'familiar' };
+  return String(modelo||'').replace(/ \(\{seguradora\}\)/g, v.seguradora?' ('+v.seguradora+')':'').replace(/\{(\w+)\}/g, (m,k)=>v[k]!==undefined ? v[k] : m);
+}
+async function lembModelo(momento){ const { data } = await sb.from('crm_mensagens_modelo').select('texto').eq('momento', momento).maybeSingle(); return data ? data.texto : ''; }
+async function lembFeito(r){
+  const { error } = await sb.from('crm_avisos').insert({ chave:r.chave, tipo:r.tipo, pessoa_id:r.pessoa_id||null, data_aviso:r.data_ref, titulo:r.titulo, status:'feito', feito_em:new Date().toISOString(), feito_por:curUserName()||null });
+  if(error && !/duplicate|unique/i.test(error.message)){ showToast('Erro: '+error.message); return false; }
+  if(r.tipo==='relacionamento' && r.pessoa_id){ await sb.from('crm_atividades').insert({ pessoa_id:r.pessoa_id, tipo:'whatsapp', data_hora:new Date().toISOString(), resumo:'Contato de relacionamento (lembrete): '+r.titulo, resultado:'Conversou', responsavel:curUserName()||null }); OP.dirty = true; }
+  return true;
+}
+function lembLinha(r){
+  const d = daysTo(r.data_ref), quando = r.tipo==='relacionamento' && /^rel90/.test(r.chave) ? '' : (d===0?'<span class="tagx warn">hoje</span>':(d<0?`<span class="tagx bad">${-d}d atrás</span>`:`${d}d`));
+  const campanha = r.tipo==='data_comemorativa';
+  const nome = r.pessoa_id ? `<a href="#" data-openp="${r.pessoa_id}" style="font-weight:600;color:var(--brand)">${escapeHtml(r.nome)}</a> ` : '';
+  return `<div class="rec hj-row" data-lk="${escapeHtml(r.chave)}">${nome}<small style="color:var(--ink-faint)">${escapeHtml(r.titulo)}</small><span style="float:right;display:flex;gap:6px;align-items:center">${quando}<button class="om-cancel vd-btn" data-lmsg="${escapeHtml(r.chave)}">${campanha?'Ver lista':'💬 Mensagem'}</button><button class="om-cancel vd-btn" data-lok="${escapeHtml(r.chave)}">Feito</button></span></div>`;
+}
+async function lembAbrirLista(r){
+  const { data } = await sb.rpc('crm_destinatarios', { p_publico: r.extra.publico }); const modelo = await lembModelo(r.momento);
+  dlgOpen(`<div class="om-title"><div><h3>${escapeHtml(r.titulo)}</h3><div class="om-sub">Clientes do público desta data. Toque em 💬 para abrir o WhatsApp com a mensagem pronta.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body" style="max-height:60vh;overflow:auto">${(data||[]).map(x=>{ const wa = waLink(x.telefone); return `<div class="rec"><b>${escapeHtml(x.nome)}</b> <small style="color:var(--ink-faint)">${escapeHtml(x.telefone||'sem telefone')}</small><span style="float:right">${wa?`<a class="om-cancel vd-btn" target="_blank" rel="noopener" href="${wa}?text=${encodeURIComponent(lembTexto(modelo,{nome:x.nome}))}">💬 WhatsApp</a>`:''}</span></div>`; }).join('')||'<div class="hint">Nenhum cliente neste público.</div>'}</div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Fechar</button></div>`, true);
+}
 async function opHojeDialog(onlyMine){
   const me = curUserName();
   const box = dlgOpen(`<div class="om-title"><div><h3>Hoje — o que preciso fazer</h3><div class="om-sub">${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div></div><button data-close>✕</button></div>
     <div class="dlg-body" id="hj-body"><div class="op-more">Carregando...</div></div>`, true);
   const t0 = todayD().toISOString(), t1 = new Date(todayD().getTime()+86400000).toISOString();
   const dow = (todayD().getDay()+6)%7; const ini2 = new Date(todayD().getTime()+(7-dow)*86400000), fim2 = new Date(ini2.getTime()+7*86400000);
+  const avR = await sb.from('crm_avisos').select('id,pessoa_id,dias_antes,data_aviso,titulo,tipo').eq('status','pendente').lte('data_aviso', ymdToday()).order('data_aviso');
+  const lembR = await sb.rpc('crm_lembretes', { p_dias:7 });
+  const incompl = OP.pessoas.filter(x=>opIsCliente(x.id) && (!x.data_nascimento));
   const [ag, agNext, tar] = await Promise.all([
     sb.from('crm_agenda').select('titulo,data_inicio,crm_pessoas(nome)').gte('data_inicio',t0).lt('data_inicio',t1).order('data_inicio'),
     sb.from('crm_agenda').select('id',{count:'exact',head:true}).gte('data_inicio',ini2.toISOString()).lt('data_inicio',fim2.toISOString()),
@@ -8776,14 +8961,23 @@ async function opHojeDialog(onlyMine){
     `<div class="sg-row" style="margin-bottom:10px"><label class="chk"><input type="checkbox" id="hj-mine" ${onlyMine?'checked':''}> Só as minhas (${escapeHtml(me)})</label><span style="flex:1"></span><span class="tagx ${nxt<3?'warn':''}">Agenda da semana que vem: ${nxt} evento(s)${nxt<3?' — deixe-a cheia antes de a atual acabar':''}</span></div>`
     + sec('Ações de hoje e atrasadas', acoes.length, acoes.map(p=>{ const d = daysTo(p.proxima_data); return hojeRow(p, d<0?`<span class="tagx bad">atrasada ${-d}d</span>`:'<span class="tagx warn">hoje</span>', escapeHtml(p.proxima_acao)+' · '+escapeHtml(p.proximo_responsavel||'')); }).join(''))
     + sec('Leads em funil sem próxima ação', semAcao.length, semAcao.slice(0,40).map(p=>hojeRow(p, '', 'Defina a próxima ação')).join('') + (semAcao.length>40?`<div class="hint">+${semAcao.length-40} outros — use o filtro “Próxima ação” na Aliança.</div>`:''))
+    + sec('Avisos de renovação (30, 15 e 7 dias) de hoje e atrasados', (avR.data||[]).length, (avR.data||[]).map(a=>{ const p = OP.pessoas.find(x=>x.id===a.pessoa_id); if(!p) return ''; const d = daysTo(a.data_aviso); return hojeRow(p, d<0?`<span class="tagx bad">atrasado ${-d}d</span> <button class="om-cancel vd-btn" data-avfeito="${a.id}">Feito</button>`:`<span class="tagx warn">hoje</span> <button class="om-cancel vd-btn" data-avfeito="${a.id}">Feito</button>`, escapeHtml(a.titulo||'Renovação')); }).join(''))
     + sec('Renovações nos próximos 60 dias', renov.length, renov.map(r=>hojeRow(r.p, `<span class="tagx ${r.dd<=15?'bad':(r.dd<=30?'warn':'')}">${r.dd}d</span>`, escapeHtml((r.a.tipo_seguro||'')+' · '+(r.a.seguradora||'')))).join(''))
-    + sec('Aniversários (7 dias) e datas relevantes', bd.length+dr.length, bd.map(b=>hojeRow(b.p, b.dd===0?'<span class="tagx warn">hoje</span>':b.dd+'d', 'Aniversário — '+b.idade+' anos (brinde/mensagem)')).join('') + dr.map(x=>hojeRow(x.p, x.dd===0?'<span class="tagx warn">hoje</span>':x.dd+'d', escapeHtml(x.dr.descricao)+' · '+fmtDate(x.dr.data))).join(''))
+    + sec('Relacionamento e datas (aniversários, família, 3/6/9/12 meses, datas especiais)', (lembR.data||[]).length, (lembR.data||[]).slice(0,40).map(lembLinha).join('') + ((lembR.data||[]).length>40?`<div class="hint">+${(lembR.data||[]).length-40} outros nos próximos dias.</div>`:''))
+    + sec('Completar o cadastro: clientes sem data de nascimento (sem ela não há lembrete de aniversário)', incompl.length, incompl.slice(0,25).map(x=>hojeRow(x, '', 'Peça o documento ou pergunte na próxima conversa')).join('') + (incompl.length>25?`<div class="hint">+${incompl.length-25} outros.</div>`:''))
+    + sec('Datas relevantes do cadastro', dr.length, dr.map(x=>hojeRow(x.p, x.dd===0?'<span class="tagx warn">hoje</span>':x.dd+'d', escapeHtml(x.dr.descricao)+' · '+fmtDate(x.dr.data))).join(''))
     + sec('Compromissos de hoje', (ag.data||[]).length, (ag.data||[]).map(e=>`<div class="rec"><span class="k">${new Date(e.data_inicio).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>${escapeHtml(e.titulo)}${e.crm_pessoas?.nome?' · '+escapeHtml(e.crm_pessoas.nome):''}</div>`).join(''))
     + `<div class="es-box"><div class="ql">Tarefas avulsas de hoje</div>${(tar.data||[]).map(t=>`<div class="rec hj-task"><label class="chk"><input type="checkbox" data-task="${t.id}" ${t.concluida?'checked':''}> <span style="${t.concluida?'text-decoration:line-through;color:var(--ink-faint)':''}">${escapeHtml(t.descricao)}</span></label></div>`).join('')||'<div class="hint">Nenhuma tarefa.</div>'}
        <div class="sg-row" style="margin-top:8px"><input id="hj-task-new" class="ca-inp" placeholder="Nova tarefa (não precisa ter médico vinculado)..." style="flex:1"><button class="om-save" id="hj-task-add">+ Tarefa</button></div></div>`;
   const b = document.getElementById('hj-body');
   b.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(a.dataset.openp); }));
   b.querySelector('#hj-mine').addEventListener('change', e=>opHojeDialog(e.target.checked));
+  b.querySelectorAll('[data-lmsg]').forEach(btn=>btn.addEventListener('click', async ()=>{ const r = (lembR.data||[]).find(x=>x.chave===btn.dataset.lmsg); if(!r) return;
+    if(r.tipo==='data_comemorativa'){ lembAbrirLista(r); return; }
+    const modelo = await lembModelo(r.momento==='relacionamento'?'relacionamento':r.momento); const wa = waLink(r.telefone); if(!wa){ showToast('Esta pessoa não tem telefone cadastrado.'); return; }
+    window.open(wa+'?text='+encodeURIComponent(lembTexto(modelo, r)), '_blank', 'noopener'); }));
+  b.querySelectorAll('[data-lok]').forEach(btn=>btn.addEventListener('click', async ()=>{ const r = (lembR.data||[]).find(x=>x.chave===btn.dataset.lok); if(!r) return; btn.disabled = true; if(await lembFeito(r)){ const row = btn.closest('.hj-row'); if(row) row.remove(); showToast('Lembrete marcado como feito'); } else btn.disabled = false; }));
+  b.querySelectorAll('[data-avfeito]').forEach(btn=>btn.addEventListener('click', async ()=>{ const { error } = await sb.from('crm_avisos').update({ status:'feito', feito_em:new Date().toISOString(), feito_por:curUserName()||null }).eq('id', btn.dataset.avfeito); if(error){ showToast('Erro: '+error.message); return; } const row = btn.closest('.hj-row'); if(row) row.remove(); showToast('Aviso marcado como feito'); }));
   b.querySelector('#hj-task-add').addEventListener('click', async ()=>{ const v = document.getElementById('hj-task-new').value.trim(); if(!v) return; const { error } = await sb.from('crm_tarefas_diarias').insert({descricao:v, prioridade:'media', categoria:'vendas', data:ymdToday()}); if(error){ showToast('Erro: '+error.message); return; } opHojeDialog(onlyMine); });
   b.querySelectorAll('[data-task]').forEach(c=>c.addEventListener('change', async ()=>{ await sb.from('crm_tarefas_diarias').update({concluida:c.checked}).eq('id', c.dataset.task); opHojeDialog(onlyMine); }));
 }
