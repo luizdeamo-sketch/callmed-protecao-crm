@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261019165300">
+<meta name="app-build" content="20261019165727">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -596,6 +596,10 @@
   .tour-sum{ cursor:pointer; font-weight:700; font-size:15px; list-style:none; } .tour-sum::-webkit-details-marker{ display:none; }
   details[open] > .tour-sum .tour-b{ display:none; } details:not([open]) > .tour-sum .tour-a{ display:none; }
   details:not([open]) > .tour-sum .tour-b{ display:inline-block; background:var(--brand,#0018fc); color:#fff; border-radius:999px; padding:7px 16px; font-size:13px; font-weight:700; }
+  #nov-faixa{ position:fixed; top:76px; right:16px; z-index:250; background:#fff; border:1px solid #0018fc; border-left-width:5px; border-radius:12px; box-shadow:0 12px 30px -10px rgba(11,20,51,.4); padding:10px 12px; display:flex; gap:10px; align-items:center; font-size:13.5px; max-width:min(520px,92vw); flex-wrap:wrap; }
+  #nov-faixa button{ border:1px solid #0018fc; background:#0018fc; color:#fff; border-radius:999px; padding:5px 14px; font-weight:700; cursor:pointer; } #nov-faixa #nov-x{ background:transparent; color:#4a5270; border:0; padding:2px 6px; }
+  #btn-novidades.nov-novo{ background:#ffd166 !important; color:#00125e !important; border-radius:999px; padding:4px 12px; }
+  #ac-versao #ac-versao-nov{ margin-right:4px; }
   .seg.tmp{ cursor:default; color:var(--c); background:color-mix(in srgb, var(--c) 16%, transparent); border:1px solid color-mix(in srgb, var(--c) 45%, transparent); height:18px; line-height:16px; font-size:10px; letter-spacing:.02em; text-transform:uppercase; background-image:repeating-linear-gradient(135deg, transparent 0 5px, color-mix(in srgb, var(--c) 14%, transparent) 5px 7px);}
   .apo-bar.out{ opacity:.45; font-weight:500; border:1px dashed rgba(255,255,255,.8);}
   .seg.tmp.none{ opacity:.6;}
@@ -901,6 +905,34 @@ document.getElementById('btn-reset-save').addEventListener('click', async ()=>{
 document.getElementById('btn-logout').addEventListener('click', async ()=>{ try{ if(window.ACOMP && ACOMP.flush) await ACOMP.flush(); }catch(e){} await sb.auth.signOut({ scope:'local' }); location.reload(); });
 async function checkSession(){ const { data } = await sb.auth.getSession(); if(data.session){ boot(); } }
 
+// ===== Novidades do sistema (vêm da tabela crm_novidades: dá para acrescentar uma nova sem publicar o sistema) =====
+const NOV = { lista:[], ok:false };
+const novChave = ()=> 'nov_visto:'+(window._userEmail||'');
+async function novidadesCarregar(){
+  if(NOV.ok) return NOV.lista; try{ const { data } = await sb.from('crm_novidades').select('*').order('data',{ascending:false}).order('criado_em',{ascending:false}).limit(6); NOV.lista = data||[]; NOV.ok = true; }catch(e){} return NOV.lista; }
+function novMarcarVisto(){ try{ if(NOV.lista[0]) localStorage.setItem(novChave(), NOV.lista[0].id); }catch(e){} const f = document.getElementById('nov-faixa'); if(f) f.remove(); const b = document.getElementById('btn-novidades'); if(b) b.classList.remove('nov-novo'); }
+async function novidadesAbrir(){
+  const lista = await novidadesCarregar(); if(!lista.length){ showToast('Sem novidades por enquanto.'); return; }
+  const itemHtml = it=>`<div class="rec" style="padding:10px 0;border-bottom:1px solid var(--border)"><div style="display:flex;gap:10px;align-items:flex-start"><div style="font-size:22px;line-height:1">${it.ico||'✨'}</div><div style="flex:1"><b>${escapeHtml(it.titulo||'')}</b><div style="font-size:13px;line-height:1.5;margin-top:2px">${escapeHtml(it.texto||'')}</div>${it.onde?`<div class="hint" style="margin-top:3px">📍 ${escapeHtml(it.onde)}</div>`:''}${it.ir?`<button class="om-cancel" data-nov-ir="${it.ir}" style="margin-top:6px;padding:3px 12px;font-size:12px">Ir para lá</button>`:''}</div></div></div>`;
+  const box = dlgOpen(`<div class="om-title"><div><h3>✨ O que há de novo no sistema</h3><div class="om-sub">Você não precisa procurar: tudo o que mudou está aqui, com o lugar onde encontrar.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body" style="max-height:68vh;overflow:auto">${lista.map((n,i)=>`<div style="margin-bottom:14px"><div class="ql">${escapeHtml(n.titulo)} <span class="tagx" style="margin-left:6px">${fmtDate(n.data)}</span>${i===0?' <span class="tagx warn">mais recente</span>':''}</div>${(n.itens||[]).map(itemHtml).join('')}</div>`).join('')}</div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-save" data-close>Entendi</button></div>`, true);
+  box.querySelectorAll('[data-nov-ir]').forEach(b=>b.addEventListener('click', ()=>{ dlgClose(); const nb = document.querySelector('.nav-btn[data-view="'+b.dataset.novIr+'"]'); if(nb) nb.click(); }));
+  novMarcarVisto();
+}
+window.novidadesAbrir = novidadesAbrir;
+async function novidadesIniciar(){
+  const lista = await novidadesCarregar(); if(!lista.length) return;
+  const sg = document.getElementById('btn-logout'); if(sg && !document.getElementById('btn-novidades')){
+    const b = document.createElement('button'); b.id = 'btn-novidades'; b.className = 'btn-ghost'; b.type = 'button'; b.textContent = '✨ Novidades'; b.style.cssText = 'color:#fff;margin-right:8px;font-weight:600';
+    sg.insertAdjacentElement('beforebegin', b); b.addEventListener('click', novidadesAbrir); }
+  let visto = null; try{ visto = localStorage.getItem(novChave()); }catch(e){}
+  if(visto !== lista[0].id && !document.getElementById('nov-faixa')){
+    const f = document.createElement('div'); f.id = 'nov-faixa';
+    f.innerHTML = `<span>✨ <b>Temos novidades no sistema.</b> Veja o que mudou e onde encontrar.</span><button type="button" id="nov-ver">Ver as novidades</button><button type="button" id="nov-x" aria-label="Fechar">✕</button>`;
+    document.body.appendChild(f); document.getElementById('nov-ver').addEventListener('click', novidadesAbrir); document.getElementById('nov-x').addEventListener('click', ()=>f.remove());
+    const b = document.getElementById('btn-novidades'); if(b) b.classList.add('nov-novo'); }
+}
 function boot(){
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('active');
@@ -908,6 +940,7 @@ function boot(){
     if(data.user && data.user.user_metadata && data.user.user_metadata.must_change_password){ window._trocaObrigatoria = true; document.getElementById('app').classList.remove('active'); const rs = document.getElementById('reset-screen'); rs.querySelector('h1').textContent = 'Defina a sua senha'; rs.querySelector('.sub').textContent = 'Por segurança, troque a senha temporária por uma só sua antes de continuar.'; rs.style.display = 'flex'; } });
   sb.rpc('crm_is_master').then(({data})=>{ window._isMaster = data===true; const nb = document.getElementById('nav-admin'); if(nb) nb.style.display = window._isMaster ? '' : 'none'; });
   backupReminder();
+  setTimeout(novidadesIniciar, 1500);
   document.getElementById('ics-url').value = `${SUPABASE_URL}/functions/v1/agenda-ics?token=${ICS_TOKEN}`;
   renderCalendar();
   renderOperacao();
@@ -9464,9 +9497,10 @@ checkSession();
   function mostrarFaixa(){
     if(document.getElementById('ac-versao')) return; A.novaVersao = true;
     const f = document.createElement('div'); f.id = 'ac-versao'; f.setAttribute('role','status');
-    f.innerHTML = '<span>Saiu uma versão nova do sistema. Salve o que estiver fazendo e clique em Atualizar.</span><button type="button" id="ac-versao-btn">Atualizar</button>';
+    f.innerHTML = '<span>Saiu uma versão nova do sistema, com novidades. Salve o que estiver fazendo e clique em Atualizar.</span><button type="button" id="ac-versao-nov">✨ Ver as novidades</button><button type="button" id="ac-versao-btn">Atualizar</button>';
     document.body.appendChild(f);
     document.getElementById('ac-versao-btn').addEventListener('click', ()=> location.reload());   // nunca recarrega sozinho
+    document.getElementById('ac-versao-nov').addEventListener('click', ()=>{ if(window.novidadesAbrir) window.novidadesAbrir(); });
   }
   A.verificarVersao = verificarVersao;
   setInterval(verificarVersao, 120000);
