@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261019110837">
+<meta name="app-build" content="20261019113748">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1282,7 +1282,7 @@ async function renderParametros(){
 
 // ============ VENDAS E DEMANDAS ============
 // Demandas de todos os clientes, "Virou venda" / "Não virou venda", aba Vendas realizadas e Vendas não realizadas com relatório em PDF.
-const VD = { tab:'pro', acoes:[], cli:[], fCli:{sit:'', st:'', q:'', ord:'rec'}, pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, timers:{} };
+const VD = { tab:'pro', acoes:[], cli:[], fCli:{sit:'', st:'', q:'', ord:'rec'}, pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:'', ret:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, timers:{} };
 const VD_MOTIVOS = ['Preço','Escolheu outra corretora ou seguradora','Desistiu / sem interesse','Sem retorno do cliente','Não aprovado pela seguradora','Adiou a decisão','Outro'];
 const VD_ENC = ['Concluída','Venda fechada','Não virou venda'];
 const vdM = v => 'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1374,6 +1374,7 @@ function vdProList(){
     if(f.org && (x.origem||'')!==f.org) return false;
     if(f.por && (x.criado_por||'')!==f.por) return false;
     const d = String(x.contato_em||'').slice(0,10); if(f.de && d<f.de) return false; if(f.ate && d>f.ate) return false;
+    if(f.ret && String(x.retorno_data||'').slice(0,10)!==f.ret) return false;
     if(q && !(vdNorm([x.nome,x.telefone,x.origem,x.historico].join(' ')).includes(q) || (dq.length>=3 && String(x.cpf||'').replace(/\D/g,'').includes(dq)))) return false;
     return true; }).sort((a,b)=> String(b.contato_em).localeCompare(String(a.contato_em)));
 }
@@ -1474,7 +1475,8 @@ function vdProHtml(){
     <div class="vd-bar"><label class="fl"><span>Mostrar</span><select id="vd-p-st"><option value="">Todos</option><option value="abertos"${f.st==='abertos'?' selected':''}>Em aberto</option>${VD_ST_PRO.map(s=>`<option${f.st===s?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
       <label class="fl"><span>Origem</span><select id="vd-p-org"><option value="">Todas</option>${origens.map(o=>`<option${f.org===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label>
       <label class="fl"><span>Quem registrou</span><select id="vd-p-por"><option value="">Todos</option>${quem.map(o=>`<option${f.por===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label>
-      <label class="fl"><span>Contato · de</span><input type="date" id="vd-p-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-p-ate" value="${escapeHtml(f.ate)}"></label>
+      <label class="fl"><span>Contato feito · de</span><input type="date" id="vd-p-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-p-ate" value="${escapeHtml(f.ate)}"></label>
+      <label class="fl" title="Mostra só quem tem retorno marcado exatamente nesta data"><span>Retorno em (só este dia)</span><input type="date" id="vd-p-ret" value="${escapeHtml(f.ret||'')}"></label>
       <label class="fl" style="flex:1;min-width:180px"><span>Buscar</span><input id="vd-p-q" value="${escapeHtml(f.q)}" placeholder="nome, CPF, telefone, histórico"></label></div>
     <div class="vd-bar"><button class="om-save" data-act="nova-p">＋ Novo contato</button><span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-p">Baixar PDF com os números</button></div>
     <datalist id="vd-org">${VD_ORIGENS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>${vdBaseList()}
@@ -2115,7 +2117,7 @@ async function vdPdfDemandas(){
     const cf = {'vd-c-sit':'sit','vd-c-st':'st','vd-c-ord':'ord'}[t.id];
     if(cf){ VD.fCli[cf] = t.value; vdDraw(); return; }
     if(t.dataset.ak){ const row = t.closest('tr[data-aid]'); const r = row && VD.acoes.find(x=>x.id===row.dataset.aid); if(!r) return; let v = t.value; if(t.dataset.ak==='inicio') v = v||null; r[t.dataset.ak] = v; vdSalvarCampo('crm_acoes', r.id, t.dataset.ak, v); return; }
-    const pf = {'vd-p-st':'st','vd-p-org':'org','vd-p-por':'por','vd-p-de':'de','vd-p-ate':'ate'}[t.id];
+    const pf = {'vd-p-st':'st','vd-p-org':'org','vd-p-por':'por','vd-p-de':'de','vd-p-ate':'ate','vd-p-ret':'ret'}[t.id];
     if(pf){ VD.fPro[pf] = t.value; vdDraw(); return; }
     if(t.id==='vd-v-de' || t.id==='vd-v-ate'){ VD.fV[t.id==='vd-v-de'?'de':'ate'] = t.value; vdDraw(); return; }
     if(t.id==='vd-n-de' || t.id==='vd-n-ate'){ VD.fN[t.id==='vd-n-de'?'de':'ate'] = t.value; vdDraw(); return; }
@@ -5984,12 +5986,13 @@ async function pvRedesCard(p){
 function intelRelHtml(rel){
   const porBloco = {}; (rel.perguntas||[]).forEach(q=>{ (porBloco[q.bloco||'Geral'] = porBloco[q.bloco||'Geral'] || []).push(q); });
   const conf = (rel.identificacao||{}).confianca||'';
-  return `${ruBox('Identificação','Confiança de que é a mesma pessoa: <b>'+escapeHtml(conf||'—')+'</b>'+(rel.identificacao&&rel.identificacao.observacao?'<br>'+escapeHtml(rel.identificacao.observacao):''))}
+  return `<div style="text-align:right;margin-bottom:8px"><button class="om-cancel" id="intel-savecad" title="Guarda o perfil, os pontos das conversas e os ganchos nas observações do cadastro">Salvar resumo no cadastro</button></div>${ruBox('Identificação','Confiança de que é a mesma pessoa: <b>'+escapeHtml(conf||'—')+'</b>'+(rel.identificacao&&rel.identificacao.observacao?'<br>'+escapeHtml(rel.identificacao.observacao):''))}
     ${ruBox('Perfil profissional', escapeHtml(rel.perfil_profissional||'não encontrado'))}
     ${ruBox('Do que a pessoa gosta (pelo que ela publica)', ruLi((rel.interesses_hobbies||[]).map(x=>typeof x==='string'?x:((x&&(x.tema||x.interesse))||'')+(x&&x.evidencia?' — '+x.evidencia:''))))}
     ${ruBox('Vida pública (divulgada pela própria pessoa)', ruLi(rel.vida_publica))}
     ${ruBox('Presença digital', (rel.presenca_digital||[]).filter(r=>redeUrlOk(r.url)).length ? `<div style="display:flex;flex-direction:column;gap:8px">${(rel.presenca_digital||[]).filter(r=>redeUrlOk(r.url)).map((r,i)=>`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${redeChip(r)}<button class="om-cancel" data-savered="${i}" style="padding:2px 8px;font-size:11px">Salvar no cadastro</button>${r.observacao?`<span style="font-size:11.5px;color:var(--ink-faint)">${escapeHtml(r.observacao)}</span>`:''}</div>`).join('')}</div><div class="hint" style="margin-top:6px">Confira sempre se é a pessoa certa antes de abordar: perfis com confiança “baixa” podem ser homônimos.</div>` : '<div style="color:var(--ink-faint)">não encontrado nas buscas automáticas — use as buscas manuais abaixo</div>')}
     <div class="es-box" style="margin-bottom:10px"><div class="ql">Buscar manualmente</div><div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">${redeLinksBusca(PV.person||{})}</div></div>
+    ${(rel.pontos_conversas||[]).length?ruBox('O que a pessoa já contou nas conversas (para retomar)', ruLi(rel.pontos_conversas)):''}
     ${ruBox('Ganchos de rapport', ruLi(rel.gatilhos_rapport))}
     ${rel.abertura_sugerida?ruBox('Abertura sugerida', escapeHtml(rel.abertura_sugerida)):''}
     <div class="es-box" style="margin-bottom:10px"><div class="ql">Pool de perguntas personalizadas <button class="om-cancel" id="intel-copy" style="padding:2px 8px;font-size:11px;margin-left:8px">Copiar</button></div>
@@ -6009,6 +6012,15 @@ async function intelDialog(p){
       <div id="intel-msg" class="hint"></div>
       <div style="max-height:58vh;overflow:auto">${rel?intelRelHtml(rel):'<div class="no-rec">Ainda sem pesquisa para esta pessoa.</div>'}</div>
       <div style="margin-top:12px;text-align:right"><button class="om-cancel" data-close>Fechar</button></div>`, true);
+    const scad = document.getElementById('intel-savecad'); if(scad) scad.addEventListener('click', async ()=>{
+      const r = rel||{}, nl = String.fromCharCode(10), hoje = new Date().toLocaleDateString('pt-BR');
+      const partes = [r.perfil_profissional?('Perfil: '+r.perfil_profissional):'', (r.pontos_conversas||[]).length?('Das conversas: '+r.pontos_conversas.join('; ')):'', (r.interesses_hobbies||[]).length?('Gosta de: '+r.interesses_hobbies.map(x=>typeof x==='string'?x:((x&&x.tema)||'')).join('; ')):'', (r.gatilhos_rapport||[]).length?('Rapport: '+r.gatilhos_rapport.join('; ')):''].filter(Boolean);
+      if(!partes.length){ showToast('Não há informação para salvar.'); return; }
+      scad.disabled = true; const { data: cur } = await sb.from('crm_pessoas').select('observacoes').eq('id', p.id).single();
+      const novo = (cur && cur.observacoes ? cur.observacoes+nl+nl : '')+'[Inteligência '+hoje+'] '+partes.join(' | ');
+      const { error } = await sb.from('crm_pessoas').update({ observacoes:novo }).eq('id', p.id);
+      if(error){ scad.disabled = false; showToast('Erro: '+error.message); return; } scad.textContent = 'Salvo no cadastro ✓'; showToast('Resumo salvo nas observações do cadastro');
+    });
     document.querySelectorAll('#dlg [data-savered]').forEach(b=>b.addEventListener('click', async ()=>{
       const r = ((rel||{}).presenca_digital||[]).filter(x=>redeUrlOk(x.url))[parseInt(b.dataset.savered,10)]; if(!r) return;
       const url = redeUrlOk(r.url), obs = [r.handle||redeHandle(url), r.confianca?('confiança '+r.confianca):'', r.observacao].filter(Boolean).join(' · ');
@@ -9235,7 +9247,7 @@ checkSession();
   const lsSet = (k,v)=>{ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} };
   const email = ()=> String(window._userEmail||'').toLowerCase();
   // quem testa o sistema não recebe os balões automáticos (o botão 💬 continua)
-  const SEM_BALAO = ['luiz.amo@callmedsaude.com.br','luiz.amo@capacitycase.com.br','luizdeamo@gmail.com'];
+  const SEM_BALAO = ['luiz.amo@capacitycase.com.br','luizdeamo@gmail.com'];   // a Amanda entra com luiz.amo@callmedsaude.com.br: esse login precisa receber o balão
 
   /* ---------- PEÇA 1 · aviso de nova versão ---------- */
   const metaBuild = document.querySelector('meta[name="app-build"]');
@@ -9422,13 +9434,41 @@ checkSession();
   }, 1500);
 
   // print da tela (html2canvas, que o sistema já usa nos PDFs) com limite de 8 s
+  // escolher o que vai no print: arrastar uma área da tela, tela inteira ou outra janela/aba (captura real, com mapas e fotos)
+  function escolherArea(){
+    return new Promise(res=>{
+      const ov = document.createElement('div'); ov.id = 'ac-sel';
+      ov.innerHTML = '<div class="ac-sel-bar"><b>O que vai no print?</b> Arraste sobre a tela para marcar a área, ou escolha: <button type="button" data-s="full">Tela inteira</button><button type="button" data-s="disp">Outra janela ou aba…</button><button type="button" data-s="x">Cancelar</button></div><div class="ac-sel-r" hidden></div>';
+      document.body.appendChild(ov);
+      const r = ov.querySelector('.ac-sel-r'); let x0 = 0, y0 = 0, dr = false;
+      const esc = e=>{ if(e.key==='Escape') fim(null); };
+      const fim = v=>{ document.removeEventListener('keydown', esc); ov.remove(); res(v); };
+      document.addEventListener('keydown', esc);
+      const caixa = e=>({ x:Math.min(x0,e.clientX), y:Math.min(y0,e.clientY), w:Math.abs(e.clientX-x0), h:Math.abs(e.clientY-y0) });
+      const pinta = b=>{ r.hidden = false; r.style.left = b.x+'px'; r.style.top = b.y+'px'; r.style.width = b.w+'px'; r.style.height = b.h+'px'; };
+      ov.addEventListener('mousedown', e=>{ if(e.target.closest('.ac-sel-bar')) return; dr = true; x0 = e.clientX; y0 = e.clientY; pinta({x:x0,y:y0,w:0,h:0}); e.preventDefault(); });
+      ov.addEventListener('mousemove', e=>{ if(dr) pinta(caixa(e)); });
+      ov.addEventListener('mouseup', e=>{ if(!dr) return; dr = false; const b = caixa(e); if(b.w<30 || b.h<30){ r.hidden = true; return; } fim({ rect:b }); });
+      ov.addEventListener('click', async e=>{ const b = e.target.closest('[data-s]'); if(!b) return; const t = b.dataset.s;
+        if(t==='x'){ fim(null); return; } if(t==='full'){ fim({}); return; }
+        try{
+          const st = await navigator.mediaDevices.getDisplayMedia({ video:true, audio:false }); const v = document.createElement('video'); v.srcObject = st; await v.play(); await new Promise(rr=>setTimeout(rr, 350));
+          const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d').drawImage(v,0,0); st.getTracks().forEach(x=>x.stop());
+          fim({ blob: await new Promise(rr=>c.toBlob(rr, 'image/png')) });
+        }catch(err){ showToast('Não foi possível capturar essa janela. Use a área na tela ou a tela inteira.'); }
+      });
+    });
+  }
   async function tirarPrint(abrirEd){
+    let spec = null; if(abrirEd){ spec = await escolherArea(); if(!spec) return; await new Promise(rr=>setTimeout(rr, 80)); }
     const el = document.getElementById('ac-print'); if(el) el.innerHTML = '<span class="ac-mut">tirando o print…</span>';
     try{
       await Promise.race([ (async()=>{
+        if(spec && spec.blob){ ac.print = spec.blob; return; }
         if(typeof html2canvas === 'undefined') await docsLoadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
-        const cv = await html2canvas(document.body, { x:window.scrollX, y:window.scrollY, width:window.innerWidth, height:window.innerHeight, windowWidth:window.innerWidth, windowHeight:window.innerHeight, scale:Math.min(1.5, 1600/window.innerWidth), useCORS:true, logging:false, backgroundColor:'#ffffff', ignoreElements: n => n.id==='ac-root' || n.id==='toast' || n.id==='ac-versao' || n.id==='ac-ed' });
-        ac.print = await new Promise(res=>cv.toBlob(res, 'image/jpeg', 0.75));
+        const R = spec && spec.rect;
+        const cv = await html2canvas(document.body, { x:window.scrollX+(R?R.x:0), y:window.scrollY+(R?R.y:0), width:R?R.w:window.innerWidth, height:R?R.h:window.innerHeight, windowWidth:window.innerWidth, windowHeight:window.innerHeight, scale:R ? Math.max(1, Math.min(2, 1400/R.w)) : Math.min(1.5, 1600/window.innerWidth), useCORS:true, logging:false, backgroundColor:'#ffffff', ignoreElements: n => n.id==='ac-root' || n.id==='toast' || n.id==='ac-versao' || n.id==='ac-ed' || n.id==='ac-sel' });
+        ac.print = await new Promise(res=>cv.toBlob(res, 'image/jpeg', 0.85));
       })(), new Promise((_,rej)=>setTimeout(()=>rej(new Error('demorou')), 8000)) ]);
     }catch(e){ ac.print = null; }
     ac.printOrig = ac.print; desenharPrint();
@@ -9436,7 +9476,7 @@ checkSession();
   }
   function desenharPrint(){
     const el = document.getElementById('ac-print'); if(!el) return;
-    el.innerHTML = ac.print ? '<img alt="Print da tela" src="'+URL.createObjectURL(ac.print)+'"><div class="ac-linha"><button type="button" id="ac-marcar" class="ac-pri">✏️ Marcar no print</button><button type="button" id="ac-reprint">📸 Tirar de novo</button></div>' : '<button type="button" id="ac-reprint" class="ac-pri ac-print-bt">📸 Tirar print e marcar</button><div class="ac-mut" style="margin-top:4px">Tira o print da tela, deixa você riscar e escrever em cima e já anexa ao chamado.</div>';
+    el.innerHTML = ac.print ? '<img alt="Print da tela" src="'+URL.createObjectURL(ac.print)+'"><div class="ac-linha"><button type="button" id="ac-marcar" class="ac-pri">✏️ Marcar no print</button><button type="button" id="ac-reprint">📸 Tirar de novo</button></div>' : '<button type="button" id="ac-reprint" class="ac-pri ac-print-bt">📸 Tirar print e marcar</button><div class="ac-mut" style="margin-top:4px">Você escolhe a área (ou a janela), risca e escreve em cima, e o print já vai anexado ao chamado.</div>';
     const b = document.getElementById('ac-reprint'); if(b) b.onclick = ()=> tirarPrint(true);
     const m = document.getElementById('ac-marcar'); if(m) m.onclick = ()=> editarPrint();
   }
@@ -9513,7 +9553,7 @@ checkSession();
     ac.motivo = motivo; ac.pergunta = pergunta || ''; ac.tipo = TIPO_PADRAO[motivo] === 'ideia' ? 'melhoria' : (TIPO_PADRAO[motivo] || 'melhoria');
     if(!veioDoBalao) uso('balao', motivo, { evento:'abriu', pergunta: pergunta || null });
     bx.innerHTML = '<div class="ac-cab"><b>Conta pra gente</b><button type="button" id="ac-fechar" aria-label="Fechar">✕</button></div>'
-      + (pergunta ? '<p class="ac-perg">'+esc(pergunta)+'</p>' : '<p class="ac-perg">Escreva ou fale. O print desta tela vai junto para a equipe ver o que você viu.</p>')
+      + (pergunta ? '<p class="ac-perg">'+esc(pergunta)+'</p>' : '<p class="ac-perg">Escreva ou fale. Se ajudar, tire um print: você escolhe o que entra nele.</p>')
       + '<div class="ac-chips">' + TIPOS.map(([k,l])=>'<button type="button" data-tipo="'+k+'" class="'+(k===ac.tipo?'on':'')+'">'+l+'</button>').join('') + '</div>'
       + '<textarea id="ac-texto" rows="4" placeholder="O que você quer dizer?"></textarea>'
       + '<div class="ac-linha"><button type="button" id="ac-mic">🎤 Falar</button><span class="ac-mut" id="ac-aviso-print">Mapas e fotos de fundo podem sair em branco no print.</span></div>'
@@ -9525,7 +9565,7 @@ checkSession();
     bx.querySelector('#ac-mic').onclick = alternarVoz;
     bx.querySelector('#ac-enviar').onclick = enviar;
     setTimeout(()=>{ const t = document.getElementById('ac-texto'); if(t) t.focus(); }, 50);
-    tirarPrint();
+    ac.print = null; ac.printOrig = null; desenharPrint();
   }
   A.abrirCaixa = abrirCaixa;
   async function enviar(){
@@ -9601,6 +9641,10 @@ checkSession();
     .ac-desenho{ position:relative; width:150px; height:110px; flex:none; } .ac-d-balao{ position:absolute; left:0; top:0; width:130px; height:62px; background:#fff; border:1px solid var(--border,#e3e6ee); border-radius:12px; padding:10px; box-shadow:0 6px 16px -8px rgba(11,20,51,.3); }
     .ac-d-balao i{ display:block; height:7px; border-radius:4px; background:#d6dbef; margin-bottom:7px; } .ac-d-balao i:last-child{ width:60%; }
     .ac-d-btn{ position:absolute; right:6px; bottom:0; width:40px; height:40px; border-radius:50%; background:var(--brand,#0018fc); color:#fff; display:flex; align-items:center; justify-content:center; }
+    #ac-sel{ position:fixed; inset:0; z-index:395; background:rgba(11,20,51,.35); cursor:crosshair; }
+    .ac-sel-bar{ position:fixed; top:12px; left:50%; transform:translateX(-50%); background:#fff; border-radius:12px; padding:10px 14px; box-shadow:0 10px 30px rgba(0,0,0,.35); font:13px Inter,Arial,sans-serif; display:flex; gap:8px; align-items:center; flex-wrap:wrap; cursor:default; max-width:92vw; }
+    .ac-sel-bar button{ border:1px solid #8a90a8; background:#fff; border-radius:999px; padding:5px 12px; font-size:12.5px; cursor:pointer; }
+    .ac-sel-r{ position:fixed; border:3px solid #ff7a00; background:rgba(255,255,255,.08); box-shadow:0 0 0 9999px rgba(11,20,51,.45); pointer-events:none; }
     #ac-ed{ position:fixed; inset:0; z-index:400; background:rgba(11,20,51,.78); display:flex; flex-direction:column; font-family:'Inter',sans-serif; }
     .ac-ed-barra{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:10px 14px; background:#fff; border-bottom:1px solid #e3e6ee; } .ac-ed-barra b{ margin-right:8px; }
     .ac-ed-barra button, .ac-ed-bt button{ border:1px solid #8a90a8; background:#fff; border-radius:999px; padding:6px 13px; font-size:12.5px; cursor:pointer; } .ac-ed-barra button.on{ background:#e8ecff; border-color:#0018fc; color:#0018fc; font-weight:700; }
