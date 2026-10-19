@@ -1,5 +1,5 @@
 // Service worker do CRM Aliança (celular). Guarda só o "casco" do aplicativo (tela, ícones). Dados de clientes NUNCA são guardados no aparelho.
-const VERSAO = 'alianca-app-v1';
+const VERSAO = 'alianca-app-v2';
 const CASCO = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSAO).then(c => c.addAll(CASCO)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSAO).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

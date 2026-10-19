@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261019170632">
+<meta name="app-build" content="20261019-1725">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -42,7 +42,7 @@
   *:focus-visible{ outline:2px solid var(--brand); outline-offset:1px; }
 
   /* ---------- login / reset ---------- */
-  #login-screen, #reset-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:radial-gradient(circle at 20% 15%, #eef0ff 0%, var(--bg) 45%);}
+  #login-screen, #reset-screen, #mfa-screen{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:radial-gradient(circle at 20% 15%, #eef0ff 0%, var(--bg) 45%);}
   .login-card{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-lg); padding:38px 34px; width:100%; max-width:380px; box-shadow:var(--shadow-md);}
   .login-card h1{ font-size:1.5rem; margin-bottom:4px;}
   .login-card .sub{ color:var(--ink-soft); font-size:13px; margin-bottom:26px;}
@@ -179,6 +179,10 @@
   .kanban-card .np{ font-size:11px; color:var(--ink-soft);}
   .kanban-card .dt{ font-size:10.5px; color:var(--ink-faint); font-family:'Inter',sans-serif; margin-top:5px; font-weight:600;}
   .kanban-empty{ font-size:11.5px; color:var(--ink-faint); text-align:center; padding:16px 6px; font-style:italic;}
+  #mfa-screen{ display:none; } #mfa-qr{ text-align:center; margin:8px 0; } #mfa-qr svg, #mfa-qr img{ width:180px; height:180px; background:#fff; padding:6px; border-radius:10px; border:1px solid #d9dce8; }
+  #mfa-code{ letter-spacing:.35em; font-size:22px; text-align:center; }
+  .mfa-faixa{ background:#fff7e0; border-bottom:1px solid #f0d58a; color:#5a4300; padding:6px 14px; font-size:13px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .mfa-faixa button{ border:1px solid #0018fc; background:#0018fc; color:#fff; border-radius:999px; padding:3px 12px; font-weight:700; cursor:pointer; }
 </style>
 
 
@@ -206,6 +210,19 @@
     <div class="field"><label>Nova senha</label><input id="reset-pass" type="password" autocomplete="new-password"></div>
     <button class="btn btn-primary" id="btn-reset-save">Salvar senha</button>
     <div class="err" id="reset-err"></div>
+  </div>
+</div>
+
+<div id="mfa-screen">
+  <div class="login-card">
+    <h1 id="mfa-h">Confirme o código</h1>
+    <div class="sub" id="mfa-sub">Abra o aplicativo autenticador no celular e digite o código de 6 números.</div>
+    <div id="mfa-qr" style="display:none"></div>
+    <div class="hint" id="mfa-secret" style="display:none;word-break:break-all;text-align:center"></div>
+    <div class="field"><label>Código de 6 números</label><input id="mfa-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"></div>
+    <button class="btn btn-primary" id="mfa-ok">Confirmar</button>
+    <button class="btn-ghost" id="mfa-sair" type="button">Sair</button>
+    <div class="err" id="mfa-err"></div>
   </div>
 </div>
 
@@ -786,7 +803,7 @@
   /* ---- relatório PDF (impressão) ---- */
   #print-report{ display:none; }
   @media print{
-    #login-screen, #reset-screen, #app, .toast{ display:none !important; }
+    #login-screen, #reset-screen, #mfa-screen, #app, .toast{ display:none !important; }
     #print-report{ display:block !important; }
     @page{ margin:14mm; }
   }
@@ -844,7 +861,6 @@ const ICO = {"sun": "<svg class=\"ic\" viewBox=\"0 0 24 24\" aria-hidden=\"true\
 
 const SUPABASE_URL = "https://rdkvkvhydcusbhugekeq.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJka3Zrdmh5ZGN1c2JodWdla2VxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYzODY4NTIsImV4cCI6MjEwMTk2Mjg1Mn0.qzthAQwf5lx9Q5r6Y78OqfplaMz-Xqm_C342kUkJ-0c";
-const ICS_TOKEN = "AjWe0bFNyGC44THvqvD3-EmF5dM7jBuZ";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentPersonId = null;
@@ -875,7 +891,7 @@ document.getElementById('btn-login').addEventListener('click', async ()=>{
   if(!email || !password){ errEl.textContent = 'Preencha email e senha.'; return; }
   const res = await sb.auth.signInWithPassword({ email, password });
   if(res.error){ errEl.textContent = res.error.message; return; }
-  boot();
+  mfaGate();
 });
 document.getElementById('btn-forgot').addEventListener('click', async ()=>{
   const email = document.getElementById('login-email').value.trim();
@@ -901,10 +917,54 @@ document.getElementById('btn-reset-save').addEventListener('click', async ()=>{
   const { error } = await sb.auth.updateUser({ password: newPass, data:{ must_change_password:false } });
   if(error){ errEl.textContent = error.message; return; }
   errEl.style.color = 'var(--green)'; errEl.textContent = 'Senha atualizada! Redirecionando...'; window._trocaObrigatoria = false;
-  setTimeout(()=>{ document.getElementById('reset-screen').style.display='none'; boot(); }, 1200);
+  setTimeout(()=>{ document.getElementById('reset-screen').style.display='none'; mfaGate(); }, 1200);
 });
 document.getElementById('btn-logout').addEventListener('click', async ()=>{ try{ if(window.ACOMP && ACOMP.flush) await ACOMP.flush(); }catch(e){} await sb.auth.signOut({ scope:'local' }); location.reload(); });
-async function checkSession(){ const { data } = await sb.auth.getSession(); if(data.session){ boot(); } }
+async function checkSession(){ const { data } = await sb.auth.getSession(); if(data.session){ mfaGate(); } }
+
+// ===== Verificação em 2 etapas (código do aplicativo autenticador) =====
+function mfaTela(modo, f){   // modo: 'desafio' | 'cadastro'
+  ['login-screen','reset-screen'].forEach(i=>{ const e=document.getElementById(i); if(e) e.style.display='none'; });
+  document.getElementById('app').classList.remove('active');
+  const t = document.getElementById('mfa-screen'); t.style.display='flex'; t.dataset.modo = modo; t.dataset.fid = f||'';
+  document.getElementById('mfa-code').value=''; document.getElementById('mfa-err').textContent='';
+  document.getElementById('mfa-qr').style.display = modo==='cadastro' ? '' : 'none'; document.getElementById('mfa-secret').style.display = modo==='cadastro' ? '' : 'none';
+  document.getElementById('mfa-h').textContent = modo==='cadastro' ? 'Ative a verificação em 2 etapas' : 'Confirme o código';
+  document.getElementById('mfa-sub').textContent = modo==='cadastro' ? '1) Instale o Google Authenticator ou Microsoft Authenticator no celular. 2) Leia o QR code abaixo. 3) Digite o código de 6 números que o aplicativo mostrar.' : 'Abra o aplicativo autenticador no celular e digite o código de 6 números.';
+  setTimeout(()=>document.getElementById('mfa-code').focus(), 50);
+}
+async function mfaCadastro(){
+  mfaTela('cadastro');
+  try{ const l = await sb.auth.mfa.listFactors(); for(const x of ((l.data&&l.data.all)||[])){ if(x.status!=='verified') await sb.auth.mfa.unenroll({ factorId:x.id }); } }catch(e){}
+  const { data, error } = await sb.auth.mfa.enroll({ factorType:'totp', friendlyName:'CRM Aliança '+new Date().toISOString().slice(0,10) });
+  if(error){ document.getElementById('mfa-err').textContent = 'Não consegui gerar o QR code: '+error.message; return; }
+  document.getElementById('mfa-screen').dataset.fid = data.id;
+  const q = document.getElementById('mfa-qr'); q.innerHTML = data.totp.qr_code.indexOf('<svg')===0 ? data.totp.qr_code : '<img alt="QR code" src="'+data.totp.qr_code+'">';
+  document.getElementById('mfa-secret').textContent = 'Se não conseguir ler o QR code, digite esta chave no aplicativo: '+data.totp.secret;
+}
+async function mfaGate(){
+  let aal=null, fat=[];
+  try{ const a = await sb.auth.mfa.getAuthenticatorAssuranceLevel(); aal = a.data; const f = await sb.auth.mfa.listFactors(); fat = (f.data && f.data.totp) || []; }catch(e){}
+  if(aal && aal.nextLevel==='aal2' && aal.currentLevel!=='aal2' && fat.length){ mfaTela('desafio', fat[0].id); return; }
+  if(!fat.length){ let obrig=false; try{ const r = await sb.rpc('crm_mfa_obrigatorio'); obrig = r.data===true; }catch(e){} if(obrig){ mfaCadastro(); return; } }
+  document.getElementById('mfa-screen').style.display='none';
+  boot(); mfaAviso(fat.length>0);
+}
+function mfaAviso(ativo){
+  const sg = document.getElementById('btn-logout');
+  if(sg && !document.getElementById('btn-2etapas')){ const b = document.createElement('button'); b.id='btn-2etapas'; b.type='button'; b.className='btn-ghost'; b.style.cssText='color:#fff;margin-right:8px'; b.textContent = ativo ? '🔐 2 etapas: ativa' : '🔐 Ativar 2 etapas'; b.addEventListener('click', ()=>{ if(ativo) showToast('A verificação em 2 etapas já está ativa na sua conta. Se trocar de celular, peça ao master para reiniciar.'); else mfaCadastro(); }); sg.insertAdjacentElement('beforebegin', b); }
+  if(!ativo && !document.getElementById('mfa-faixa')){ const h = document.querySelector('#app header'); if(h){ const f = document.createElement('div'); f.id='mfa-faixa'; f.className='mfa-faixa'; f.innerHTML = '<span>🔐 <b>Proteja o seu acesso:</b> ative a verificação em 2 etapas (leva 1 minuto). Em breve será obrigatória.</span><button type="button" id="mfa-faixa-b">Ativar agora</button>'; h.insertAdjacentElement('afterend', f); document.getElementById('mfa-faixa-b').addEventListener('click', mfaCadastro); } }
+}
+document.getElementById('mfa-ok').addEventListener('click', async ()=>{
+  const t = document.getElementById('mfa-screen'), err = document.getElementById('mfa-err'), code = document.getElementById('mfa-code').value.replace(/\D/g,'');
+  err.style.color='var(--red)'; err.textContent='';
+  if(code.length!==6){ err.textContent='Digite os 6 números do aplicativo.'; return; }
+  const { error } = await sb.auth.mfa.challengeAndVerify({ factorId:t.dataset.fid, code });
+  if(error){ err.textContent = /invalid|expired/i.test(error.message) ? 'Código incorreto ou vencido. Digite o código atual do aplicativo.' : error.message; return; }
+  location.reload();   // recarrega já com a sessão confirmada (aal2)
+});
+document.getElementById('mfa-code').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('mfa-ok').click(); });
+document.getElementById('mfa-sair').addEventListener('click', async ()=>{ await sb.auth.signOut({ scope:'local' }); location.reload(); });
 
 // ===== Novidades do sistema (vêm da tabela crm_novidades: dá para acrescentar uma nova sem publicar o sistema) =====
 const NOV = { lista:[], ok:false };
@@ -942,7 +1002,7 @@ function boot(){
   sb.rpc('crm_is_master').then(({data})=>{ window._isMaster = data===true; const nb = document.getElementById('nav-admin'); if(nb) nb.style.display = window._isMaster ? '' : 'none'; });
   backupReminder();
   setTimeout(novidadesIniciar, 1500);
-  document.getElementById('ics-url').value = `${SUPABASE_URL}/functions/v1/agenda-ics?token=${ICS_TOKEN}`;
+  sb.from('crm_config').select('valor').eq('chave','agenda_feed_token').maybeSingle().then(({data})=>{ document.getElementById('ics-url').value = data && data.valor ? `${SUPABASE_URL}/functions/v1/agenda-ics?token=${data.valor}` : ''; });   // o token vem do banco (só quem está logado lê), nunca do código
   renderCalendar();
   renderOperacao();
   const home = document.querySelector('.nav-btn[data-view="indicadores"]'); if(home) home.click();   // a página inicial do sistema é Indicadores
@@ -9309,7 +9369,7 @@ checkSession();
   ::selection{ background:var(--brand-soft); color:var(--ink); }
 
   /* login: faixa diagonal marinho */
-  #login-screen, #reset-screen{ background:linear-gradient(112deg, var(--bg) 0 56%, var(--navy) 56% 100%); }
+  #login-screen, #reset-screen, #mfa-screen{ background:linear-gradient(112deg, var(--bg) 0 56%, var(--navy) 56% 100%); }
   .login-card{ box-shadow:var(--shadow-lg); border-color:var(--border); }
 
   /* menu lateral */
@@ -9993,12 +10053,15 @@ async function admUsrHtml(){
     <label>Papel<select id="adm-n-papel"><option value="especialista">Especialista</option><option value="leitura">Somente leitura</option><option value="master">Master (tudo)</option></select></label>
     <label style="min-width:200px">Senha temporária (10+ caracteres)<input id="adm-n-senha" type="text" autocomplete="off" placeholder="digite ou clique em Gerar"></label>
     <button class="adm-b" id="adm-gerar" type="button">Gerar senha</button><button class="adm-b pri" id="adm-criar" type="button">Criar usuário</button></div></div>`;
-  return novo+`<table class="adm-t"><thead><tr><th>Usuário</th><th>Nome</th><th>Papel</th><th>Acesso</th><th>Senha</th><th>Último acesso</th><th>Criado em</th></tr></thead><tbody>${ADM.usr.map(u=>{ const bl = u.bloqueado || !u.ativo, voce = u.email.toLowerCase()===eu;
+  let obrig=false; try{ const r = await sb.rpc('crm_mfa_obrigatorio'); obrig = r.data===true; }catch(e){}
+  const mfaBox = `<div class="es-box" style="margin:0 0 14px"><div class="ql">🔐 Verificação em 2 etapas</div><div class="hint" style="margin:2px 0 8px">${ADM.usr.filter(u=>u.mfa).length} de ${ADM.usr.filter(u=>u.ativo).length} usuários ativos já cadastraram o código. Quando ligar a obrigatoriedade, quem ainda não cadastrou será levado a cadastrar no próximo acesso (sem isso não entra).</div><label style="font-size:13px"><input type="checkbox" id="adm-mfa-obrig" ${obrig?'checked':''}> Tornar a verificação em 2 etapas obrigatória para todos</label></div>`;
+  return mfaBox+novo+`<table class="adm-t"><thead><tr><th>Usuário</th><th>Nome</th><th>Papel</th><th>Acesso</th><th>Senha</th><th>2 etapas</th><th>Último acesso</th><th>Criado em</th></tr></thead><tbody>${ADM.usr.map(u=>{ const bl = u.bloqueado || !u.ativo, voce = u.email.toLowerCase()===eu;
     return `<tr><td><b>${escapeHtml(u.email)}</b>${voce?' <span class="hint">(você)</span>':''}</td>
       <td><input class="adm-nome" data-e="${escapeHtml(u.email)}" value="${escapeHtml(u.nome||'')}" placeholder="Nome"></td>
       <td><select class="adm-papel" data-e="${escapeHtml(u.email)}" ${voce?'disabled title="Você é o master"':''}>${['master','especialista','leitura'].map(p=>`<option value="${p}" ${u.papel===p?'selected':''}>${p==='master'?'Master (tudo)':p==='especialista'?'Especialista':'Somente leitura'}</option>`).join('')}</select></td>
       <td><span class="adm-ac ${bl?'DELETE':'INSERT'}">${bl?'Bloqueado':'Ativo'}</span> ${voce?'':`<button class="adm-b adm-acesso" data-e="${escapeHtml(u.email)}" data-a="${bl?1:0}">${bl?'Liberar':'Bloquear'}</button>`}</td>
       <td><button class="adm-b adm-senha" data-e="${escapeHtml(u.email)}" ${(!u.ativo&&u.papel==='sem cadastro')?'disabled':''}>Definir senha temporária</button></td>
+      <td>${u.mfa?'<span class="adm-ac INSERT">Ativa</span> <button class="adm-b adm-mfa-reset" data-e="'+escapeHtml(u.email)+'" title="Perdeu o celular? Remove a 2ª etapa para a pessoa cadastrar de novo">Reiniciar</button>':'<span class="adm-ac DELETE">Não ativou</span>'}</td>
       <td>${u.ultimo_acesso?escapeHtml(admDh(u.ultimo_acesso)):'—'}</td><td>${u.criado_em?escapeHtml(new Date(u.criado_em).toLocaleDateString('pt-BR')):'—'}</td></tr>`; }).join('')}</tbody></table>
     <div class="hint" style="margin-top:10px"><b>Master</b> vê esta aba, a auditoria completa e gerencia acessos. <b>Bloquear</b> impede o login na hora (o usuário é desconectado quando a sessão renovar). <b>Novo usuário</b> cria o login na hora; <b>Definir senha temporária</b> serve para quem esqueceu a senha e o e-mail de redefinição não chegou. Nos dois casos a pessoa é obrigada a trocar a senha no primeiro acesso.</div>`;
 }
@@ -10020,6 +10083,8 @@ document.addEventListener('click', async e=>{
   if(e.target.closest('#adm-next')){ ADM.off += ADM.pag; admCarregarAud(); return; }
   if(e.target.closest('#adm-csv')){ admExportar(); return; }
   const row = e.target.closest('.adm-row'); if(row){ const r = ADM.rows.find(x=>String(x.id)===row.dataset.id); if(r) dlgOpen(`<h3 style="margin-top:0">${admAcao(r.acao)} · ${escapeHtml(admTab(r.tabela))}</h3><div class="hint">${escapeHtml(admDh(r.em))} · ${escapeHtml(r.usuario_email||'')} · registro ${escapeHtml(String(r.registro||''))}</div><div class="adm-json"><div><b>Antes</b><pre>${escapeHtml(r.antes?JSON.stringify(r.antes,null,2):'—')}</pre></div><div><b>Depois</b><pre>${escapeHtml(r.depois?JSON.stringify(r.depois,null,2):'—')}</pre></div></div><div style="text-align:right;margin-top:10px"><button class="adm-b" onclick="dlgClose()">Fechar</button></div>`, true); return; }
+  if(e.target.closest('#adm-mfa-obrig')){ const on = e.target.closest('#adm-mfa-obrig').checked; if(on && !confirm('Ligar a obrigatoriedade? Antes confirme que VOCÊ já ativou a sua 2ª etapa; quem não ativou será levado a cadastrar no próximo acesso.')){ e.target.closest('#adm-mfa-obrig').checked=false; return; } const { error } = await sb.rpc('crm_admin_mfa_obrigatorio', { p_on:on }); showToast(error?('Erro: '+error.message):(on?'2 etapas obrigatória para todos.':'2 etapas voltou a ser opcional.')); return; }
+  const mr = e.target.closest('.adm-mfa-reset'); if(mr){ if(!confirm('Remover a 2ª etapa de '+mr.dataset.e+'? A pessoa precisará cadastrar o código de novo.')) return; const { error } = await sb.rpc('crm_admin_mfa_reset', { p_email:mr.dataset.e }); showToast(error?('Erro: '+error.message):'2ª etapa removida.'); renderAdmin(); return; }
   if(e.target.closest('#adm-gerar')){ document.getElementById('adm-n-senha').value = admSenhaAleatoria(); return; }
   if(e.target.closest('#adm-criar')){
     const g = id=>document.getElementById(id).value.trim(), email = g('adm-n-email'), senha = document.getElementById('adm-n-senha').value;

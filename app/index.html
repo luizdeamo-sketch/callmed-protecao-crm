@@ -61,6 +61,10 @@ h2{font-size:15px;margin:18px 0 4px;color:var(--soft);text-transform:uppercase;l
   <div class="card" style="margin-top:24px"><b>Defina a sua senha</b><div class="mut">Por segurança, troque a senha temporária por uma só sua.</div><div class="lab">Nova senha (8+ caracteres)</div><input id="t-senha" type="password" autocomplete="new-password"><div style="margin-top:14px"><button class="btn" id="t-ok">Salvar senha</button></div><div class="err" id="t-err"></div></div>
 </section>
 
+<section id="v-mfa" class="hide">
+  <div class="card" style="margin-top:24px"><b id="m-h">Confirme o código</b><div class="mut" id="m-sub">Abra o aplicativo autenticador e digite o código de 6 números.</div><div id="m-corpo"><div class="lab">Código</div><input id="m-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" style="text-align:center;font-size:22px;letter-spacing:.3em"><div style="margin-top:14px"><button class="btn" id="m-ok">Confirmar</button> <button class="btn sec sm" id="m-sair" type="button">Sair</button></div></div><div class="err" id="m-err"></div></div>
+</section>
+
 <section id="v-home" class="hide">
   <input id="busca" type="search" placeholder="🔎 Buscar cliente (nome ou telefone)" autocomplete="off">
   <div id="res"></div>
@@ -107,15 +111,19 @@ const waUrl = (tel, txt) => { let d = digitos(tel); if(d.length<10) return ''; i
 function toast(m){ const t = document.createElement('div'); t.className = 'toast'; t.textContent = m; document.body.appendChild(t); setTimeout(()=>t.remove(), 2600); }
 
 // ----- telas -----
-const TELAS = ['login','troca','home','hoje','resumo','reuniao','ficha'];
+const TELAS = ['login','troca','mfa','home','hoje','resumo','reuniao','ficha'];
 function ir(nome, empilha=true){
   TELAS.forEach(t=>$('v-'+t).classList.toggle('hide', t!==nome));
-  $('voltar').classList.toggle('hide', !(nome!=='home' && nome!=='login' && nome!=='troca')); $('sair').classList.toggle('hide', nome!=='home');
+  $('voltar').classList.toggle('hide', !(nome!=='home' && nome!=='login' && nome!=='troca' && nome!=='mfa')); $('sair').classList.toggle('hide', nome!=='home');
   if(empilha && nome!=='home') HIST.push(nome); window.scrollTo(0,0);
 }
 $('voltar').onclick = ()=>{ HIST = []; ir('home'); };
 $('sair').onclick = async ()=>{ await sb.auth.signOut({scope:'local'}); location.reload(); };
 
+// ----- 2 etapas -----
+$('m-ok').onclick = async ()=>{ const code = $('m-code').value.replace(/\D/g,''); $('m-err').textContent=''; if(code.length!==6){ $('m-err').textContent='Digite os 6 números.'; return; }
+  const { error } = await sb.auth.mfa.challengeAndVerify({ factorId:window._fid, code }); if(error){ $('m-err').textContent='Código incorreto ou vencido.'; return; } boot(); };
+$('m-sair').onclick = async ()=>{ await sb.auth.signOut({scope:'local'}); location.reload(); };
 // ----- entrar -----
 $('l-ok').onclick = async ()=>{
   $('l-err').textContent = ''; const { error } = await sb.auth.signInWithPassword({ email:$('l-email').value.trim(), password:$('l-senha').value });
@@ -126,6 +134,9 @@ $('t-ok').onclick = async ()=>{
 async function boot(){
   const { data:{ user } } = await sb.auth.getUser(); if(!user){ ir('login', false); return; }
   if(user.user_metadata && user.user_metadata.must_change_password){ ir('troca', false); return; }
+  let aal=null, fat=[]; try{ const a = await sb.auth.mfa.getAuthenticatorAssuranceLevel(); aal = a.data; const f = await sb.auth.mfa.listFactors(); fat = (f.data&&f.data.totp)||[]; }catch(e){}
+  if(aal && aal.nextLevel==='aal2' && aal.currentLevel!=='aal2' && fat.length){ window._fid = fat[0].id; ir('mfa', false); $('m-code').focus(); return; }
+  if(!fat.length){ let ob=false; try{ const r = await sb.rpc('crm_mfa_obrigatorio'); ob = r.data===true; }catch(e){} if(ob){ $('m-h').textContent = 'Ative a verificação em 2 etapas'; $('m-sub').textContent = 'Entre no CRM Aliança pelo computador, ative a verificação em 2 etapas (botão no topo) e volte aqui.'; $('m-corpo').innerHTML = '<div style="margin-top:14px"><button class="btn sec sm" id="m-sair2">Sair</button></div>'; ir('mfa', false); $('m-sair2').onclick = async ()=>{ await sb.auth.signOut({scope:'local'}); location.reload(); }; return; } }
   EU.email = user.email; const { data:u } = await sb.from('crm_usuarios').select('nome').ilike('email', user.email).maybeSingle();
   EU.nome = (u && u.nome) || user.email.split('@')[0]; $('quem').textContent = primeiro(EU.nome);
   ir('home', false); $('busca').focus();
