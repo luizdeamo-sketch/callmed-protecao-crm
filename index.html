@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261019105634">
+<meta name="app-build" content="20261019110837">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -357,6 +357,10 @@
     <div id="view-vendas" class="view">
       <div class="pg">
         <div class="pg-head"><h2>Prospecção e vendas</h2><span class="sub">Contatos feitos, demandas, o que virou venda e o que não virou, com relatório em PDF.</span></div>
+        <details id="vd-tour" class="es-box" style="margin:0 0 12px" open><summary style="cursor:pointer;font-weight:700;font-size:15px">🎬 Seu dia de vendas em 3 minutos <span style="font-weight:500;color:var(--ink-soft);font-size:12.5px">(vídeo para quem vende)</span></summary>
+          <div style="margin-top:10px;display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><video controls preload="metadata" style="width:100%;max-width:640px;border-radius:10px;background:#00125e" src="tutorial-vendedor.mp4"></video>
+          <div style="flex:1;min-width:240px;font-size:13px;line-height:1.6;color:var(--ink-soft)"><b style="color:var(--ink)">A rotina</b><br>1. Abra o dia: atrasados e retornos de hoje<br>2. Faça o contato e <b>Registre</b> com canal, status e data de retorno<br>3. Sem contato? Nova tentativa. Disse não? Sem interesse, com o motivo<br>4. Pediu proposta? Abra a demanda<br>5. Fechou ou não: Virou venda / Não virou venda</div></div></details>
+        <script>try{ const d = document.getElementById('vd-tour'); if(localStorage.getItem('vd-tour-fechado')==='1') d.open = false; d.addEventListener('toggle', ()=>{ try{ localStorage.setItem('vd-tour-fechado', d.open?'0':'1'); }catch(e){} }); }catch(e){}</script>
         <div id="vd-body"><div class="op-more">Carregando...</div></div>
       </div>
     </div>
@@ -365,7 +369,7 @@
       <div class="pg">
         <div class="pg-head"><h2>Indicadores</h2><span class="sub">Funil contra as metas, tempo parado, produção CallMed e oportunidades.</span>
           <span style="margin-left:auto;display:flex;gap:8px"><select id="ind-periodo" class="ca-inp" style="width:170px"><option value="semana">Esta semana</option><option value="mes" selected>Este mês</option><option value="30d">Últimos 30 dias</option><option value="tri">Últimos 3 meses</option><option value="tudo">Todo o período</option></select><button class="om-cancel" id="ind-metas">Metas</button></span></div>
-        <details id="ind-tour" class="es-box" style="margin:0 0 14px" open><summary style="cursor:pointer;font-weight:700;font-size:15px">🎬 Comece por aqui: como usar o CRM Aliança <span style="font-weight:500;color:var(--ink-soft);font-size:12.5px">(vídeo de 5 minutos)</span></summary>
+        <details id="ind-tour" class="es-box" style="margin:0 0 14px" open><summary style="cursor:pointer;font-weight:700;font-size:15px">🎬 Visão do gestor: como o CRM Aliança funciona <span style="font-weight:500;color:var(--ink-soft);font-size:12.5px">(vídeo de 5 minutos · quem vende vê o vídeo em Vendas)</span></summary>
           <div style="margin-top:10px;display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start"><video controls preload="metadata" style="width:100%;max-width:760px;border-radius:10px;background:#00125e" src="tutorial-boas-vindas.mp4"></video>
           <div style="flex:1;min-width:240px;font-size:13px;line-height:1.6;color:var(--ink-soft)"><b style="color:var(--ink)">O caminho, passo a passo</b><br>1. Cadastrar o lead<br>2. Botões de inteligência da ficha<br>3. Registrar cada contato em Vendas<br>4. Mudar o status<br>5. Acompanhar na Aliança<br>6. Dúvida? Botão 💬 com print marcado</div></div></details>
         <script>try{ const d = document.getElementById('ind-tour'); if(localStorage.getItem('ind-tour-fechado')==='1') d.open = false; d.addEventListener('toggle', ()=>{ try{ localStorage.setItem('ind-tour-fechado', d.open?'0':'1'); }catch(e){} }); }catch(e){}</script>
