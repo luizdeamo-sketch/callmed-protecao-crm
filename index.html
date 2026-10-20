@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261020-0956">
+<meta name="app-build" content="20261020-1000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -939,7 +939,10 @@ async function mfaCadastro(){
   const { data, error } = await sb.auth.mfa.enroll({ factorType:'totp', friendlyName:'CRM Aliança '+new Date().toISOString().slice(0,10) });
   if(error){ document.getElementById('mfa-err').textContent = 'Não consegui gerar o QR code: '+error.message; return; }
   document.getElementById('mfa-screen').dataset.fid = data.id;
-  const q = document.getElementById('mfa-qr'); q.innerHTML = data.totp.qr_code.indexOf('<svg')===0 ? data.totp.qr_code : '<img alt="QR code" src="'+data.totp.qr_code+'">';
+  const q = document.getElementById('mfa-qr'); q.textContent = '';
+  let svg = String(data.totp.qr_code||''); const vir = svg.indexOf('<svg'); svg = vir>=0 ? svg.slice(vir) : '';   // o Supabase manda o SVG dentro de um "data:" com aspas e #: precisa ser codificado
+  const img = document.createElement('img'); img.alt = 'QR code para o aplicativo autenticador'; img.src = svg ? 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg) : String(data.totp.qr_code||''); q.appendChild(img);
+  if(data.totp.uri){ const a = document.createElement('a'); a.href = data.totp.uri; a.textContent = 'Abrir direto no aplicativo (se estiver neste celular)'; a.style.cssText = 'display:block;margin-top:6px;font-size:12px'; q.appendChild(a); }
   document.getElementById('mfa-secret').textContent = 'Se não conseguir ler o QR code, digite esta chave no aplicativo: '+data.totp.secret;
 }
 async function mfaGate(){
