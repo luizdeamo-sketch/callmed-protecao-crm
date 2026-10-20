@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261020-1000">
+<meta name="app-build" content="20261020-1946">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -152,6 +152,7 @@
   .cal-evt{ margin-top:4px; background:var(--brand); color:#fff; border-radius:5px; padding:2px 6px; font-size:10px; font-weight:500; margin-bottom:2px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
   .cal-evt.realizado{ background:var(--ink-faint);}
   .cal-evt.cancelado{ background:var(--red); text-decoration:line-through;}
+  #op-hoje.reu-badge{ position:relative;} #op-hoje.reu-badge::after{ content:attr(data-n); position:absolute; top:-6px; right:-6px; min-width:16px; height:16px; padding:0 4px; border-radius:999px; background:var(--red); color:#fff; font-size:10px; font-weight:700; line-height:16px; text-align:center;}
   .ics-box{ background:var(--amber-soft); border:1px solid var(--amber-line); border-radius:var(--radius-md); padding:15px 17px; margin-bottom:24px; font-size:12.5px; color:var(--ink-soft);}
   .ics-box b{ display:block; margin-bottom:6px; color:var(--amber-ink);}
   .ics-box .url-row{ display:flex; gap:6px; margin-top:9px;}
@@ -1005,6 +1006,7 @@ function boot(){
   sb.rpc('crm_is_master').then(({data})=>{ window._isMaster = data===true; const nb = document.getElementById('nav-admin'); if(nb) nb.style.display = window._isMaster ? '' : 'none'; });
   backupReminder();
   setTimeout(novidadesIniciar, 1500);
+  setTimeout(reuBadge, 2500);
   sb.from('crm_config').select('valor').eq('chave','agenda_feed_token').maybeSingle().then(({data})=>{ document.getElementById('ics-url').value = data && data.valor ? `${SUPABASE_URL}/functions/v1/agenda-ics?token=${data.valor}` : ''; });   // o token vem do banco (só quem está logado lê), nunca do código
   renderCalendar();
   renderOperacao();
@@ -2695,6 +2697,12 @@ async function pvTimeline(p){
     (prs.data||[]).filter(r=>!r.registrado_em).forEach(r=>ev.push({d:r.contato_em||r.created_at, i:ICO.phone||ICO.note, t:`<b>Prospecção</b> — ${escapeHtml(r.status||'')}${r.origem?' · origem: '+escapeHtml(r.origem):''}${r.historico?'<br>'+escapeHtml(r.historico).replace(/\n/g,'<br>'):''}`}));
     (vds.data||[]).forEach(r=>ev.push({d:r.data_venda||r.created_at, i:ICO.doc, t:`<b>Venda realizada</b> — ${escapeHtml(r.produto||'')} ${escapeHtml(r.seguradora||'')}${Number(r.premio)>0?' · prêmio '+vdM(Number(r.premio)):''}`}));
     (nvs.data||[]).forEach(r=>ev.push({d:r.data_registro||r.created_at, i:ICO.note, t:`<b>Não virou venda</b> — ${escapeHtml(r.produto||'')}${r.motivo?' · '+escapeHtml(r.motivo):''}${r.justificativa?'<br>'+escapeHtml(r.justificativa):''}`}));
+  }catch(e){}
+  try{ // reuniões marcadas e lembretes enviados pela régua (crm_envios)
+    const [envT, agT] = await Promise.all([q('crm_envios','momento,enviado_em,enviado_por').eq('status','enviado'), q('crm_agenda','data_inicio,status,resultado,created_at').in('tipo',['reuniao_online','visita'])]);
+    (envT.data||[]).forEach(r=>ev.push({d:r.enviado_em, i:ICO.chat, t:`<b>Lembrete de reunião enviado</b> — ${escapeHtml(REU_MOM[r.momento]||r.momento)} (WhatsApp)`, who:r.enviado_por}));
+    const RES = { compareceu:'<span class="tagx">compareceu</span>', faltou:'<span class="tagx bad">não compareceu</span>' };
+    (agT.data||[]).forEach(r=>ev.push({d:r.created_at, i:ICO.calendar, t:`<b>Reunião marcada</b> para ${fmtDateTime(r.data_inicio)} ${RES[r.resultado]||(r.status==='cancelado'?'<span class="tagx bad">cancelada</span>':'')}`}));
   }catch(e){}
   if(p.created_at) ev.push({d:p.created_at, i:ICO.plus, t:'Cadastro criado no CRM'});
   (notasL.data||[]).forEach(n=>ev.push({d:n.created_at, i:ICO.note, t:`<b>Anotação sobre o lead</b><br>${escapeHtml(n.texto).replace(/\n/g,'<br>')}`, who:n.autor}));
@@ -9009,7 +9017,10 @@ function opDatasRelevantes(){
 const hojeRow = (p, right, sub)=>`<div class="rec hj-row"><a href="#" data-openp="${p.id}" style="font-weight:600;color:var(--brand)">${escapeHtml(p.nome)}</a>${sub?` <small style="color:var(--ink-faint)">${sub}</small>`:''}<span style="float:right;font-size:12px">${right||''}</span></div>`;
 
 // ===== Lembretes de relacionamento: aniversários (cliente e família), 3/6/9/12 meses da apólice, contato a cada 3 meses e datas especiais =====
-function lembPrimeiroNome(n){ const t = String(n||'').trim().split(/\s+/)[0]||''; return t ? t.charAt(0).toUpperCase()+t.slice(1).toLowerCase() : ''; }
+function lembPrimeiroNome(n){ // "DRA. FULANA DE TAL" → "Dra. Fulana"; "JOÃO SILVA" → "João"
+  const cap = t=>t ? t.charAt(0).toUpperCase()+t.slice(1).toLowerCase() : '', p = String(n||'').trim().split(/\s+/);
+  const tit = { dr:'Dr.', dra:'Dra.', doutor:'Dr.', doutora:'Dra.' }[(p[0]||'').toLowerCase().replace(/\.$/,'')];
+  return tit && p[1] ? tit+' '+cap(p[1]) : cap(p[0]||''); }
 function lembTexto(modelo, r, extra){
   const ex = Object.assign({}, r.extra||{}, extra||{});
   const v = { primeiro_nome:lembPrimeiroNome(r.nome), corretor:lembPrimeiroNome(curUserName()), produto:ex.produto||'sua proteção', seguradora:ex.seguradora||'', vencimento:ex.vencimento?fmtDate(ex.vencimento):'', familiar:ex.familiar||'', parentesco:ex.parentesco||'familiar' };
@@ -9034,6 +9045,99 @@ async function lembAbrirLista(r){
     <div class="dlg-body" style="max-height:60vh;overflow:auto">${(data||[]).map(x=>{ const wa = waLink(x.telefone); return `<div class="rec"><b>${escapeHtml(x.nome)}</b> <small style="color:var(--ink-faint)">${escapeHtml(x.telefone||'sem telefone')}</small><span style="float:right">${wa?`<a class="om-cancel vd-btn" target="_blank" rel="noopener" href="${wa}?text=${encodeURIComponent(lembTexto(modelo,{nome:x.nome}))}">💬 WhatsApp</a>`:''}</span></div>`; }).join('')||'<div class="hint">Nenhum cliente neste público.</div>'}</div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Fechar</button></div>`, true);
 }
+// ===== Reunião que se confirma sozinha: a Prospecção ("Agendou reunião") ou a Agenda criam o compromisso e o banco monta
+// a régua de lembretes em crm_envios (confirmação, 3/2/1 dia antes às 9h, 1 hora antes e na hora). Sem API de WhatsApp:
+// o Hoje mostra o que está na hora de enviar, com 1 clique para o WhatsApp; o enviado entra na linha do tempo do cliente. =====
+const APRESENTACAO_URL = 'https://luizdeamo-sketch.github.io/callmed-protecao-crm/apresentacao.html';
+const REU_MOM = { reuniao_confirmacao:'Confirmação', reuniao_3d:'3 dias antes', reuniao_2d:'2 dias antes', reuniao_1d:'1 dia antes', reuniao_1h:'1 hora antes', reuniao_agora:'Na hora' };
+function reuTexto(modelo, env){
+  const a = env.crm_agenda||{}, ini = new Date(a.data_inicio), link = a.link_reuniao || (/^https?:\/\//.test(a.local||'') ? a.local : '');
+  const onde = link ? '\n\nLink da conversa: '+link : (a.local ? '\n\nLocal: '+a.local : '');
+  const v = { dia:ini.toLocaleDateString('pt-BR',{weekday:'long'}), data:ini.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}), hora:ini.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}), onde, apresentacao:APRESENTACAO_URL };
+  return lembTexto(modelo, { nome:(env.crm_pessoas||{}).nome }).replace(/\{(dia|data|hora|onde|apresentacao)\}/g, (m,k)=>v[k]);
+}
+async function reuCarregar(){
+  const agora = Date.now(), out = { envios:[], passadas:[], modelos:{}, taxa:null, ok:false };
+  try{
+    const [env, pas, mod, tx] = await Promise.all([
+      sb.from('crm_envios').select('id,momento,quando,pessoa_id,agenda_id,crm_pessoas(nome,telefone),crm_agenda(data_inicio,local,link_reuniao,titulo)').eq('status','pendente').lte('quando', new Date(agora).toISOString()).order('quando'),
+      sb.from('crm_agenda').select('id,titulo,data_inicio,pessoa_id,origem,origem_id,crm_pessoas(nome)').eq('status','agendado').not('pessoa_id','is',null).is('resultado',null).lt('data_inicio', new Date(agora-30*60000).toISOString()).gte('data_inicio', new Date(agora-14*86400000).toISOString()).order('data_inicio'),
+      sb.from('crm_mensagens_modelo').select('momento,texto').in('momento', Object.keys(REU_MOM)),
+      sb.from('crm_agenda').select('resultado').not('resultado','is',null).gte('data_inicio', new Date(agora-30*86400000).toISOString())]);
+    if(env.error) return out;   // tabela ainda não existe: o painel segue como antes
+    // um lembrete por reunião: o mais recente que já está na hora (os anteriores não enviados são pulados ao enviar este)
+    const porAg = new Map(); (env.data||[]).forEach(e=>porAg.set(e.agenda_id, e));
+    out.envios = [...porAg.values()]; out.todos = env.data||[]; out.passadas = pas.data||[];
+    (mod.data||[]).forEach(m=>out.modelos[m.momento] = m.texto);
+    const r = (tx.data||[]).filter(x=>x.resultado!=='remarcou'), c = r.filter(x=>x.resultado==='compareceu').length; if(r.length) out.taxa = {c, n:r.length};
+    out.ok = true;
+  }catch(e){}
+  return out;
+}
+function reuSecoes(R){
+  if(!R.ok) return '';
+  const pessoa = x=>({ id:x.pessoa_id, nome:(x.crm_pessoas||{}).nome||'—' });
+  const quando = d=>new Date(d).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit'})+' às '+new Date(d).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const envHtml = R.envios.map(e=>hojeRow(pessoa(e), `<span class="tagx warn">${escapeHtml(REU_MOM[e.momento]||e.momento)}</span> <button class="om-save vd-btn" data-reuenv="${e.id}">💬 Enviar</button> <button class="om-cancel vd-btn" data-reupula="${e.id}">Pular</button>`, 'Reunião '+quando((e.crm_agenda||{}).data_inicio))).join('');
+  const pasHtml = R.passadas.map(a=>hojeRow(pessoa(a), `<button class="om-save vd-btn" data-reures="${a.id}|compareceu">Compareceu</button> <button class="om-cancel vd-btn" data-reures="${a.id}|faltou">Faltou</button> <button class="om-cancel vd-btn" data-reures="${a.id}|remarcar">Remarcar</button>`, 'Era '+quando(a.data_inicio))).join('');
+  const taxa = R.taxa ? `<span class="tagx" style="margin-left:6px" title="Reuniões dos últimos 30 dias com resultado anotado">comparecimento 30 dias: ${R.taxa.c} de ${R.taxa.n}</span>` : '';
+  return `<div class="es-box"><div class="ql">Lembretes de reunião para enviar agora <span class="tagx" style="margin-left:6px">${R.envios.length}</span>${taxa}</div>${envHtml||'<div class="hint">Nenhum lembrete na hora de enviar. Ao marcar “Agendou reunião” na Prospecção, a confirmação e os lembretes aparecem aqui sozinhos.</div>'}</div>`
+    + (R.passadas.length ? `<div class="es-box"><div class="ql">Reuniões que já passaram: aconteceu? <span class="tagx" style="margin-left:6px">${R.passadas.length}</span></div>${pasHtml}</div>` : '');
+}
+function reuLigar(b, R, onlyMine){
+  const recarregar = ()=>{ reuBadge(); opHojeDialog(onlyMine); };
+  b.querySelectorAll('[data-reuenv]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const e = R.envios.find(x=>x.id===btn.dataset.reuenv); if(!e) return;
+    const wa = waLink((e.crm_pessoas||{}).telefone); if(!wa){ showToast('Esta pessoa não tem telefone cadastrado. Complete o cadastro para enviar.'); return; }
+    const texto = reuTexto(R.modelos[e.momento]||'', e);
+    window.open(wa+'?text='+encodeURIComponent(texto), '_blank', 'noopener');   // abre antes de qualquer espera, para o navegador não bloquear
+    btn.disabled = true; const agora = new Date().toISOString();
+    const { error } = await sb.from('crm_envios').update({ status:'enviado', enviado_em:agora, enviado_por:curUserName()||null, texto_enviado:texto }).eq('id', e.id);
+    if(error){ showToast('Erro: '+error.message); btn.disabled = false; return; }
+    const antigos = (R.todos||[]).filter(x=>x.agenda_id===e.agenda_id && x.id!==e.id).map(x=>x.id);
+    if(antigos.length) await sb.from('crm_envios').update({ status:'pulado' }).in('id', antigos);
+    const row = btn.closest('.hj-row'); if(row) row.remove(); showToast('Lembrete marcado como enviado'); reuBadge();
+  }));
+  b.querySelectorAll('[data-reupula]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    btn.disabled = true; const { error } = await sb.from('crm_envios').update({ status:'pulado' }).eq('id', btn.dataset.reupula);
+    if(error){ showToast('Erro: '+error.message); btn.disabled = false; return; } const row = btn.closest('.hj-row'); if(row) row.remove(); reuBadge(); }));
+  b.querySelectorAll('[data-reures]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const [id, acao] = btn.dataset.reures.split('|'), a = R.passadas.find(x=>x.id===id); if(!a) return;
+    if(acao==='remarcar'){ reuRemarcar(a, recarregar); return; }
+    btn.disabled = true; const agora = new Date().toISOString(), por = curUserName()||null, veio = acao==='compareceu';
+    const { error } = await sb.from('crm_agenda').update({ status: veio?'realizado':'cancelado', resultado:acao, resultado_em:agora, updated_at:agora }).eq('id', a.id);
+    if(error){ showToast('Erro: '+error.message); btn.disabled = false; return; }
+    const st = veio ? 'Reunião realizada' : 'Desmarcou reunião';
+    if(a.origem==='prospeccao' && a.origem_id){ await sb.from('crm_prospeccao').update({ status:st, updated_at:agora }).eq('id', a.origem_id); await vdFunilDoStatus({ pessoa_id:a.pessoa_id, status:st }); }
+    const amanha = ymd(new Date(Date.now()+86400000));
+    await sb.from('crm_atividades').insert({ pessoa_id:a.pessoa_id, tipo:'reuniao', data_hora:a.data_inicio, resumo: veio ? 'Reunião realizada (compareceu)' : 'Não compareceu à reunião marcada', resultado: veio ? 'Conversou' : 'Sem resposta', responsavel:por,
+      proxima_acao: veio ? 'Preparar proposta' : 'Fazer nova tentativa', proxima_data: veio ? null : amanha, proximo_responsavel: veio ? null : por });
+    OP.dirty = true; showToast(veio ? 'Reunião marcada como realizada' : 'Anotado: não compareceu. A nova tentativa ficou para amanhã.'); recarregar();
+  }));
+}
+function reuRemarcar(a, depois){
+  const ini = new Date(a.data_inicio), loc = new Date(Math.max(Date.now()+86400000, ini.getTime())-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
+  const box = dlgOpen(`<div class="om-title"><div><h3>Remarcar reunião</h3><div class="om-sub">${escapeHtml((a.crm_pessoas||{}).nome||'')}</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><label class="fl"><span>Nova data e hora</span><input type="datetime-local" id="reu-nova" value="${loc}"></label><div class="hint" style="margin-top:8px">A confirmação e os lembretes são refeitos sozinhos para a nova data.</div><div class="om-err" id="reu-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="reu-ok">Remarcar</button></div>`);
+  box.querySelector('#reu-ok').addEventListener('click', async ev=>{
+    const v = box.querySelector('#reu-nova').value; if(!v){ box.querySelector('#reu-err').textContent = 'Escolha a nova data e hora.'; return; }
+    const nova = new Date(v); if(nova.getTime() <= Date.now()){ box.querySelector('#reu-err').textContent = 'A nova data precisa ser no futuro.'; return; }
+    ev.target.disabled = true; ev.target.textContent = 'Salvando…';
+    const { error } = await sb.from('crm_agenda').update({ data_inicio:nova.toISOString(), data_fim:new Date(nova.getTime()+3600000).toISOString(), updated_at:new Date().toISOString() }).eq('id', a.id);
+    if(error){ box.querySelector('#reu-err').textContent = 'Erro: '+error.message; ev.target.disabled = false; ev.target.textContent = 'Remarcar'; return; }
+    if(a.origem==='prospeccao' && a.origem_id) await sb.from('crm_prospeccao').update({ retorno_data:ymd(nova), retorno_hora:nova.toTimeString().slice(0,5), status:'Agendou reunião', updated_at:new Date().toISOString() }).eq('id', a.origem_id);
+    await sb.from('crm_atividades').insert({ pessoa_id:a.pessoa_id, tipo:'reuniao', data_hora:new Date().toISOString(), resumo:'Reunião remarcada para '+fmtDateTime(nova.toISOString()), resultado:'Agendou', responsavel:curUserName()||null });
+    dlgClose(); showToast('Reunião remarcada. Os lembretes foram refeitos.'); OP.dirty = true; depois();
+  });
+}
+// contador no botão Hoje: lembretes de reunião que já estão na hora de enviar
+async function reuBadge(){
+  try{ const { count, error } = await sb.from('crm_envios').select('id',{count:'exact',head:true}).eq('status','pendente').lte('quando', new Date().toISOString()); if(error) return;
+    const b = document.getElementById('op-hoje'); if(!b) return; const n = count||0;
+    b.dataset.n = n ? String(n) : ''; b.classList.toggle('reu-badge', n>0); b.title = n ? `Hoje — ${n} lembrete(s) de reunião para enviar` : 'Hoje — painel do dia'; }catch(e){}
+}
+setInterval(reuBadge, 5*60000);
 async function opHojeDialog(onlyMine){
   const me = curUserName();
   const box = dlgOpen(`<div class="om-title"><div><h3>Hoje — o que preciso fazer</h3><div class="om-sub">${new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long'})}</div></div><button data-close>✕</button></div>
@@ -9042,6 +9146,7 @@ async function opHojeDialog(onlyMine){
   const dow = (todayD().getDay()+6)%7; const ini2 = new Date(todayD().getTime()+(7-dow)*86400000), fim2 = new Date(ini2.getTime()+7*86400000);
   const avR = await sb.from('crm_avisos').select('id,pessoa_id,dias_antes,data_aviso,titulo,tipo').eq('status','pendente').lte('data_aviso', ymdToday()).order('data_aviso');
   const lembR = await sb.rpc('crm_lembretes', { p_dias:7 });
+  const reu = await reuCarregar();
   const incompl = OP.pessoas.filter(x=>opIsCliente(x.id) && (!x.data_nascimento));
   const [ag, agNext, tar] = await Promise.all([
     sb.from('crm_agenda').select('titulo,data_inicio,crm_pessoas(nome)').gte('data_inicio',t0).lt('data_inicio',t1).order('data_inicio'),
@@ -9056,6 +9161,7 @@ async function opHojeDialog(onlyMine){
   const sec = (title, cnt, html)=>`<div class="es-box"><div class="ql">${title} <span class="tagx" style="margin-left:6px">${cnt}</span></div>${html||'<div class="hint">Nada por aqui.</div>'}</div>`;
   document.getElementById('hj-body').innerHTML =
     `<div class="sg-row" style="margin-bottom:10px"><label class="chk"><input type="checkbox" id="hj-mine" ${onlyMine?'checked':''}> Só as minhas (${escapeHtml(me)})</label><span style="flex:1"></span><span class="tagx ${nxt<3?'warn':''}">Agenda da semana que vem: ${nxt} evento(s)${nxt<3?' — deixe-a cheia antes de a atual acabar':''}</span></div>`
+    + reuSecoes(reu)
     + sec('Ações de hoje e atrasadas', acoes.length, acoes.map(p=>{ const d = daysTo(p.proxima_data); return hojeRow(p, d<0?`<span class="tagx bad">atrasada ${-d}d</span>`:'<span class="tagx warn">hoje</span>', escapeHtml(p.proxima_acao)+' · '+escapeHtml(p.proximo_responsavel||'')); }).join(''))
     + sec('Leads em funil sem próxima ação', semAcao.length, semAcao.slice(0,40).map(p=>hojeRow(p, '', 'Defina a próxima ação')).join('') + (semAcao.length>40?`<div class="hint">+${semAcao.length-40} outros — use o filtro “Próxima ação” na Aliança.</div>`:''))
     + sec('Avisos de renovação (30, 15 e 7 dias) de hoje e atrasados', (avR.data||[]).length, (avR.data||[]).map(a=>{ const p = OP.pessoas.find(x=>x.id===a.pessoa_id); if(!p) return ''; const d = daysTo(a.data_aviso); return hojeRow(p, d<0?`<span class="tagx bad">atrasado ${-d}d</span> <button class="om-cancel vd-btn" data-avfeito="${a.id}">Feito</button>`:`<span class="tagx warn">hoje</span> <button class="om-cancel vd-btn" data-avfeito="${a.id}">Feito</button>`, escapeHtml(a.titulo||'Renovação')); }).join(''))
@@ -9069,6 +9175,7 @@ async function opHojeDialog(onlyMine){
   const b = document.getElementById('hj-body');
   b.querySelectorAll('[data-openp]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(a.dataset.openp); }));
   b.querySelector('#hj-mine').addEventListener('change', e=>opHojeDialog(e.target.checked));
+  reuLigar(b, reu, onlyMine);
   b.querySelectorAll('[data-lmsg]').forEach(btn=>btn.addEventListener('click', async ()=>{ const r = (lembR.data||[]).find(x=>x.chave===btn.dataset.lmsg); if(!r) return;
     if(r.tipo==='data_comemorativa'){ lembAbrirLista(r); return; }
     const modelo = await lembModelo(r.momento==='relacionamento'?'relacionamento':r.momento); const wa = waLink(r.telefone); if(!wa){ showToast('Esta pessoa não tem telefone cadastrado.'); return; }
