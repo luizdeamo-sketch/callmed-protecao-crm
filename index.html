@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261021-0957">
+<meta name="app-build" content="20261021-1015">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -294,7 +294,7 @@ window.ALIANCA = {
           <span id="op-chip"></span>
         </div>
         <div class="op-filters-more" id="op-filters-more">
-          <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option><option value="premium">⭐ CallMed Premium</option><option value="fidelizado">🔥 Médicos fidelizados CallMed</option></select>
+          <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option><option value="premium">⭐ CallMed Premium</option><option value="fidelizado">🔥 Médicos fidelizados CallMed</option><option value="morno">🌤️ Médicos mornos CallMed</option></select>
           <select id="op-f-class"><option value="">Classificação: todas</option><option value="call_hot">Call Hot</option><option value="quente">Quente</option><option value="frio">Frio</option></select>
           <select id="op-f-tag"><option value="">Qualquer tag</option></select>
           <select id="op-f-next"><option value="">Próxima ação: todas</option><option value="atrasada">Atrasadas</option><option value="hoje">Para hoje</option><option value="semana">Nos próximos 7 dias</option><option value="sem">Leads em funil sem ação</option></select>
@@ -5073,9 +5073,11 @@ const OP_PREMIUM_TIPOS = ['RC Profissional','Vida em Grupo'];
 function opIsPremium(p){ return isMedico(p) && (OP.apo.get(p.id)||[]).some(a=> OP_PREMIUM_TIPOS.includes(a.tipo_seguro) && caEfetivo(a)==='ativa'); }
 // Médico fidelizado CallMed (= Call Hot) = mais de 20 plantões trabalhados nos últimos 90 dias, qualquer especialidade (anestesia, UTI, enfermaria). A lista vem da tabela crm_fidelizados, calculada a partir do CallMed Plantões.
 function opIsFid(p){ return !!(OP.fid && OP.fid.has(p.id)); }
+function opIsMorno(p){ return !!(OP.morno && OP.morno.has(p.id)); }
 function opIsCallHot(p){ return p.classificacao==='call_hot' || opIsFid(p); }
 function opPremiumRotulo(){ const o = document.querySelector('#op-f-perfil option[value="premium"]'); if(o) o.textContent = '⭐ CallMed Premium ('+OP.pessoas.filter(opIsPremium).length+')';
-  const f = document.querySelector('#op-f-perfil option[value="fidelizado"]'); if(f) f.textContent = '🔥 Médicos fidelizados CallMed ('+OP.pessoas.filter(opIsFid).length+')'; }
+  const f = document.querySelector('#op-f-perfil option[value="fidelizado"]'); if(f) f.textContent = '🔥 Médicos fidelizados CallMed ('+OP.pessoas.filter(opIsFid).length+')';
+  const m = document.querySelector('#op-f-perfil option[value="morno"]'); if(m) m.textContent = '🌤️ Médicos mornos CallMed ('+OP.pessoas.filter(opIsMorno).length+')'; }
 function opIsClienteAtivo(pid){ return (OP.apo.get(pid)||[]).some(a=>caEfetivo(a)==='ativa'); }
 
 async function opFetchAll(table, cols, orderCols){
@@ -5099,7 +5101,7 @@ async function opLoadFunilApo(){
   ]);
   OP.funil = new Map(); fun.forEach(r=>{ if(!OP.funil.has(r.pessoa_id)) OP.funil.set(r.pessoa_id,new Map()); OP.funil.get(r.pessoa_id).set(r.etapa, r); });
   OP.apo = new Map(); apo.forEach(r=>{ if(!OP.apo.has(r.pessoa_id)) OP.apo.set(r.pessoa_id,[]); OP.apo.get(r.pessoa_id).push(r); });
-  try{ const fz = await opFetchAll('crm_fidelizados','pessoa_id,plantoes_90d,especialidade,calculado_em',['pessoa_id']); OP.fid = new Map(fz.map(r=>[r.pessoa_id,r])); }catch(e){ OP.fid = new Map(); console.warn('fidelizados', e); }
+  try{ const fz = await opFetchAll('crm_fidelizados','pessoa_id,plantoes_90d,especialidade,calculado_em,nivel,ultimo_plantao',['pessoa_id']); OP.fid = new Map(fz.filter(r=>r.nivel==='fidelizado').map(r=>[r.pessoa_id,r])); OP.morno = new Map(fz.filter(r=>r.nivel==='morno').map(r=>[r.pessoa_id,r])); }catch(e){ OP.fid = new Map(); OP.morno = new Map(); console.warn('fidelizados', e); }
   try{ opPremiumRotulo(); }catch(e){}
   opAlertasAtualizar();
   try{ const pl = await opFetchAll('crm_plantoes_resumo','pessoa_id,primeiro_plantao,ultimo_plantao,qtde_mes_atual,qtde_mes_ref,valor_mes_ref,valor_12m,meses_12m',['pessoa_id']);
@@ -5163,6 +5165,7 @@ function opApplyFilters(keep, scrollToList){
     if(fperfil==='nao_medico' && isMedico(p)) return false;
     if(fperfil==='premium' && !opIsPremium(p)) return false;
     if(fperfil==='fidelizado' && !opIsFid(p)) return false;
+    if(fperfil==='morno' && !opIsMorno(p)) return false;
     if(fclass==='call_hot'){ if(!opIsCallHot(p)) return false; } else if(fclass && p.classificacao!==fclass) return false;
     if(fnext){ const dn = daysTo(p.proxima_data);
       if(fnext==='sem'){ if(p.proxima_acao || !opIsLeadAberto(p)) return false; }
