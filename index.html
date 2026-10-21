@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261020-2217">
+<meta name="app-build" content="20261021-0957">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -290,11 +290,11 @@ window.ALIANCA = {
               <button class="om-save" id="op-period-apply" style="width:100%">Aplicar</button>
             </div>
           </div>
-          <button id="op-hoje" class="om-cancel icon-btn" style="margin-left:auto" title="Hoje — painel do dia" aria-label="Hoje"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg></button><button id="op-callhot" class="om-cancel icon-btn" title="Call Hot da semana — leads prioritários" aria-label="Call Hot"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-3.9 0-6.5-2.7-6.5-6.2 0-3.6 2.6-5.6 3.9-8.3.4 1.7 1.3 2.9 2.6 3.6.2-2.6 1.2-4.9 3-6.6.1 3.1 1.6 4.8 2.8 6.6.9 1.3 1.7 2.8 1.7 4.7C19.5 18.3 16 21 12 21z"/></svg></button><button id="op-import" class="om-cancel icon-btn" title="Importar contatos" aria-label="Importar contatos"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V4M7.5 8.5L12 4l4.5 4.5"/><path d="M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg></button><button id="op-export-contatos" class="om-cancel icon-btn" title="Exportar os contatos filtrados (você escolhe as colunas)" aria-label="Exportar contatos"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11.5M7.5 11L12 15.5 16.5 11"/><path d="M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg></button><button id="op-newcli" class="om-save icon-btn" title="Novo cliente">＋</button>
+          <button id="op-hoje" class="om-cancel icon-btn" style="margin-left:auto" title="Hoje — painel do dia" aria-label="Hoje"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg></button><button id="op-callhot" class="om-cancel icon-btn" title="Call Hot da semana — leads prioritários" aria-label="Call Hot"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-3.9 0-6.5-2.7-6.5-6.2 0-3.6 2.6-5.6 3.9-8.3.4 1.7 1.3 2.9 2.6 3.6.2-2.6 1.2-4.9 3-6.6.1 3.1 1.6 4.8 2.8 6.6.9 1.3 1.7 2.8 1.7 4.7C19.5 18.3 16 21 12 21z"/></svg></button><button id="op-alertas" class="om-cancel icon-btn" title="Cadastros para conferir (inconsistências encontradas pelo sistema)" aria-label="Cadastros para conferir" style="display:none;position:relative"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5L2.8 19.5h18.4L12 3.5z"/><path d="M12 10v4.5M12 17.2v.1"/></svg><span id="op-alertas-n" style="position:absolute;top:-6px;right:-6px;background:#d92d20;color:#fff;border-radius:999px;font-size:10.5px;font-weight:700;padding:1px 6px;line-height:1.4"></span></button><button id="op-import" class="om-cancel icon-btn" title="Importar contatos" aria-label="Importar contatos"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V4M7.5 8.5L12 4l4.5 4.5"/><path d="M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg></button><button id="op-export-contatos" class="om-cancel icon-btn" title="Exportar os contatos filtrados (você escolhe as colunas)" aria-label="Exportar contatos"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11.5M7.5 11L12 15.5 16.5 11"/><path d="M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg></button><button id="op-newcli" class="om-save icon-btn" title="Novo cliente">＋</button>
           <span id="op-chip"></span>
         </div>
         <div class="op-filters-more" id="op-filters-more">
-          <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option></select>
+          <select id="op-f-perfil"><option value="">Todos os perfis</option><option value="medico">Somente médicos</option><option value="nao_medico">Somente não médicos</option><option value="premium">⭐ CallMed Premium</option><option value="fidelizado">🔥 Médicos fidelizados CallMed</option></select>
           <select id="op-f-class"><option value="">Classificação: todas</option><option value="call_hot">Call Hot</option><option value="quente">Quente</option><option value="frio">Frio</option></select>
           <select id="op-f-tag"><option value="">Qualquer tag</option></select>
           <select id="op-f-next"><option value="">Próxima ação: todas</option><option value="atrasada">Atrasadas</option><option value="hoje">Para hoje</option><option value="semana">Nos próximos 7 dias</option><option value="sem">Leads em funil sem ação</option></select>
@@ -5068,6 +5068,14 @@ function opClienteNoMes(pid, mi){
   return (OP.apo.get(pid)||[]).some(a=>{ if(a.status==='cancelada') return false; const r = opApoRange(a); return r.start && r.end && r.start < mo.e && r.end >= mo.s; });
 }
 function opIsCliente(pid){ return (OP.apo.get(pid)||[]).some(a=>a.status!=='cancelada'); }
+// CallMed Premium = médico com apólice ativa de RC Profissional (Unimed) ou Vida em Grupo (Porto). O grupo da COPA (Vida em Grupo MAG) é outro e fica de fora.
+const OP_PREMIUM_TIPOS = ['RC Profissional','Vida em Grupo'];
+function opIsPremium(p){ return isMedico(p) && (OP.apo.get(p.id)||[]).some(a=> OP_PREMIUM_TIPOS.includes(a.tipo_seguro) && caEfetivo(a)==='ativa'); }
+// Médico fidelizado CallMed (= Call Hot) = mais de 20 plantões trabalhados nos últimos 90 dias, qualquer especialidade (anestesia, UTI, enfermaria). A lista vem da tabela crm_fidelizados, calculada a partir do CallMed Plantões.
+function opIsFid(p){ return !!(OP.fid && OP.fid.has(p.id)); }
+function opIsCallHot(p){ return p.classificacao==='call_hot' || opIsFid(p); }
+function opPremiumRotulo(){ const o = document.querySelector('#op-f-perfil option[value="premium"]'); if(o) o.textContent = '⭐ CallMed Premium ('+OP.pessoas.filter(opIsPremium).length+')';
+  const f = document.querySelector('#op-f-perfil option[value="fidelizado"]'); if(f) f.textContent = '🔥 Médicos fidelizados CallMed ('+OP.pessoas.filter(opIsFid).length+')'; }
 function opIsClienteAtivo(pid){ return (OP.apo.get(pid)||[]).some(a=>caEfetivo(a)==='ativa'); }
 
 async function opFetchAll(table, cols, orderCols){
@@ -5091,6 +5099,9 @@ async function opLoadFunilApo(){
   ]);
   OP.funil = new Map(); fun.forEach(r=>{ if(!OP.funil.has(r.pessoa_id)) OP.funil.set(r.pessoa_id,new Map()); OP.funil.get(r.pessoa_id).set(r.etapa, r); });
   OP.apo = new Map(); apo.forEach(r=>{ if(!OP.apo.has(r.pessoa_id)) OP.apo.set(r.pessoa_id,[]); OP.apo.get(r.pessoa_id).push(r); });
+  try{ const fz = await opFetchAll('crm_fidelizados','pessoa_id,plantoes_90d,especialidade,calculado_em',['pessoa_id']); OP.fid = new Map(fz.map(r=>[r.pessoa_id,r])); }catch(e){ OP.fid = new Map(); console.warn('fidelizados', e); }
+  try{ opPremiumRotulo(); }catch(e){}
+  opAlertasAtualizar();
   try{ const pl = await opFetchAll('crm_plantoes_resumo','pessoa_id,primeiro_plantao,ultimo_plantao,qtde_mes_atual,qtde_mes_ref,valor_mes_ref,valor_12m,meses_12m',['pessoa_id']);
        OP.plant = new Map(); pl.forEach(r=>OP.plant.set(r.pessoa_id, r)); }catch(e){ console.warn('plantoes', e); }
   OP.tempCache = null; OP.prosp = new Map();
@@ -5150,7 +5161,9 @@ function opApplyFilters(keep, scrollToList){
       if(!okTxt && !okNum) return false; }
     if(fperfil==='medico' && !isMedico(p)) return false;
     if(fperfil==='nao_medico' && isMedico(p)) return false;
-    if(fclass && p.classificacao!==fclass) return false;
+    if(fperfil==='premium' && !opIsPremium(p)) return false;
+    if(fperfil==='fidelizado' && !opIsFid(p)) return false;
+    if(fclass==='call_hot'){ if(!opIsCallHot(p)) return false; } else if(fclass && p.classificacao!==fclass) return false;
     if(fnext){ const dn = daysTo(p.proxima_data);
       if(fnext==='sem'){ if(p.proxima_acao || !opIsLeadAberto(p)) return false; }
       else { if(!p.proxima_acao || dn===null) return false; if(fnext==='atrasada' && dn>=0) return false; if(fnext==='hoje' && dn!==0) return false; if(fnext==='semana' && (dn<0||dn>7)) return false; } }
@@ -9267,7 +9280,7 @@ async function opCallHotDialog(){
   const openOpp = new Set((opps||[]).map(o=>o.pessoa_id)); const nowD = todayD();
   const rows = OP.pessoas.map(p=>{
     const why = []; let sc = 0; const add = (n, t)=>{ sc += n; why.push(t); };
-    if(p.classificacao==='call_hot') add(40,'Call Hot'); else if(p.classificacao==='quente') add(25,'Quente');
+    if(opIsFid(p)) add(40,'Fidelizado: '+OP.fid.get(p.id).plantoes_90d+' plantões em 90 dias'); else if(p.classificacao==='call_hot') add(40,'Call Hot'); else if(p.classificacao==='quente') add(25,'Quente');
     const pr = OP.plant.get(p.id); if(pr && pr.ultimo_plantao){ const dd = Math.round((nowD-opD(pr.ultimo_plantao))/DAY); if(dd<=7) add(30,'plantão há '+dd+'d'); else if(dd<=30) add(20,'plantão há '+dd+'d'); else if(dd<=90) add(10,'plantão há '+dd+'d');
       const v = Number(pr.valor_12m)||0; if(v>0) add(Math.min(15, Math.round(v/10000)), 'renda CallMed'); }
     const idx = opCurEtapaIdx(p.id); if(idx>=0) add(idx*3, 'etapa '+ETAPAS_FUNIL[idx].label);
@@ -9287,6 +9300,26 @@ async function opCallHotDialog(){
     const csv = '﻿'+['#;Nome;Telefone;Pontos;Motivos'].concat(rows.map((r,i)=>[i+1,r.p.nome,r.p.telefone,r.sc,r.why.join(' | ')].map(esc).join(';'))).join('\n');
     const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download = 'call-hot-'+ymdToday()+'.csv'; a.click(); });
 }
+// ---- Alertas de cadastro inconsistente (gerados no banco: crm_gerar_alertas_cadastro) ----
+const OPAL = { lista:[] };
+async function opAlertasAtualizar(){
+  try{
+    await sb.rpc('crm_gerar_alertas_cadastro');
+    const { data } = await sb.from('crm_alertas_cadastro').select('id,pessoa_id,tipo,titulo,detalhe,origem,criado_em,crm_pessoas(nome)').eq('status','aberto').order('criado_em',{ascending:false});
+    OPAL.lista = data||[];
+    const b = document.getElementById('op-alertas'), n = document.getElementById('op-alertas-n'); if(!b) return;
+    b.style.display = OPAL.lista.length ? '' : 'none'; n.textContent = OPAL.lista.length;
+  }catch(e){ console.warn('alertas cadastro', e); }
+}
+function opAlertasDialog(){
+  const box = dlgOpen(`<div class="om-title"><div><h3>⚠️ Cadastros para conferir</h3><div class="om-sub">O sistema encontrou cadastros que parecem inconsistentes. Confira, corrija e marque como conferido.</div></div><button data-close>✕</button></div><div class="dlg-body" id="opal-body"></div>`, true);
+  const body = box.querySelector('#opal-body');
+  const render = ()=>{ body.innerHTML = OPAL.lista.length ? OPAL.lista.map(a=>`<div class="rec" style="padding:12px 0;border-bottom:1px solid var(--border)"><div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap"><div style="flex:1;min-width:240px"><b>${escapeHtml(a.titulo)}</b><div style="font-size:13px;margin-top:2px">${a.crm_pessoas?`<a href="#" data-opal-p="${a.pessoa_id}">${escapeHtml(a.crm_pessoas.nome||'')}</a>`:''}</div><div class="hint" style="margin-top:4px;line-height:1.5">${escapeHtml(a.detalhe||'')}</div></div><div style="display:flex;gap:6px"><button class="om-cancel" data-opal-p="${a.pessoa_id}" style="padding:4px 12px;font-size:12px">Abrir cadastro</button><button class="om-save" data-opal-ok="${a.id}" style="padding:4px 12px;font-size:12px">Marcar como conferido</button></div></div></div>`).join('') : '<div class="op-more">Nenhum cadastro para conferir. ✅</div>'; 
+    body.querySelectorAll('[data-opal-p]').forEach(el=>el.addEventListener('click', e=>{ e.preventDefault(); dlgClose(); goToPersonView(el.dataset.opalP); }));
+    body.querySelectorAll('[data-opal-ok]').forEach(btn=>btn.addEventListener('click', async ()=>{ btn.disabled = true; const { error } = await sb.from('crm_alertas_cadastro').update({ status:'conferido', conferido_em:new Date().toISOString(), conferido_por:curUserName()||null }).eq('id', btn.dataset.opalOk); if(error){ showToast('Erro: '+error.message); btn.disabled = false; return; } OPAL.lista = OPAL.lista.filter(x=>x.id!==btn.dataset.opalOk); const b = document.getElementById('op-alertas'); if(b){ b.style.display = OPAL.lista.length ? '' : 'none'; document.getElementById('op-alertas-n').textContent = OPAL.lista.length; } render(); })); };
+  render();
+}
+document.getElementById('op-alertas').addEventListener('click', opAlertasDialog);
 document.getElementById('op-hoje').addEventListener('click', ()=>opHojeDialog(false));
 document.getElementById('op-callhot').addEventListener('click', opCallHotDialog);
 
