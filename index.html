@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="20261022-0804">
+<meta name="app-build" content="20261022-1848">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1462,7 +1462,7 @@ async function renderParametros(){
 
 // ============ VENDAS E DEMANDAS ============
 // Demandas de todos os clientes, "Virou venda" / "Não virou venda", aba Vendas realizadas e Vendas não realizadas com relatório em PDF.
-const VD = { tab:'pro', acoes:[], cli:[], fCli:{sit:'', st:'', q:'', ord:'rec'}, pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:'', ret:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, timers:{} };
+const VD = { tab:'pro', acoes:[], cli:[], fCli:{sit:'', st:'', q:'', ord:'rec'}, pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:'', ret:'', estr:'', retsel:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, abertos:{}, hFull:{}, timers:{} };
 const VD_MOTIVOS = ['Preço','Escolheu outra corretora ou seguradora','Desistiu / sem interesse','Sem retorno do cliente','Não aprovado pela seguradora','Adiou a decisão','Outro'];
 const VD_ENC = ['Concluída','Venda fechada','Não virou venda'];
 const vdM = v => 'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1497,11 +1497,12 @@ function vdDraw(){
   const host = document.getElementById('vd-body'); if(!host) return;
   const ab = VD.dem.filter(d=>!VD_ENC.includes(d.status)).length;
   const tabs = [['pro','Prospecção',VD.pro.length],['cli','Clientes trabalhados',VD.cli.length],['dem','Demandas',ab],['vend','Vendas realizadas',VD.vend.length],['nao','Vendas não realizadas',VD.nao.length]];
+  if(VD.foco && VD.tab==='pro'){ VD.abertos[VD.foco] = true; }
   const sc = host.querySelector('.vd-wrap'); const y = sc ? sc.scrollLeft : 0;
   host.innerHTML = `<div class="pv-tabs" id="vd-tabs" style="margin:6px 0 12px">${tabs.map(([k,l,n])=>`<button class="pv-tab${VD.tab===k?' on':''}" data-vt="${k}">${l} <span class="vd-cnt">${n}</span></button>`).join('')}</div>`
     + (VD.tab==='pro' ? vdProHtml() : VD.tab==='cli' ? vdCliHtml() : VD.tab==='dem' ? vdDemHtml() : VD.tab==='vend' ? vdVendHtml() : vdNaoHtml());
   const w = host.querySelector('.vd-wrap'); if(w) w.scrollLeft = y;
-  if(VD.foco){ const el = host.querySelector('[data-id="'+VD.foco+'"] input, [data-id="'+VD.foco+'"] textarea'); if(el){ el.focus(); const r = el.closest('tr'); if(r) r.scrollIntoView({block:'center'}); } VD.foco = null; }
+  if(VD.foco){ const el = host.querySelector('[data-id="'+VD.foco+'"] input, [data-id="'+VD.foco+'"] textarea'); if(el){ el.focus(); const r = el.closest('tr,.vp-row'); if(r) r.scrollIntoView({block:'center'}); } VD.foco = null; }
 }
 // ---------- layout único dos relatórios (identidade CallMed Proteção Patrimonial, modelo da Amanda) ----------
 const VD_CSS2 = `<style>
@@ -1542,7 +1543,7 @@ const vdStVis = c => VD_ST_PRO.filter(s=>VD_ST_ORIG.includes(s) || (c[s]||0)>0);
 const VD_PRO_COR = {'Novo':'#646b89','Em contato':'#0018fc','Respondeu':'#0b7a8a','Agendou reunião':'#0f7a53','Desmarcou reunião':'#c8790b','Reunião realizada':'#0f7a53','Retornar':'#c8790b','Cotação em andamento':'#1b5fc7','Apresentei cotação':'#6a3fc4','Virou cliente':'#0f7a53','Sem contato':'#b36b00','Sem interesse':'#8b90a3'};
 const vdHojeIso = ()=> ymd(new Date());
 const vdFechado = x => x.status==='Virou cliente' || x.status==='Sem interesse';
-const vdRetornoTipo = x => { if(vdFechado(x) || !x.retorno_data) return ''; const h = vdHojeIso(); return x.retorno_data < h ? 'atrasado' : x.retorno_data === h ? 'hoje' : ''; };
+const vdRetornoTipo = x => { if(vdFechado(x) || !x.retorno_data || x.status==='Agendou reunião' || x.status==='Reunião realizada') return ''; const h = vdHojeIso(); return x.retorno_data < h ? 'atrasado' : x.retorno_data === h ? 'hoje' : ''; };
 const vdDtHora = iso => { if(!iso) return '—'; const d = new Date(iso); return d.toLocaleDateString('pt-BR')+' '+d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}); };
 const vdHora = h => { const m = String(h||'').trim().match(/^(\d{1,2})[:h.](\d{2})$/); return m ? m[1].padStart(2,'0')+':'+m[2] : ''; };
 const vdLocalInput = iso => { if(!iso) return ''; const d = new Date(iso); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16); };
@@ -1555,6 +1556,13 @@ function vdProList(){
     if(f.por && (x.criado_por||'')!==f.por) return false;
     const d = String(x.contato_em||'').slice(0,10); if(f.de && d<f.de) return false; if(f.ate && d>f.ate) return false;
     if(f.ret && String(x.retorno_data||'').slice(0,10)!==f.ret) return false;
+    if(f.estr && (x.estrategia||'')!==f.estr) return false;
+    if(f.retsel){ const rt = vdRetornoTipo(x), rd = String(x.retorno_data||'').slice(0,10), h = vdHojeIso(), am = ymd(new Date(Date.now()+86400000)), fim = ymd(new Date(Date.now()+7*86400000));
+      if(f.retsel==='atrasado' && rt!=='atrasado') return false;
+      if(f.retsel==='hoje' && rd!==h) return false;
+      if(f.retsel==='amanha' && rd!==am) return false;
+      if(f.retsel==='semana' && !(rd>=h && rd<=fim)) return false;
+      if(f.retsel==='sem' && rd) return false; }
     if(q && !(vdNorm([x.nome,x.telefone,x.origem,x.historico].join(' ')).includes(q) || (dq.length>=3 && String(x.cpf||'').replace(/\D/g,'').includes(dq)))) return false;
     return true; }).sort((a,b)=> String(b.contato_em).localeCompare(String(a.contato_em)));
 }
@@ -1597,6 +1605,7 @@ async function vdRegistrar(r){
   if(r.registrado_em && !novoDigitado){ showToast('Escreva em “Novo registro” o que aconteceu agora e clique em Registrar.'); return; }
   const novo = novoDigitado || String(r.historico||'').trim();
   if(!r.canal){ showToast('Escolha o canal do contato (WhatsApp, Ligação, E-mail...) antes de registrar.'); return; }
+  if(r.status==='Agendou reunião' && (!r.retorno_data || !vdHora(r.retorno_hora))){ showToast('Para "Agendou reunião", informe a data e a hora da reunião: a Agenda usa esses dados.'); return; }
   const sem = r.status==='Sem interesse', fim = sem || r.status==='Virou cliente';
   const acao = fim ? null : (r.proxima_acao || vdAcaoPadrao(r) || 'Realizar follow-up');
   if(!fim && !r.retorno_data){ showToast('Informe a data de Retorno — ela é a data da próxima ação ('+acao+').'); return; }
@@ -1636,32 +1645,61 @@ function vdProHtml(){
   const atr = l.filter(x=>vdRetornoTipo(x)==='atrasado').length, hoje = l.filter(x=>vdRetornoTipo(x)==='hoje').length, aberto = l.filter(x=>!vdFechado(x)).length;
   const origens = [...new Set(VD.pro.map(x=>x.origem).filter(Boolean))].sort(), quem = [...new Set(VD.pro.map(x=>x.criado_por).filter(Boolean))].sort();
   const cards = `<div class="vd-cards"><div class="vd-card tot"><small>CONTATOS FEITOS</small><b>${K.tot}</b></div>${vdStVis(K.c).map(s=>`<div class="vd-card" style="border-top-color:${VD_PRO_COR[s]}"><small>${escapeHtml(s.toUpperCase())}</small><b>${K.c[s]}</b><span>${K.pct(K.c[s])}</span></div>`).join('')}</div>`;
-  const rows = l.map(x=>{ const rt = vdRetornoTipo(x), cls = x.status==='Agendou reunião' ? 'reu' : x.status==='Cotação em andamento' ? 'cot' : rt ? 'ret' : '';
-    return `<tr data-id="${x.id}" class="vd-pro ${cls}"><td><input type="text" list="vd-cli" data-k="nome" value="${escapeHtml(x.nome||'')}" placeholder="Nome">${vdAbrirLink(x)}</td>
-      <td><input type="text" data-k="cpf" value="${escapeHtml(x.cpf||'')}" placeholder="CPF (opcional)" style="min-width:120px"></td>
-      <td><input type="text" data-k="telefone" value="${escapeHtml(x.telefone||'')}" placeholder="Telefone" style="min-width:120px"></td>
-      <td><input type="text" list="vd-org" data-k="origem" value="${escapeHtml(x.origem||'')}" placeholder="Origem"></td>
-      <td><input type="datetime-local" data-k="contato_em" value="${vdLocalInput(x.contato_em)}"></td>
-      <td><input type="date" data-k="retorno_data" value="${escapeHtml(x.retorno_data||'')}"><input type="time" data-k="retorno_hora" value="${escapeHtml(x.retorno_hora||'')}" style="margin-top:3px">${rt?`<div class="vd-ret ${rt}">${rt==='atrasado'?'atrasado':'hoje'}</div>`:''}</td>
-      <td><select data-k="status" style="color:${VD_PRO_COR[x.status]||'inherit'};font-weight:600">${VD_ST_PRO.map(s=>`<option${s===x.status?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></td>
-      <td style="min-width:300px">${(()=>{ const he = !!(VD.hEdit&&VD.hEdit[x.id]); return `<textarea${he?'':' readonly'} rows="5" data-k="historico" style="width:100%;${he?'':'background:#f6f8fc'}" placeholder="Histórico do contato (acumulado)">${escapeHtml(x.historico||'')}</textarea><a href="#" data-act="h-edit" data-id="${x.id}" style="font-size:11px">${he?'concluir correção':'corrigir texto'}</a>`; })()}
-        <textarea rows="2" data-nr="${x.id}" placeholder="Novo registro: o que aconteceu agora?" style="width:100%;margin-top:4px;border-color:#1b5fc7">${escapeHtml((VD.draft||{})[x.id]||'')}</textarea></td>
-      <td><select data-k="proxima_acao" title="Próxima ação (a data é a do Retorno)"><option value="">${escapeHtml(vdAcaoPadrao(x)||'—')} (sugerida)</option>${ACOES.map(a=>`<option${a===x.proxima_acao?' selected':''}>${escapeHtml(a)}</option>`).join('')}</select></td>
-      <td style="white-space:nowrap"><select data-k="canal" title="Por qual canal foi o contato?" style="margin-bottom:4px"><option value="">Canal…</option>${Object.keys(VD_CANAIS).map(c=>`<option${c===x.canal?' selected':''}>${c}</option>`).join('')}</select><br><button class="om-save vd-btn" data-act="reg-p" data-id="${x.id}">Registrar</button>${x.registrado_em?`<div style="font-size:10.5px;color:#1a7f37;margin-top:3px">✓ registrado ${escapeHtml(vdDtHora(x.registrado_em))}</div>`:''}</td>
-      <td style="font-size:11px;color:var(--ink-faint);white-space:nowrap">${escapeHtml(x.criado_por||'—')}</td>
-      <td><button class="om-cancel vd-btn" data-act="del-p" data-id="${x.id}" style="color:var(--red)">Excluir</button></td></tr>`; }).join('');
+  const hojeI = vdHojeIso(), ESTR = ['Lista para trabalhar','Indicação de cliente','Indicação de família/amigo','Revisitar a carteira'];
+  const diasAtras = iso => { if(!iso) return null; const d0 = new Date(String(iso).slice(0,10)+'T12:00:00'), h0 = new Date(hojeI+'T12:00:00'); return Math.max(0, Math.round((h0-d0)/86400000)); };
+  const corSt = st => VD_PRO_COR[st] || '#646b89';
+  const entradas = h => String(h||'').split(/\n\s*\n/).map(x=>x.trim()).filter(Boolean);
+  const rows = l.map(x=>{
+    const rt = vdRetornoTipo(x), aberto = !!VD.abertos[x.id], tel = waLink(x.telefone), ultimo = x.registrado_em || x.contato_em, nd = diasAtras(ultimo);
+    const reu = x.status==='Agendou reunião', hora = vdHora(x.retorno_hora), semHora = reu && !hora;
+    const chips = (x.estrategia?`<span class="vp-chip vp-est">${escapeHtml(x.estrategia)}</span>`:'')
+      + `<span class="vp-chip" style="background:${corSt(x.status)}1f;color:${corSt(x.status)}">${escapeHtml(x.status)}</span>`
+      + (rt==='atrasado'?'<span class="vp-chip vp-warn">retorno atrasado</span>':rt==='hoje'?'<span class="vp-chip vp-warn">retorno hoje</span>':'')
+      + (reu && x.retorno_data ? `<span class="vp-chip vp-reu">reunião ${vdD(x.retorno_data)}${hora?' '+hora:''}</span>` : '')
+      + (semHora ? '<span class="vp-chip vp-warn">sem hora</span>' : '');
+    const sub = [x.telefone?escapeHtml(x.telefone):'sem telefone', x.origem?escapeHtml(x.origem):'', ultimo?('último contato '+vdD(ultimo)+(nd!=null?' (há '+nd+(nd===1?' dia)':' dias)'):')')):'sem contato registrado', (!reu && x.retorno_data)?('retornar em '+vdD(x.retorno_data)):''].filter(Boolean).join(' · ');
+    let det = '';
+    if(aberto){
+      const he = !!VD.hEdit[x.id], ent = entradas(x.historico), full = !!VD.hFull[x.id], vis = full ? ent : ent.slice(0,2);
+      det = `<div class="vp-det">
+        <div class="vp-grid">
+          <label>Nome<input type="text" list="vd-cli" data-k="nome" value="${escapeHtml(x.nome||'')}" placeholder="Nome"></label>
+          <label>CPF<input type="text" data-k="cpf" value="${escapeHtml(x.cpf||'')}" placeholder="opcional"></label>
+          <label>Telefone<input type="text" data-k="telefone" value="${escapeHtml(x.telefone||'')}" placeholder="Telefone"></label>
+          <label>Origem (lista ou quem indicou)<input type="text" list="vd-org" data-k="origem" value="${escapeHtml(x.origem||'')}" placeholder="Ex.: Lista da assessoria, indicado por fulano"></label>
+          <label>Estratégia<select data-k="estrategia"><option value="">—</option>${ESTR.map(e=>`<option${e===x.estrategia?' selected':''}>${e}</option>`).join('')}</select></label>
+          <label>Canal<select data-k="canal"><option value="">Escolha…</option>${Object.keys(VD_CANAIS).map(c=>`<option${c===x.canal?' selected':''}>${c}</option>`).join('')}</select></label>
+        </div>
+        <div class="vp-grid" style="margin-top:8px">
+          <label>Data do contato<input type="datetime-local" data-k="contato_em" value="${vdLocalInput(x.contato_em)}"></label>
+          <label style="grid-column:span 2">O que eu fiz<textarea rows="2" data-nr="${x.id}" placeholder="Ex.: mandei mensagem, ela não respondeu">${escapeHtml((VD.draft||{})[x.id]||'')}</textarea></label>
+          <label>Próxima ação<select data-k="proxima_acao"><option value="">${escapeHtml(vdAcaoPadrao(x)||'—')} (sugerida)</option>${ACOES.map(a=>`<option${a===x.proxima_acao?' selected':''}>${escapeHtml(a)}</option>`).join('')}</select></label>
+          <label style="${semHora?'color:#8a5406;font-weight:700':''}">${reu?'Data e hora da reunião':'Retornar em'}<span style="display:flex;gap:4px"><input type="date" data-k="retorno_data" value="${escapeHtml(x.retorno_data||'')}">${(reu||hora)?`<input type="time" data-k="retorno_hora" value="${escapeHtml(x.retorno_hora||'')}" style="max-width:104px">`:''}</span></label>
+          <label>Status<select data-k="status" style="color:${corSt(x.status)};font-weight:600">${VD_ST_PRO.map(s=>`<option${s===x.status?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="om-save vd-btn" data-act="reg-p" data-id="${x.id}">Registrar</button>${x.registrado_em?`<span style="font-size:11px;color:#1a7f37">✓ registrado ${escapeHtml(vdDtHora(x.registrado_em))}</span>`:''}<span style="font-size:11px;color:var(--ink-faint)">${x.pessoa_id?'':'sem cadastro ligado'}</span></div>
+        <div class="vp-hist">${he?`<textarea rows="6" data-k="historico" style="width:100%">${escapeHtml(x.historico||'')}</textarea>`:(vis.length?vis.map(e=>`<p>${escapeHtml(e).replace(/\n/g,'<br>')}</p>`).join(''):'<p style="color:var(--ink-faint)">Ainda sem registros.</p>')}
+          <a href="#" data-act="h-edit" data-id="${x.id}" style="font-size:11px">${he?'concluir correção':'corrigir texto'}</a></div>
+      </div>`;
+    }
+    const botoes = `${tel?`<a class="vp-wa" href="${tel}" target="_blank" rel="noopener" title="Abrir WhatsApp">WhatsApp</a>`:'<span class="vp-chip" title="Sem telefone válido">sem WhatsApp</span>'}`
+      + (aberto ? `<span class="vp-btns"><button class="om-cancel vd-btn" data-act="h-full" data-id="${x.id}">${VD.hFull[x.id]?'Histórico resumido':'Histórico completo'}</button>${x.pessoa_id?`<button class="om-cancel vd-btn" data-act="abrir" data-pid="${x.pessoa_id}">Abrir cadastro</button>`:''}<button class="om-cancel vd-btn" data-act="del-p" data-id="${x.id}" style="color:var(--red)">Excluir</button></span>` : '');
+    return `<div class="vp-row${vdFechado(x)?' fechado':''}${reu?' reu':''}" data-id="${x.id}"><div class="vp-head"><a href="#" class="vp-nome" data-act="p-toggle" data-id="${x.id}">${aberto?'▾':'▸'} ${escapeHtml(x.nome||'(sem nome)')}</a>${chips}${botoes}</div><div class="vp-sub">${sub}</div>${det}</div>`; }).join('');
+  const temFiltro = !!(f.st||f.org||f.por||f.de||f.ate||f.ret||f.estr||f.retsel||f.q);
   return `${cards}
     <div class="vd-chips" style="margin:10px 0"><span class="vd-chip ${atr?'warn':''}">Retornos atrasados: <b>${atr}</b></span><span class="vd-chip ${hoje?'warn':''}">Retornos para hoje: <b>${hoje}</b></span><span class="vd-chip">Em aberto: <b>${aberto}</b></span></div>
-    <div class="vd-bar"><label class="fl"><span>Mostrar</span><select id="vd-p-st"><option value="">Todos</option><option value="abertos"${f.st==='abertos'?' selected':''}>Em aberto</option>${VD_ST_PRO.map(s=>`<option${f.st===s?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
+    <div class="vd-bar"><label class="fl" style="flex:1;min-width:220px"><span>Buscar</span><input id="vd-p-q" value="${escapeHtml(f.q)}" placeholder="nome, telefone, origem, histórico, CPF"></label>
+      <label class="fl"><span>Status</span><select id="vd-p-st"><option value="">Todos os status</option><option value="abertos"${f.st==='abertos'?' selected':''}>Em aberto</option>${VD_ST_PRO.map(s=>`<option${f.st===s?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
+      <label class="fl"><span>Retornos</span><select id="vd-p-retsel"><option value="">Todos os retornos</option>${[['atrasado','Atrasados'],['hoje','Hoje'],['amanha','Amanhã'],['semana','Próximos 7 dias'],['sem','Sem retorno marcado']].map(([v,t])=>`<option value="${v}"${f.retsel===v?' selected':''}>${t}</option>`).join('')}</select></label>
+      <label class="fl" title="Mostra só quem tem retorno ou reunião marcada neste dia"><span>Retorno em (um dia)</span><input type="date" id="vd-p-ret" value="${escapeHtml(f.ret||'')}"></label>
+      <label class="fl"><span>Estratégia</span><select id="vd-p-estr"><option value="">Todas as estratégias</option>${ESTR.map(e=>`<option${f.estr===e?' selected':''}>${e}</option>`).join('')}</select></label>
       <label class="fl"><span>Origem</span><select id="vd-p-org"><option value="">Todas</option>${origens.map(o=>`<option${f.org===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label>
-      <label class="fl"><span>Quem registrou</span><select id="vd-p-por"><option value="">Todos</option>${quem.map(o=>`<option${f.por===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label>
-      <label class="fl"><span>Contato feito · de</span><input type="date" id="vd-p-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-p-ate" value="${escapeHtml(f.ate)}"></label>
-      <label class="fl" title="Mostra só quem tem retorno marcado exatamente nesta data"><span>Retorno em (só este dia)</span><input type="date" id="vd-p-ret" value="${escapeHtml(f.ret||'')}"></label>
-      <label class="fl" style="flex:1;min-width:180px"><span>Buscar</span><input id="vd-p-q" value="${escapeHtml(f.q)}" placeholder="nome, CPF, telefone, histórico"></label></div>
-    <div class="vd-bar"><button class="om-save" data-act="nova-p">＋ Novo contato</button><span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-p">Baixar PDF com os números</button></div>
+      <label class="fl"><span>Quem registrou</span><select id="vd-p-por"><option value="">Todos</option>${quem.map(o=>`<option${f.por===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label></div>
+    <div class="vd-bar"><label class="fl"><span>Contato de</span><input type="date" id="vd-p-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-p-ate" value="${escapeHtml(f.ate)}"></label><button class="om-cancel" data-act="p-hoje" style="align-self:flex-end">Hoje</button>${temFiltro?'<button class="om-cancel" data-act="p-limpar" style="align-self:flex-end;color:var(--red)">✕ Limpar filtros</button>':''}
+      <button class="om-save" data-act="nova-p" style="align-self:flex-end">＋ Novo contato</button><span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-p" style="align-self:flex-end">Baixar PDF com os números</button></div>
     <datalist id="vd-org">${VD_ORIGENS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>${vdBaseList()}
-    <div class="hint" style="margin:6px 0">${l.length} contato(s) na lista, do mais recente para o mais antigo. Reunião agendada em amarelo, cotação em andamento em azul, retorno de hoje ou atrasado em laranja. Tudo é salvo ao sair do campo. <span id="vd-msg"></span></div>
-    <div class="vd-wrap"><table class="ca-table vd-edit" style="min-width:1600px"><thead><tr><th>Nome</th><th>CPF</th><th>Telefone</th><th>Origem</th><th>Contato</th><th>Retorno</th><th>Status</th><th>Histórico do contato · novo registro</th><th>Próxima ação</th><th></th><th>Por</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="12" style="color:var(--ink-faint)">Nenhum contato registrado nesta visão. Use “Novo contato”.</td></tr>'}</tbody></table></div>`;
+    <div class="hint" style="margin:6px 0">${l.length} contato(s), do mais recente para o mais antigo. Clique no nome para abrir: preencha a linha de ação (o que fez, próxima ação, retorno e status) e clique em Registrar. A ação entra no histórico do contato. Reunião marcada precisa de data e hora. Tudo é salvo ao sair do campo. <span id="vd-msg"></span></div>
+    <div class="vp-list">${rows||'<div class="vp-row" style="color:var(--ink-faint)">Nenhum contato nesta visão. Use “Novo contato” ou limpe os filtros.</div>'}</div>`;
 }
 async function vdProPdf(){
   const l = vdProList(), K = vdProCards(l), esc = escapeHtml, hoje = new Date().toLocaleDateString('pt-BR');
@@ -2272,6 +2310,10 @@ async function vdPdfDemandas(){
     else if(a==='nao'){ const d = VD.dem.find(x=>x.id===id); if(d) vdNaoVirouDem(d); }
     else if(a==='ir-vend'){ VD.tab = 'vend'; vdDraw(); } else if(a==='ir-nao'){ VD.tab = 'nao'; vdDraw(); }
     else if(a==='nova-p'){ const { data, error } = await sb.from('crm_prospeccao').insert({ nome:'', status:'Novo', contato_em:new Date().toISOString(), criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.pro.unshift(data); VD.foco = data.id; vdDraw(); }
+    else if(a==='p-toggle'){ VD.abertos[id] = !VD.abertos[id]; vdDraw(); }
+    else if(a==='h-full'){ VD.hFull[id] = !VD.hFull[id]; vdDraw(); }
+    else if(a==='p-hoje'){ const h = vdHojeIso(); VD.fPro.de = h; VD.fPro.ate = h; vdDraw(); }
+    else if(a==='p-limpar'){ VD.fPro = {st:'', q:'', org:'', por:'', de:'', ate:'', ret:'', estr:'', retsel:''}; vdDraw(); }
     else if(a==='edit-n'){ VD.nEdit = VD.nEdit||{}; VD.nEdit[id] = true; vdDraw(); }
     else if(a==='ok-n'){ if(VD.nEdit) delete VD.nEdit[id]; vdDraw(); }
     else if(a==='h-edit'){ VD.hEdit = VD.hEdit||{}; VD.hEdit[id] = !VD.hEdit[id]; vdDraw(); }
@@ -2297,7 +2339,7 @@ async function vdPdfDemandas(){
     const cf = {'vd-c-sit':'sit','vd-c-st':'st','vd-c-ord':'ord'}[t.id];
     if(cf){ VD.fCli[cf] = t.value; vdDraw(); return; }
     if(t.dataset.ak){ const row = t.closest('tr[data-aid]'); const r = row && VD.acoes.find(x=>x.id===row.dataset.aid); if(!r) return; let v = t.value; if(t.dataset.ak==='inicio') v = v||null; r[t.dataset.ak] = v; vdSalvarCampo('crm_acoes', r.id, t.dataset.ak, v); return; }
-    const pf = {'vd-p-st':'st','vd-p-org':'org','vd-p-por':'por','vd-p-de':'de','vd-p-ate':'ate','vd-p-ret':'ret'}[t.id];
+    const pf = {'vd-p-st':'st','vd-p-org':'org','vd-p-por':'por','vd-p-de':'de','vd-p-ate':'ate','vd-p-ret':'ret','vd-p-estr':'estr','vd-p-retsel':'retsel'}[t.id];
     if(pf){ VD.fPro[pf] = t.value; vdDraw(); return; }
     if(t.id==='vd-v-de' || t.id==='vd-v-ate'){ VD.fV[t.id==='vd-v-de'?'de':'ate'] = t.value; vdDraw(); return; }
     if(t.id==='vd-n-de' || t.id==='vd-n-ate'){ VD.fN[t.id==='vd-n-de'?'de':'ate'] = t.value; vdDraw(); return; }
@@ -2308,19 +2350,20 @@ async function vdPdfDemandas(){
       const { error } = await sb.from('crm_demandas').update({ status:st, concluida_em: st==='Concluída'?new Date().toISOString():null, updated_at:new Date().toISOString() }).eq('id', d.id);
       if(error){ showToast('Erro: '+error.message); vdDraw(); return; } d.status = st; showToast('Status atualizado'); vdDraw(); return;
     }
-    const tr = t.closest('tr[data-id]'); const k = t.dataset.k; if(!tr || !k) return;
+    const tr = t.closest('tr[data-id],.vp-row[data-id]'); const k = t.dataset.k; if(!tr || !k) return;
     if(VD.tab==='pro'){
       const r = VD.pro.find(x=>x.id===tr.dataset.id); if(!r) return;
       let v = t.value;
       if(k==='contato_em'){ if(!v) return; v = new Date(v).toISOString(); }
       else if(k==='retorno_data') v = v || null;
       else if(k==='retorno_hora'){ v = v ? vdHora(v) : null; }
-      else if(k==='cpf' || k==='telefone' || k==='origem' || k==='nome' || k==='historico' || k==='proxima_acao' || k==='canal') v = v.trim()===''?null:v;
+      else if(k==='cpf' || k==='telefone' || k==='origem' || k==='nome' || k==='historico' || k==='proxima_acao' || k==='canal' || k==='estrategia') v = v.trim()===''?null:v;
       r[k] = v; if(k==='nome' && v==null) r.nome = '';
       vdSalvarCampo('crm_prospeccao', r.id, k, k==='nome'&&v==null ? '' : v);
       if(k==='nome' || k==='cpf' || k==='telefone') vdTentaLigar('crm_prospeccao', r, r.nome, r.cpf, r.telefone);
       if(k==='status' && v==='Sem interesse') showToast('Escreva o motivo em “Novo registro” e clique em Registrar: o contato vai para Vendas não realizadas.');
-      if(k==='status' || k==='retorno_data'){ vdDraw(); }
+      if(k==='status' && v==='Agendou reunião' && (!r.retorno_data || !vdHora(r.retorno_hora))) showToast('Informe a data e a hora da reunião: a Agenda usa esses dados.');
+      if(k==='status' || k==='retorno_data' || k==='retorno_hora'){ vdDraw(); }
       return;
     }
     const vend = VD.tab==='vend', arr = vend ? VD.vend : VD.nao, r = arr.find(x=>x.id===tr.dataset.id); if(!r) return;
@@ -9093,13 +9136,15 @@ async function ctRun(){
 
 // ===== Prospectar: leva a pessoa da Aliança para Vendas > Prospecção, sem cadastrar de novo =====
 const PROSP_STATUS = ['Novo','Em contato','Respondeu','Agendou reunião','Desmarcou reunião','Reunião realizada','Retornar','Cotação em andamento','Apresentei cotação','Virou cliente','Sem contato','Sem interesse'];
+function prospEstrategiaDe(p){ return (opIsPremium(p) || opIsCliente(p.id)) ? 'Revisitar a carteira' : (p.quem_indicou ? 'Indicação de cliente' : 'Lista para trabalhar'); }
 function prospOrigemDe(p){
   const t = p.tags||[];
+  if(p.quem_indicou) return 'Indicado por '+p.quem_indicou;
   return opIsPremium(p) ? 'CallMed Premium' : opIsCallHot(p) ? 'Fidelizado CallMed' : opIsMorno(p) ? 'Morno de plantão' : t.includes('Ganhador COPA') ? 'Ganhador COPA' : t.some(x=>/lead-copa|copa-/.test(x)) ? 'Lead COPA' : 'Base CallMed';
 }
 function prospLinha(p, origem, pr){
   const st = (pr && pr.status) || 'Novo';
-  return { pessoa_id:p.id, nome:p.nome||'', cpf:p.cpf||null, telefone:p.telefone||null, origem:origem||null, status:st,
+  return { pessoa_id:p.id, nome:p.nome||'', cpf:p.cpf||null, telefone:p.telefone||null, origem:origem||null, estrategia:(pr && pr.estrategia) || prospEstrategiaDe(p), status:st,
     contato_em: (pr && pr.data) ? new Date(pr.data+'T12:00:00').toISOString() : new Date().toISOString(),
     historico: (pr && pr.hist) || null, canal: (pr && pr.canal) || null, proxima_acao: VD_ACAO_ST[st] || null, criado_por: curUserName()||null };
 }
@@ -9804,6 +9849,20 @@ checkSession();
   .vd-wrap thead th{ position:sticky; top:0; z-index:3; background:#f4f5fb; box-shadow:0 1px 0 var(--border); }
   .vd-wrap::-webkit-scrollbar{ height:14px; width:12px; } .vd-wrap::-webkit-scrollbar-thumb{ background:#9aa3c7; border-radius:8px; border:3px solid #eef0f8; } .vd-wrap::-webkit-scrollbar-track{ background:#eef0f8; }
   .vd-btn{ padding:4px 10px !important; font-size:12px !important; }
+  .vp-list{ border:1px solid var(--border); border-radius:12px; background:var(--surface); overflow:hidden; }
+  .vp-row{ border-bottom:1px solid var(--border); padding:10px 14px; } .vp-row:last-child{ border-bottom:0; } .vp-row.fechado{ opacity:.65; } .vp-row.reu{ border-left:4px solid #0f7a53; }
+  .vp-head{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .vp-nome{ font-weight:700; font-size:15px; color:var(--ink); text-decoration:underline dotted; cursor:pointer; }
+  .vp-chip{ border-radius:999px; padding:2px 10px; font-size:12px; font-weight:600; background:#f1efe3; color:#5a4a1d; white-space:nowrap; }
+  .vp-est{ background:#e6efe3; color:#2f5a2a; } .vp-warn{ background:#fbeed9; color:#8a5406; } .vp-reu{ background:#e3f1ea; color:#0f7a53; }
+  .vp-wa{ background:#4f6a43; color:#fff; border-radius:8px; padding:2px 10px; font-size:12px; font-weight:700; text-decoration:underline; }
+  .vp-btns{ display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+  .vp-sub{ font-size:12px; color:var(--ink-faint); margin-top:3px; }
+  .vp-det{ background:#f7f8fb; border-radius:10px; padding:10px 12px; margin-top:8px; }
+  .vp-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; }
+  .vp-grid label{ font-size:11.5px; color:var(--ink-soft); display:flex; flex-direction:column; gap:3px; }
+  .vp-grid input, .vp-grid select, .vp-grid textarea{ border:1px solid var(--border); border-radius:6px; padding:6px 8px; font:inherit; font-size:13px; background:#fff; width:100%; }
+  .vp-hist{ font-size:13px; line-height:1.5; border-top:1px dashed var(--border); margin-top:10px; padding-top:8px; } .vp-hist p{ margin:0 0 6px; }
   table.vd-edit input, table.vd-edit select, table.vd-edit textarea{ width:100%; min-width:90px; border:1px solid var(--border); border-radius:6px; padding:5px 7px; font:inherit; font-size:12.5px; background:#fff; }
   table.vd-edit textarea{ min-width:180px; resize:vertical; }
 
