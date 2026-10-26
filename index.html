@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610221939">
+<meta name="app-build" content="202610260918">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1733,7 +1733,11 @@ function vdProHtml(){
     if(aberto){
       const he = !!VD.hEdit[x.id], ent = entradas(x.historico), full = !!VD.hFull[x.id], vis = full ? ent : ent.slice(0,2);
       det = `<div class="vp-det">
-        <div class="vp-grid">
+        <div class="vp-reg"><label>Registrar o que foi feito<textarea rows="2" data-nr="${x.id}" placeholder="Ex.: mandei mensagem, ela não respondeu, agendei para sexta">${escapeHtml((VD.draft||{})[x.id]||'')}</textarea></label>
+          <div class="vp-reg-b"><button class="om-save vd-btn" data-act="reg-p" data-id="${x.id}">Registrar</button>${x.registrado_em?`<span style="font-size:11px;color:#1a7f37">✓ registrado ${escapeHtml(vdDtHora(x.registrado_em))}</span>`:''}</div></div>
+        <div class="vp-hist" style="margin-top:8px">${he?`<textarea rows="6" data-k="historico" style="width:100%">${escapeHtml(x.historico||'')}</textarea>`:(vis.length?vis.map(e=>`<p>${escapeHtml(e).replace(/\n/g,'<br>')}</p>`).join(''):'<p style="color:var(--ink-faint)">Ainda sem registros.</p>')}
+          <a href="#" data-act="h-edit" data-id="${x.id}" style="font-size:11px">${he?'concluir correção':'corrigir texto'}</a></div>
+        <div class="vp-grid" style="margin-top:10px">
           <label>Nome<input type="text" list="vd-cli" data-k="nome" value="${escapeHtml(x.nome||'')}" placeholder="Nome"></label>
           <label>CPF<input type="text" data-k="cpf" value="${escapeHtml(x.cpf||'')}" placeholder="opcional"></label>
           <label>Telefone<input type="text" data-k="telefone" value="${escapeHtml(x.telefone||'')}" placeholder="Telefone"></label>
@@ -1743,14 +1747,11 @@ function vdProHtml(){
         </div>
         <div class="vp-grid" style="margin-top:8px">
           <label>Data do contato<input type="datetime-local" data-k="contato_em" value="${vdLocalInput(x.contato_em)}"></label>
-          <label style="grid-column:span 2">O que eu fiz<textarea rows="2" data-nr="${x.id}" placeholder="Ex.: mandei mensagem, ela não respondeu">${escapeHtml((VD.draft||{})[x.id]||'')}</textarea></label>
           <label>Próxima ação<select data-k="proxima_acao"><option value="">${escapeHtml(vdAcaoPadrao(x)||'—')} (sugerida)</option>${ACOES.map(a=>`<option${a===x.proxima_acao?' selected':''}>${escapeHtml(a)}</option>`).join('')}</select></label>
           <label style="${semHora?'color:#8a5406;font-weight:700':''}">${reu?'Data e hora da reunião':'Retornar em'}<span style="display:flex;gap:4px"><input type="date" data-k="retorno_data" value="${escapeHtml(x.retorno_data||'')}"><input type="time" data-k="retorno_hora" value="${escapeHtml(x.retorno_hora||'')}" style="max-width:104px"></span></label>
           <label>Status<select data-k="status" style="color:${corSt(x.status)};font-weight:600">${VD_ST_PRO.map(s=>`<option${s===x.status?' selected':''}>${escapeHtml(s)}</option>`).join('')}</select></label>
         </div>
-        <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="om-save vd-btn" data-act="reg-p" data-id="${x.id}">Registrar</button>${x.registrado_em?`<span style="font-size:11px;color:#1a7f37">✓ registrado ${escapeHtml(vdDtHora(x.registrado_em))}</span>`:''}<span style="font-size:11px;color:var(--ink-faint)">${x.pessoa_id?'':'sem cadastro ligado'}</span></div>
-        <div class="vp-hist">${he?`<textarea rows="6" data-k="historico" style="width:100%">${escapeHtml(x.historico||'')}</textarea>`:(vis.length?vis.map(e=>`<p>${escapeHtml(e).replace(/\n/g,'<br>')}</p>`).join(''):'<p style="color:var(--ink-faint)">Ainda sem registros.</p>')}
-          <a href="#" data-act="h-edit" data-id="${x.id}" style="font-size:11px">${he?'concluir correção':'corrigir texto'}</a></div>
+        <div style="margin-top:6px;font-size:11px;color:var(--ink-faint)">${x.pessoa_id?'':'sem cadastro ligado'}</div>
       </div>`;
     }
     const botoes = `${tel?`<a class="vp-wa" href="${tel}" target="_blank" rel="noopener" title="Abrir WhatsApp">WhatsApp</a>`:'<span class="vp-chip" title="Sem telefone válido">sem WhatsApp</span>'}`
@@ -9324,7 +9325,7 @@ async function lembAbrirLista(r){
     <div class="dlg-body" style="max-height:60vh;overflow:auto">${(data||[]).map(x=>{ const wa = waLink(x.telefone); return `<div class="rec"><b>${escapeHtml(x.nome)}</b> <small style="color:var(--ink-faint)">${escapeHtml(x.telefone||'sem telefone')}</small><span style="float:right">${wa?`<a class="om-cancel vd-btn" target="_blank" rel="noopener" href="${wa}?text=${encodeURIComponent(lembTexto(modelo,{nome:x.nome}))}">💬 WhatsApp</a>`:''}</span></div>`; }).join('')||'<div class="hint">Nenhum cliente neste público.</div>'}</div>
     <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Fechar</button></div>`, true);
 }
-// ===== Reunião que se confirma sozinha: a Prospecção ("Agendou reunião") ou a Agenda criam o compromisso e o banco monta
+// ===== Confirmação automática da reunião: a Prospecção ("Agendou reunião") ou a Agenda criam o compromisso e o banco monta
 // a régua de lembretes em crm_envios (confirmação, 3/2/1 dia antes às 9h, 1 hora antes e na hora). Sem API de WhatsApp:
 // o Hoje mostra o que está na hora de enviar, com 1 clique para o WhatsApp; o enviado entra na linha do tempo do cliente. =====
 const APRESENTACAO_URL = 'https://luizdeamo-sketch.github.io/callmed-protecao-crm/apresentacao.html';
@@ -9940,6 +9941,7 @@ checkSession();
   .vp-wa{ background:#4f6a43; color:#fff; border-radius:8px; padding:2px 10px; font-size:12px; font-weight:700; text-decoration:underline; }
   .vp-btns{ display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
   .vp-sub{ font-size:12px; color:var(--ink-faint); margin-top:3px; }
+  .vp-reg{ display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; } .vp-reg label{ flex:1; min-width:260px; font-weight:700; } .vp-reg textarea{ width:100%; border:2px solid #1b5fc7; border-radius:8px; padding:8px 10px; font:inherit; font-weight:400; } .vp-reg-b{ display:flex; flex-direction:column; gap:4px; }
   .vp-det{ background:#f7f8fb; border-radius:10px; padding:10px 12px; margin-top:8px; }
   .vp-grid{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px; }
   .vp-grid label{ font-size:11.5px; color:var(--ink-soft); display:flex; flex-direction:column; gap:3px; }
