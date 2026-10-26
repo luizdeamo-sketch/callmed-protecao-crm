@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610261541">
+<meta name="app-build" content="202610261550">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1672,6 +1672,19 @@ const VD_ACAO_ST = {'Novo':'Realizar primeiro contato','Em contato':'Realizar fo
 const VD_RES_ST = {'Novo':'Outro','Em contato':'Conversou','Respondeu':'Conversou','Agendou reunião':'Agendou','Desmarcou reunião':'Outro','Reunião realizada':'Conversou','Retornar':'Sem resposta','Cotação em andamento':'Enviou material','Apresentei cotação':'Enviou material','Virou cliente':'Demonstrou interesse','Sem contato':'Sem resposta','Sem interesse':'Sem interesse'};
 const vdAcaoPadrao = x => VD_ACAO_ST[x.status] || '';
 // "Registrar": grava o contato no histórico do cliente (atividade + próxima ação) e, se for "Sem interesse", leva para Vendas não realizadas
+// contatos da Prospecção com texto digitado em "Registrar o que foi feito" que ainda não foi registrado
+const vdRascunhos = ()=> Object.keys(VD.draft||{}).filter(id=>String(VD.draft[id]||'').trim() && (VD.pro||[]).some(x=>x.id===id));
+const vdNomeRasc = id => ((VD.pro||[]).find(x=>x.id===id)||{}).nome || 'contato';
+async function vdAvisaRascunho(ids, depois){
+  ids = ids.filter(Boolean); if(!ids.length){ depois(); return; }
+  const nomes = ids.map(vdNomeRasc).join(', ');
+  if(confirm('Você escreveu em "Registrar o que foi feito" ('+nomes+') e ainda não clicou em Registrar.\n\nSe sair agora, o texto não vai para o histórico do cliente.\n\nOK = registrar agora   |   Cancelar = sair sem registrar')){
+    for(const id of ids){ const r = VD.pro.find(x=>x.id===id); if(r) await vdRegistrar(r); }
+    if(vdRascunhos().some(id=>ids.includes(id))) return;   // faltou algum dado (canal, data...): fica na tela para completar
+  }
+  depois();
+}
+const vdDataAtividade = (r, agora) => r.registrado_em ? agora : (r.contato_em || agora);
 async function vdRegistrar(r){
   if(!r) return;
   const nome = String(r.nome||'').trim(); if(!nome && !r.pessoa_id){ showToast('Informe o nome do contato antes de registrar.'); return; }
@@ -1689,7 +1702,7 @@ async function vdRegistrar(r){
   try{
     if(r.pessoa_id){
       const resumo = ['Prospecção · canal: '+r.canal+(r.origem?' · origem: '+r.origem:'')+' · '+r.status, novo].filter(Boolean).join(String.fromCharCode(10));
-      const { error } = await sb.from('crm_atividades').insert({ pessoa_id:r.pessoa_id, tipo:VD_CANAIS[r.canal]||'outro', data_hora:r.contato_em||agora, resumo, resultado:VD_RES_ST[r.status]||'Outro', responsavel:por,
+      const { error } = await sb.from('crm_atividades').insert({ pessoa_id:r.pessoa_id, tipo:VD_CANAIS[r.canal]||'outro', data_hora:vdDataAtividade(r, agora), resumo, resultado:VD_RES_ST[r.status]||'Outro', responsavel:por,
         proxima_acao:acao, proxima_data:fim?null:r.retorno_data, proximo_responsavel:fim?null:por, motivo_perda:sem?'Sem interesse':null });
       if(error) throw error;
       const upd = { proxima_acao:acao, proxima_data:fim?null:r.retorno_data, proximo_responsavel:fim?null:por };
@@ -2398,12 +2411,13 @@ async function vdPdfDemandas(){
   }
   try{ vdMsg('Gerando PDF…'); await f5DownloadPdf(vdWrap2(pages), f5NomeArq('vd-nome', 'Demandas_'+ymd(new Date())+'.pdf')); vdMsg('PDF gerado ✓'); }catch(e){ vdMsg(''); showToast('Não consegui gerar o PDF: '+(e.message||e)); }
 }
+window.addEventListener('beforeunload', e=>{ if(typeof vdRascunhos==='function' && vdRascunhos().length){ e.preventDefault(); e.returnValue = ''; } });
 // ---------- eventos ----------
 (function(){
   const host = document.getElementById('vd-body'); if(!host) return;
   host.addEventListener('click', async e=>{
     const t = e.target.closest('[data-act],[data-vt]'); if(!t) return;
-    if(t.dataset.vt){ VD.tab = t.dataset.vt; vdDraw(); return; }
+    if(t.dataset.vt){ const vt = t.dataset.vt; if(VD.tab==='pro' && vt!=='pro'){ vdAvisaRascunho(vdRascunhos(), ()=>{ VD.tab = vt; vdDraw(); }); return; } VD.tab = vt; vdDraw(); return; }
     const a = t.dataset.act; if(t.tagName==='A') e.preventDefault();
     const id = t.dataset.id;
     if(a==='abrir'){ try{ await ensurePessoas(); opOpenModal(t.dataset.pid); }catch(err){ showToast('Não consegui abrir o cadastro.'); } }
@@ -2416,7 +2430,8 @@ async function vdPdfDemandas(){
     else if(a==='ini-alianca'){ const nb = document.querySelector('.nav-btn[data-view="operacao"]'); if(nb) nb.click(); }
     else if(a==='ini-dz'){ const fi = document.getElementById('vi-file'); if(fi) fi.click(); }
     else if(a==='p-vista'){ VD.proVista = t.dataset.v==='tabela' ? 'tabela' : 'lista'; vdDraw(); }
-    else if(a==='p-toggle'){ VD.abertos[id] = !VD.abertos[id]; vdDraw(); }
+    else if(a==='p-toggle'){ const fechando = !!VD.abertos[id], ped = fechando && String((VD.draft||{})[id]||'').trim() ? [id] : [];
+      vdAvisaRascunho(ped, ()=>{ VD.abertos[id] = !VD.abertos[id]; vdDraw(); }); }
     else if(a==='h-full'){ VD.hFull[id] = !VD.hFull[id]; vdDraw(); }
     else if(a==='p-hoje'){ const h = vdHojeIso(); VD.fPro.de = h; VD.fPro.ate = h; vdDraw(); }
     else if(a==='p-limpar'){ VD.fPro = {st:'', q:'', org:'', por:'', de:'', ate:'', ret:'', estr:'', retsel:''}; vdDraw(); }
