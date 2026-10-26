@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610261550">
+<meta name="app-build" content="202610261602">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -179,7 +179,11 @@ window.ALIANCA = {
   .ics-box .url-row{ display:flex; gap:6px; margin-top:9px;}
   .ics-box input{ flex:1; border:1px solid var(--border); border-radius:var(--radius-sm); padding:7px 9px; font-size:11px; background:var(--surface);}
   .ics-box button{ border:none; background:var(--brand); color:#fff; border-radius:var(--radius-sm); padding:7px 12px; font-size:11.5px; font-weight:600;}
-  .day-events{ margin-top:22px;}
+  .day-events{ margin-top:22px; border-top:2px solid var(--border); padding-top:16px;}
+  .day-events .dv-lista{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:10px;}
+  .day-events .dv-lista .evt-card{ margin-bottom:0;}
+  .day-events h4 small{ font-weight:500; color:var(--ink-faint); text-transform:none; margin-left:6px;}
+  .evt-card .tm-go{ display:inline-block; margin-top:6px; background:#5059c9; color:#fff !important; text-decoration:none; border-radius:6px; padding:5px 12px; font-size:12px; font-weight:700;}
   .day-events h4{ font-size:.85rem; margin-bottom:12px; color:var(--ink); text-transform:capitalize;}
   .evt-card{ border:1px solid var(--border); border-radius:var(--radius-sm); padding:11px 13px; margin-bottom:8px; background:var(--surface);}
   .evt-card .t{ font-weight:600; font-size:12.5px;}
@@ -338,6 +342,7 @@ window.ALIANCA = {
           </div>
         </div>
         <div class="cal-grid" id="cal-grid"></div>
+        <div class="day-events" id="day-events"></div>
       </div>
       <div id="agenda-side">
         <div class="ics-box">
@@ -374,7 +379,6 @@ window.ALIANCA = {
           <textarea name="notas" placeholder="Notas" rows="2"></textarea>
           <button type="submit">+ Agendar</button>
         </form>
-        <div class="day-events" id="day-events"></div>
       </div>
     </div>
 
@@ -6761,7 +6765,7 @@ async function agTeamsLoadCfg(){
 async function agTeamsFetch(force){
   await agTeamsLoadCfg();
   const st = document.getElementById('teams-status');
-  if(!AG_TEAMS.url){ AG_TEAMS.events = []; if(st) st.textContent = ''; return; }
+  if(!AG_TEAMS.url){ AG_TEAMS.events = []; if(st) st.innerHTML = '<b style="color:#b36b00">Seu Teams ainda não está conectado.</b> Cole acima o link do <b>seu</b> calendário do Outlook para ver as suas reuniões aqui e entrar com um clique.'; return; }
   if(!force && Date.now()-AG_TEAMS.at < 300000) return;
   try{
     const { data, error } = await sb.functions.invoke('agenda-teams', { body:{ url: AG_TEAMS.url } });
@@ -6829,9 +6833,9 @@ async function agEdit(id){
 }
 function renderDayEvents(events, date){
   const el = document.getElementById('day-events');
-  el.innerHTML = `<h4>${date.toLocaleDateString('pt-BR',{weekday:'long', day:'2-digit', month:'long'})}</h4>` +
-    (events.length===0 ? '<div class="no-rec">Nenhum compromisso.</div>' :
-      events.map(ev=> ev.teams ? `<div class="evt-card" style="border-left:3px solid #5059c9"><div class="t">${escapeHtml(ev.titulo)} <span style="float:right;font-size:11px;color:#5059c9;font-weight:700">Teams</span></div><div class="m">${ev.dia_inteiro?'Dia inteiro':fmtDateTime(ev.data_inicio)}${ev.local&&!/^https?:/i.test(ev.local)?agLocalHtml(ev.local):''}${ev.teams_link?` · <a href="${escapeHtml(ev.teams_link)}" target="_blank" rel="noopener">Entrar na reunião</a>`:''}</div></div>` : `<div class="evt-card"><div class="t">${escapeHtml(ev.titulo)} <a href="#" data-agedit="${ev.id}" title="Editar ou apagar" style="float:right;font-size:12px">editar</a></div><div class="m">${fmtDateTime(ev.data_inicio)}${ev.crm_pessoas?.nome?(' · '+escapeHtml(ev.crm_pessoas.nome)):''}${agLocalHtml(ev.local)}${(ev.participantes||[]).length?'<br>'+escapeHtml(ev.participantes.join(', ')):''}</div></div>`).join(''));
+  el.innerHTML = `<h4>${date.toLocaleDateString('pt-BR',{weekday:'long', day:'2-digit', month:'long'})}${events.length?`<small>· ${events.length} compromisso${events.length>1?'s':''}</small>`:''}</h4>` +
+    (events.length===0 ? '<div class="no-rec">Nenhum compromisso neste dia.</div>' :
+      '<div class="dv-lista">'+events.map(ev=> ev.teams ? `<div class="evt-card" style="border-left:3px solid #5059c9"><div class="t">${escapeHtml(ev.titulo)} <span style="float:right;font-size:11px;color:#5059c9;font-weight:700">Teams</span></div><div class="m">${ev.dia_inteiro?'Dia inteiro':fmtDateTime(ev.data_inicio)}${ev.local&&!/^https?:/i.test(ev.local)?agLocalHtml(ev.local):''}${ev.teams_link?`<br><a class="tm-go" href="${escapeHtml(ev.teams_link)}" target="_blank" rel="noopener">▶ Entrar na reunião (Teams)</a>`:''}</div></div>` : `<div class="evt-card"><div class="t">${escapeHtml(ev.titulo)} <a href="#" data-agedit="${ev.id}" title="Editar ou apagar" style="float:right;font-size:12px">editar</a></div><div class="m">${fmtDateTime(ev.data_inicio)}${ev.crm_pessoas?.nome?(' · '+escapeHtml(ev.crm_pessoas.nome)):''}${agLocalHtml(ev.local)}${(ev.participantes||[]).length?'<br>'+escapeHtml(ev.participantes.join(', ')):''}</div></div>`).join('')+'</div>');
   el.querySelectorAll('[data-agedit]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); agEdit(a.dataset.agedit); }));
 }
 
