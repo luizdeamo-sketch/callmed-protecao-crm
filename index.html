@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610260918">
+<meta name="app-build" content="202610260926">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1462,7 +1462,7 @@ async function renderParametros(){
 
 // ============ VENDAS E DEMANDAS ============
 // Demandas de todos os clientes, "Virou venda" / "Não virou venda", aba Vendas realizadas e Vendas não realizadas com relatório em PDF.
-const VD = { tab:'pro', acoes:[], cli:[], fCli:{sit:'', st:'', q:'', ord:'rec'}, pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:'', ret:'', estr:'', retsel:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, abertos:{}, hFull:{}, proVista:'lista', timers:{} };
+const VD = { tab:'pro', acoes:[], cli:[], fCli:{sit:'', st:'', q:'', ord:'rec'}, pro:[], fPro:{st:'', q:'', org:'', por:'', de:'', ate:'', ret:'', estr:'', retsel:''}, dem:[], vend:[], nao:[], ok:false, loading:false, fDem:{st:'abertas', q:''}, fV:{de:'', ate:''}, fN:{de:'', ate:''}, foco:null, abertos:{}, hFull:{}, hEdit:{}, proVista:'lista', timers:{} };
 const VD_MOTIVOS = ['Preço','Escolheu outra corretora ou seguradora','Desistiu / sem interesse','Sem retorno do cliente','Não aprovado pela seguradora','Adiou a decisão','Outro'];
 const VD_ENC = ['Concluída','Venda fechada','Não virou venda'];
 const vdM = v => 'R$ '+(Number(v)||0).toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
@@ -1731,7 +1731,7 @@ function vdProHtml(){
     const sub = [x.telefone?escapeHtml(x.telefone):'sem telefone', x.origem?escapeHtml(x.origem):'', ultimo?('último contato '+vdD(ultimo)+(nd!=null?' (há '+nd+(nd===1?' dia)':' dias)'):')')):'sem contato registrado', (!reu && x.retorno_data)?('retornar em '+vdD(x.retorno_data)):'', x.criado_por?('registrado por '+escapeHtml(x.criado_por)):''].filter(Boolean).join(' · ');
     let det = '';
     if(aberto){
-      const he = !!VD.hEdit[x.id], ent = entradas(x.historico), full = !!VD.hFull[x.id], vis = full ? ent : ent.slice(0,2);
+      const he = !!(VD.hEdit&&VD.hEdit[x.id]), ent = entradas(x.historico), full = !!VD.hFull[x.id], vis = full ? ent : ent.slice(0,2);
       det = `<div class="vp-det">
         <div class="vp-reg"><label>Registrar o que foi feito<textarea rows="2" data-nr="${x.id}" placeholder="Ex.: mandei mensagem, ela não respondeu, agendei para sexta">${escapeHtml((VD.draft||{})[x.id]||'')}</textarea></label>
           <div class="vp-reg-b"><button class="om-save vd-btn" data-act="reg-p" data-id="${x.id}">Registrar</button>${x.registrado_em?`<span style="font-size:11px;color:#1a7f37">✓ registrado ${escapeHtml(vdDtHora(x.registrado_em))}</span>`:''}</div></div>
