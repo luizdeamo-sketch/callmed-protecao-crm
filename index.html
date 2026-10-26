@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610261106">
+<meta name="app-build" content="202610261541">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1624,6 +1624,8 @@ function vdProCards(l){
   const tot = l.length, c = {}; VD_ST_PRO.forEach(s=>c[s]=0); l.forEach(x=>{ c[x.status] = (c[x.status]||0)+1; });
   return {tot, c, pct:n=> tot ? Math.round(n/tot*100)+'% do total' : '0% do total'};
 }
+const VD_ACOES_REUNIAO = ['Agendar reunião','Confirmar reunião','Realizar diagnóstico'];
+const vdAcaoSugereDesmarcar = (r, nova) => !!(r && r.status==='Agendou reunião' && nova && !VD_ACOES_REUNIAO.includes(nova));
 function vdProFiltroTxt(){
   const f = VD.fPro, t = [];
   if(f.st) t.push('Status: '+(f.st==='abertos'?'em aberto':f.st));
@@ -2465,6 +2467,9 @@ async function vdPdfDemandas(){
       else if(k==='cpf' || k==='telefone' || k==='origem' || k==='nome' || k==='historico' || k==='proxima_acao' || k==='canal' || k==='estrategia') v = v.trim()===''?null:v;
       r[k] = v; if(k==='nome' && v==null) r.nome = '';
       vdSalvarCampo('crm_prospeccao', r.id, k, k==='nome'&&v==null ? '' : v);
+      if(k==='proxima_acao' && vdAcaoSugereDesmarcar(r, v) && confirm('A reunião não aconteceu?\n\nPara a próxima ação "'+v+'" valer, o status sai de "Agendou reunião" e passa para "Desmarcou reunião". Depois, informe em "Retornar em" a data desta nova ação.\n\nOK = mudar o status   |   Cancelar = manter a reunião marcada')){
+        r.status = 'Desmarcou reunião'; vdSalvarCampo('crm_prospeccao', r.id, 'status', r.status);
+        showToast('Status mudou para "Desmarcou reunião". Informe a data do retorno desta nova ação.'); vdDraw(); return; }
       if(k==='nome' || k==='cpf' || k==='telefone') vdTentaLigar('crm_prospeccao', r, r.nome, r.cpf, r.telefone);
       if(k==='status' && v==='Sem interesse') showToast('Escreva o motivo em “Novo registro” e clique em Registrar: o contato vai para Vendas não realizadas.');
       if(k==='status' && v==='Agendou reunião' && (!r.retorno_data || !vdHora(r.retorno_hora))) showToast('Informe a data e a hora da reunião: a Agenda usa esses dados.');
