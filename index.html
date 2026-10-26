@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610261602">
+<meta name="app-build" content="202610261621">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -361,6 +361,15 @@ window.ALIANCA = {
             <button id="teams-save" type="button">Salvar</button>
           </div>
           <div id="teams-status" class="hint" style="margin:6px 0 0"></div>
+          <div id="teams-eq-box" style="display:none;margin-top:12px;padding-top:10px;border-top:1px dashed var(--border)">
+            <b>Calendário da equipe (só o gestor define)</b>
+            Cole o link ICS do calendário compartilhado da Aliança. Todos que usam o CRM passam a ver essas reuniões, com o botão de entrar no Teams.
+            <div class="url-row">
+              <input id="teams-eq-url" placeholder="Link ICS do calendário da equipe">
+              <button id="teams-eq-save" type="button">Salvar</button>
+            </div>
+            <div id="teams-eq-status" class="hint" style="margin:6px 0 0"></div>
+          </div>
         </div>
         <h4 style="font-size:.9rem; margin-bottom:10px;">Novo compromisso</h4>
         <form class="add-form" id="agenda-form" style="grid-template-columns:1fr;">
@@ -6755,27 +6764,34 @@ function agOutlookUrl(ev){
   return 'https://outlook.office.com/calendar/0/deeplink/compose?'+Object.entries(q).map(([k,v])=>k+'='+encodeURIComponent(v)).join('&')+(to?'&to='+encodeURIComponent(to):'');
 }
 // ---- Teams / Outlook: calendário publicado (ICS) exibido na Agenda, só leitura ----
-const AG_TEAMS = { url:null, loaded:false, events:[], at:0, err:'' };
+const AG_TEAMS = { url:null, loaded:false, events:[], at:0, err:'', eqUrl:null, eqOk:false };
 async function agTeamsLoadCfg(){
   if(AG_TEAMS.loaded) return;
   AG_TEAMS.loaded = true;
   try{ const { data } = await sb.from('crm_config').select('valor').eq('chave','teams_ics:'+(window._userEmail||'')).maybeSingle(); AG_TEAMS.url = data && data.valor || null; }catch(e){}
   const inp = document.getElementById('teams-url'); if(inp && AG_TEAMS.url) inp.value = AG_TEAMS.url;
+  try{ const { data: m } = await sb.rpc('crm_is_master'); window._isMaster = m===true; }catch(e){}
+  const eqb = document.getElementById('teams-eq-box'); if(eqb) eqb.style.display = window._isMaster ? '' : 'none';
+  if(window._isMaster){ try{ const { data } = await sb.from('crm_config').select('valor').eq('chave','teams_ics:equipe').maybeSingle(); AG_TEAMS.eqUrl = data && data.valor || null; const ei = document.getElementById('teams-eq-url'); if(ei && AG_TEAMS.eqUrl) ei.value = AG_TEAMS.eqUrl; }catch(e){} }
 }
 async function agTeamsFetch(force){
   await agTeamsLoadCfg();
   const st = document.getElementById('teams-status');
-  if(!AG_TEAMS.url){ AG_TEAMS.events = []; if(st) st.innerHTML = '<b style="color:#b36b00">Seu Teams ainda não está conectado.</b> Cole acima o link do <b>seu</b> calendário do Outlook para ver as suas reuniões aqui e entrar com um clique.'; return; }
   if(!force && Date.now()-AG_TEAMS.at < 300000) return;
-  try{
-    const { data, error } = await sb.functions.invoke('agenda-teams', { body:{ url: AG_TEAMS.url } });
-    if(error) throw error; if(data && data.error) throw new Error(data.error);
-    AG_TEAMS.events = (data.events||[]).map(e=>({ id:'teams:'+e.uid, teams:true, status:'teams', titulo:e.titulo, data_inicio:e.inicio, data_fim:e.fim, local:e.local, dia_inteiro:e.diaInteiro, teams_link:e.teams }));
-    AG_TEAMS.at = Date.now(); AG_TEAMS.err = '';
-    if(st) st.textContent = 'Teams conectado · '+AG_TEAMS.events.length+' evento(s) lidos.';
-  }catch(e){
-    AG_TEAMS.err = (e && e.message) || String(e); AG_TEAMS.events = [];
-    if(st) st.textContent = 'Não consegui ler o calendário do Teams: '+AG_TEAMS.err;
+  const conv = e=>({ id:'teams:'+e.uid, teams:true, status:'teams', titulo:e.titulo, data_inicio:e.inicio, data_fim:e.fim, local:e.local, dia_inteiro:e.diaInteiro, teams_link:e.teams });
+  let meus = [], eq = [], erro = '';
+  if(AG_TEAMS.url){
+    try{ const { data, error } = await sb.functions.invoke('agenda-teams', { body:{ url: AG_TEAMS.url } }); if(error) throw error; if(data && data.error) throw new Error(data.error); meus = (data.events||[]).map(conv); }
+    catch(e){ erro = 'seu calendário: '+((e && e.message) || String(e)); }
+  }
+  AG_TEAMS.eqOk = false;
+  try{ const { data, error } = await sb.functions.invoke('agenda-teams', { body:{ equipe:true } }); if(!error && data && !data.error && data.configurado!==false){ eq = (data.events||[]).map(conv); AG_TEAMS.eqOk = true; } }catch(e){}
+  const vistos = new Set(meus.map(e=>e.id)); AG_TEAMS.events = meus.concat(eq.filter(e=>!vistos.has(e.id)));
+  AG_TEAMS.at = Date.now(); AG_TEAMS.err = erro;
+  if(st){
+    if(erro) st.textContent = 'Não consegui ler o calendário do Teams: '+erro;
+    else if(AG_TEAMS.url || AG_TEAMS.eqOk) st.textContent = 'Teams conectado · '+AG_TEAMS.events.length+' evento(s) lidos'+(AG_TEAMS.eqOk?' (inclui o calendário da equipe).':'.');
+    else st.innerHTML = '<b style="color:#b36b00">Ainda não há calendário do Teams conectado.</b> O gestor configura o calendário da equipe; se quiser ver também o seu, cole acima o link do seu calendário do Outlook.';
   }
 }
 async function agTeamsMonth(start, end){
@@ -6790,6 +6806,16 @@ document.getElementById('teams-save').addEventListener('click', async ()=>{
   if(error){ st.textContent = 'Erro: '+error.message; return; }
   AG_TEAMS.url = v||null; AG_TEAMS.loaded = true; AG_TEAMS.at = 0;
   await agTeamsFetch(true); renderCalendar();
+});
+document.getElementById('teams-eq-save').addEventListener('click', async ()=>{
+  const v = document.getElementById('teams-eq-url').value.trim(), st = document.getElementById('teams-eq-status');
+  if(!window._isMaster){ st.textContent = 'Só o gestor define o calendário da equipe.'; return; }
+  if(v && !/^(https?|webcal):\/\//i.test(v)){ st.textContent = 'Cole o link completo do calendário publicado.'; return; }
+  st.textContent = 'Salvando…';
+  const { error } = await sb.from('crm_config').upsert({ chave:'teams_ics:equipe', valor: v||null, atualizado_em:new Date().toISOString() }, { onConflict:'chave' });
+  if(error){ st.textContent = 'Erro: '+error.message; return; }
+  AG_TEAMS.eqUrl = v||null; AG_TEAMS.at = 0; st.textContent = v ? 'Salvo ✓ Lendo o calendário…' : 'Calendário da equipe removido.';
+  await agTeamsFetch(true); renderCalendar(); if(v) st.textContent = 'Salvo ✓ '+AG_TEAMS.events.length+' evento(s) no total.';
 });
 function agIcs(ev){
   const z = d => new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
