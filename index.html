@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610260926">
+<meta name="app-build" content="202610261106">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1624,6 +1624,26 @@ function vdProCards(l){
   const tot = l.length, c = {}; VD_ST_PRO.forEach(s=>c[s]=0); l.forEach(x=>{ c[x.status] = (c[x.status]||0)+1; });
   return {tot, c, pct:n=> tot ? Math.round(n/tot*100)+'% do total' : '0% do total'};
 }
+function vdProFiltroTxt(){
+  const f = VD.fPro, t = [];
+  if(f.st) t.push('Status: '+(f.st==='abertos'?'em aberto':f.st));
+  if(f.retsel) t.push('Retornos: '+({atrasado:'atrasados',hoje:'hoje',amanha:'amanhã',semana:'próximos 7 dias',sem:'sem retorno marcado'}[f.retsel]||f.retsel));
+  if(f.ret) t.push('Retorno em '+f.ret.split('-').reverse().join('/'));
+  if(f.estr) t.push('Estratégia: '+f.estr);
+  if(f.org) t.push('Origem: '+f.org);
+  if(f.por) t.push('Quem registrou: '+f.por);
+  if(f.de) t.push('Contato de '+f.de.split('-').reverse().join('/'));
+  if(f.ate) t.push('Contato até '+f.ate.split('-').reverse().join('/'));
+  if(f.q) t.push('Busca: “'+f.q+'”');
+  return t.length ? t.join(' · ') : 'sem filtro (todos os contatos)';
+}
+function vdProCsvTexto(l){
+  const cols = [['Nome',x=>x.nome],['CPF',x=>x.cpf],['Telefone',x=>x.telefone],['Origem',x=>x.origem],['Estratégia',x=>x.estrategia],['Canal',x=>x.canal],['Status',x=>x.status],
+    ['Próxima ação',x=>x.proxima_acao||vdAcaoPadrao(x)],['Retorno / reunião',x=>x.retorno_data?(x.retorno_data.split('-').reverse().join('/')+(vdHora(x.retorno_hora)?' '+vdHora(x.retorno_hora):'')):''],
+    ['Último contato',x=>x.contato_em?vdDtHora(x.contato_em):''],['Registrado por',x=>x.criado_por],['Histórico',x=>x.historico]];
+  const esc = v=>{ const t = v==null?'':String(v).replace(/(\r?\n\s*)+/g,' | '); return /[;"]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t; };
+  return '\ufeff' + [cols.map(c=>c[0]).join(';')].concat(l.map(x=>cols.map(c=>esc(c[1](x))).join(';'))).join('\n');
+}
 const vdBaseList = ()=>`<datalist id="vd-cli">${(OP.pessoas||[]).slice(0,8000).map(x=>`<option value="${escapeHtml(x.nome||'')}">${escapeHtml(x.cpf||'')}</option>`).join('')}</datalist>`;
 const vdPessoaDe = pid => (OP.pessoas||[]).find(x=>x.id===pid);
 const vdAbrirLink = x => x.pessoa_id ? `<a href="#" data-act="abrir" data-pid="${x.pessoa_id}" style="font-size:11px">abrir cadastro</a>${(vdPessoaDe(x.pessoa_id)||{}).cpf?` <small style="color:var(--ink-faint)">CPF ${escapeHtml(vdPessoaDe(x.pessoa_id).cpf)}</small>`:''}` : (String(x.nome||x.cliente||'').trim() ? `<small style="color:var(--ink-faint)">sem cadastro ligado</small>` : '');
@@ -1728,7 +1748,7 @@ function vdProHtml(){
       + (rt==='atrasado'?'<span class="vp-chip vp-warn">retorno atrasado</span>':rt==='hoje'?'<span class="vp-chip vp-warn">retorno hoje</span>':'')
       + (reu && x.retorno_data ? `<span class="vp-chip vp-reu">reunião ${vdD(x.retorno_data)}${hora?' '+hora:''}</span>` : '')
       + (semHora ? '<span class="vp-chip vp-warn">sem hora</span>' : '');
-    const sub = [x.telefone?escapeHtml(x.telefone):'sem telefone', x.origem?escapeHtml(x.origem):'', ultimo?('último contato '+vdD(ultimo)+(nd!=null?' (há '+nd+(nd===1?' dia)':' dias)'):')')):'sem contato registrado', (!reu && x.retorno_data)?('retornar em '+vdD(x.retorno_data)):'', x.criado_por?('registrado por '+escapeHtml(x.criado_por)):''].filter(Boolean).join(' · ');
+    const sub = [x.telefone?escapeHtml(x.telefone):'sem telefone', x.origem?escapeHtml(x.origem):'', ultimo?('último contato '+vdD(ultimo)+(nd!=null?' (há '+nd+(nd===1?' dia)':' dias)'):')')):'sem contato registrado', (!vdFechado(x) && (x.proxima_acao||vdAcaoPadrao(x)))?('próxima ação: '+escapeHtml(x.proxima_acao||vdAcaoPadrao(x))+((!reu && x.retorno_data)?' em '+vdD(x.retorno_data)+(hora?' '+hora:''):'')):((!reu && x.retorno_data)?('retornar em '+vdD(x.retorno_data)):''), x.criado_por?('registrado por '+escapeHtml(x.criado_por)):''].filter(Boolean).join(' · ');
     let det = '';
     if(aberto){
       const he = !!(VD.hEdit&&VD.hEdit[x.id]), ent = entradas(x.historico), full = !!VD.hFull[x.id], vis = full ? ent : ent.slice(0,2);
@@ -1768,18 +1788,25 @@ function vdProHtml(){
       <label class="fl"><span>Origem</span><select id="vd-p-org"><option value="">Todas</option>${origens.map(o=>`<option${f.org===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label>
       <label class="fl"><span>Quem registrou</span><select id="vd-p-por"><option value="">Todos</option>${quem.map(o=>`<option${f.por===o?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select></label></div>
     <div class="vd-bar"><label class="fl"><span>Contato de</span><input type="date" id="vd-p-de" value="${escapeHtml(f.de)}"></label><label class="fl"><span>até</span><input type="date" id="vd-p-ate" value="${escapeHtml(f.ate)}"></label><button class="om-cancel" data-act="p-hoje" style="align-self:flex-end">Hoje</button>${temFiltro?'<button class="om-cancel" data-act="p-limpar" style="align-self:flex-end;color:var(--red)">✕ Limpar filtros</button>':''}
-      <button class="om-save" data-act="nova-p" style="align-self:flex-end">＋ Novo contato</button><button class="om-cancel" data-act="p-vista" data-v="${VD.proVista==='tabela'?'lista':'tabela'}" style="align-self:flex-end" title="A tabela completa traz todas as colunas lado a lado, como antes">${VD.proVista==='tabela'?'Ver em lista':'Ver em tabela'}</button><span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-p" style="align-self:flex-end">Baixar PDF com os números</button></div>
+      <button class="om-save" data-act="nova-p" style="align-self:flex-end">＋ Novo contato</button><button class="om-cancel" data-act="p-vista" data-v="${VD.proVista==='tabela'?'lista':'tabela'}" style="align-self:flex-end" title="A tabela completa traz todas as colunas lado a lado, como antes">${VD.proVista==='tabela'?'Ver em lista':'Ver em tabela'}</button><span style="flex:1"></span><label class="fl"><span>Nome do arquivo (opcional)</span><input id="vd-nome" placeholder="em branco = nome automático" maxlength="120" style="min-width:210px"></label><button class="om-save" data-act="pdf-p" style="align-self:flex-end" title="Gera o PDF só com os contatos que estão na tela, respeitando os filtros">Baixar PDF com os números</button><button class="om-cancel" data-act="csv-p" style="align-self:flex-end" title="Planilha (abre no Excel) só com os contatos que estão na tela, respeitando os filtros">Baixar planilha</button></div>
     <datalist id="vd-org">${VD_ORIGENS.map(o=>`<option value="${escapeHtml(o)}">`).join('')}</datalist>${vdBaseList()}
-    <div class="hint" style="margin:6px 0">${l.length} contato(s), do mais recente para o mais antigo. Clique no nome para abrir: preencha a linha de ação (o que fez, próxima ação, retorno e status) e clique em Registrar. A ação entra no histórico do contato. Reunião marcada precisa de data e hora. Tudo é salvo ao sair do campo. <span id="vd-msg"></span></div>
+    <div class="hint" style="margin:6px 0"><b>Filtro aplicado: ${escapeHtml(vdProFiltroTxt())}.</b> O PDF e a planilha levam exatamente os contatos desta lista. ${l.length} contato(s), do mais recente para o mais antigo. Clique no nome para abrir: preencha a linha de ação (o que fez, próxima ação, retorno e status) e clique em Registrar. A ação entra no histórico do contato. Reunião marcada precisa de data e hora. Tudo é salvo ao sair do campo. <span id="vd-msg"></span></div>
     ${VD.proVista==='tabela' ? vdProTabelaHtml(l) : `<div class="vp-list">${rows||'<div class="vp-row" style="color:var(--ink-faint)">Nenhum contato nesta visão. Use “Novo contato” ou limpe os filtros.</div>'}</div>`}`;
+}
+function vdProCsv(){
+  const l = vdProList(); if(!l.length){ showToast('Nenhum contato na visão atual para exportar.'); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([vdProCsvTexto(l)],{type:'text/csv;charset=utf-8'}));
+  const nome = String((document.getElementById('vd-nome')||{}).value||'').trim().replace(/[\\/:*?"<>|]+/g,'-');
+  a.download = (nome||('Prospeccao_'+ymd(new Date())))+'.csv'; a.click(); showToast('Planilha gerada com '+l.length+' contato(s), com os filtros da tela.');
 }
 async function vdProPdf(){
   const l = vdProList(), K = vdProCards(l), esc = escapeHtml, hoje = new Date().toLocaleDateString('pt-BR');
   const atr = l.filter(x=>vdRetornoTipo(x)==='atrasado').length, hj = l.filter(x=>vdRetornoTipo(x)==='hoje').length, aberto = l.filter(x=>!vdFechado(x)).length;
   const reu = K.c['Agendou reunião'], cot = K.c['Cotação em andamento'];
+  const filtroTxt = vdProFiltroTxt();
   const org = vdTxtSoma(vdSoma(l, x=>x.origem||'Sem origem', ()=>1), false);
   const cards = `<div class="v2c">${[['CONTATOS FEITOS',K.tot,'',true]].concat(vdStVis(K.c).map(s=>[s.toUpperCase(),K.c[s],K.pct(K.c[s]),false,VD_PRO_COR[s]])).map(c=>`<div${c[3]?' class="t"':` style="border-top-color:${c[4]}"`}><small style="font-size:${String(c[0]).length>14?'5.2':'6.4'}pt">${esc(c[0])}</small><b>${c[1]}</b>${c[2]?`<span>${c[2]}</span>`:''}</div>`).join('')}</div>`;
-  const resumo = cards
+  const resumo = `<p class="dk-nt" style="color:#0b1433"><b>Filtros aplicados: ${esc(filtroTxt)} · ${l.length} contato(s)</b></p>` + cards
     + `<p class="dk-nt" style="color:#0b1433"><b>Retornos atrasados: ${atr} · Retornos para hoje: ${hj} · Em aberto (sem fechar nem descartar): ${aberto}</b></p>`
     + (reu?`<p class="dk-nt" style="color:#0f7a53"><b>Reuniões agendadas: ${reu} (linhas em destaque amarelo na lista abaixo)</b></p>`:'')
     + (cot?`<p class="dk-nt" style="color:#1b5fc7"><b>Cotações em andamento: ${cot} (linhas em destaque azul na lista abaixo)</b></p>`:'')
@@ -2398,6 +2425,7 @@ async function vdPdfDemandas(){
     else if(a==='reg-p'){ vdRegistrar(VD.pro.find(x=>x.id===id)); }
     else if(a==='del-p'){ if(!confirm('Excluir este contato da prospecção?')) return; const { error } = await sb.from('crm_prospeccao').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; } VD.pro = VD.pro.filter(x=>x.id!==id); vdDraw(); }
     else if(a==='pdf-p') vdProPdf();
+    else if(a==='csv-p') vdProCsv();
     else if(a==='ver-conc'){ VD.fDem.st = 'Concluída'; vdDraw(); } else if(a==='ver-todas'){ VD.fDem.st = 'todas'; vdDraw(); }
     else if(a==='nova-a'){ const { data, error } = await sb.from('crm_acoes').insert({ qual:'', status:'Pendente', criado_por:curUserName()||null }).select('*').single(); if(error){ showToast('Erro: '+error.message); return; } VD.acoes.unshift(data); vdDraw(); }
     else if(a==='del-a'){ if(!confirm('Excluir esta ação?')) return; const { error } = await sb.from('crm_acoes').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; } VD.acoes = VD.acoes.filter(x=>x.id!==id); vdDraw(); }
