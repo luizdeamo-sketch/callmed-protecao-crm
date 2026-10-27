@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610271316">
+<meta name="app-build" content="202610271617">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -486,7 +486,7 @@ window.ALIANCA = {
             <select id="sg-prio"><option value="normal">Prioridade normal</option><option value="alta">Prioridade alta</option><option value="baixa">Prioridade baixa</option></select>
             <span style="flex:1"></span><button id="sg-send" class="om-save">Enviar sugestão</button>
           </div>
-          <audio id="sg-audio-prev" controls hidden style="margin-top:8px;width:100%"></audio>
+          <div id="sg-audio-box" hidden style="margin-top:8px"><audio id="sg-audio-prev" controls style="width:100%"></audio><button type="button" id="sg-audio-del" class="om-cancel" style="margin-top:6px;color:var(--red)" title="Apaga a gravação para você gravar de novo ou enviar só o texto">Descartar este áudio</button></div>
         </div>
         <div class="op-filters" style="margin-bottom:10px"><div id="sg-chips" style="display:flex;gap:6px;flex-wrap:wrap"></div><input id="sg-q" placeholder="Buscar nas sugestões..." style="margin-left:auto;width:220px"></div>
         <div id="sg-list"></div>
@@ -749,6 +749,9 @@ window.ALIANCA = {
   .fl-mini{ display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
   .fl-pill{ display:inline-flex; align-items:center; gap:5px; border:1px solid var(--border); background:var(--surface-2); color:var(--ink-soft); border-radius:999px; padding:3px 11px; font-size:12px; font-weight:600; }
   .fl-pill.done{ background:var(--teal-soft); border-color:var(--teal-deep); color:var(--teal-deep); }
+  .ia-aguarde{ position:sticky; top:0; z-index:30; display:flex; gap:12px; align-items:center; background:#0018fc; color:#fff; border-radius:10px; padding:14px 16px; margin:0 0 12px; font-weight:600; font-size:14px; box-shadow:0 4px 14px rgba(0,24,252,.35); }
+  .ia-aguarde .ia-spin{ width:20px; height:20px; border:3px solid rgba(255,255,255,.35); border-top-color:#fff; border-radius:50%; animation:iaspin .9s linear infinite; flex:0 0 20px; }
+  @keyframes iaspin{ to{ transform:rotate(360deg); } }
   @media (max-width:900px){ #flow.open{ flex-direction:column; } .fl-side{ width:auto; max-height:38vh; border-right:none; border-bottom:1px solid var(--border); } #fl-steps{ flex-direction:row; overflow-x:auto; } .fl-step{ min-width:220px; } .fl-main{ padding:14px 12px 40px; } }
   .ql{ font-family:'Inter',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); font-weight:600; margin-bottom:8px;}
   .hint{ font-size:12px; color:var(--ink-faint); margin-top:6px;}
@@ -3013,6 +3016,13 @@ function pvEditAtividade(p, a){
 // ============ FLUXO DE PROTEÇÃO · guiado, uma etapa por vez (conceito do protótipo da Amanda) ============
 // Abre sobre o cadastro do cliente: menu de etapas à esquerda e a etapa atual à direita. Reaproveita as fases já construídas
 // (pvAnalise, pvDiagnostico, pvFase3 = "Tem × Precisa", pvFase4 = cotações, pvFase5 = apresentação): elas desenham nos mesmos blocos de sempre.
+// faixa azul fixa no topo da etapa enquanto o sistema lê documentos (a leitura pode levar minutos): quem está olhando sabe que não travou
+function iaAguarde(host, on, texto){
+  if(!host) return; let b = host.querySelector('.ia-aguarde');
+  if(!on){ if(b) b.remove(); return; }
+  if(!b){ b = document.createElement('div'); b.className = 'ia-aguarde'; b.setAttribute('role','status'); b.innerHTML = '<span class="ia-spin"></span><span class="ia-txt"></span>'; host.insertBefore(b, host.firstChild); }
+  b.querySelector('.ia-txt').textContent = texto;
+}
 const FLOW = { open:false, p:null, step:0, st:[], t:null, autoLer:false, f4org:null };
 const FLOW_STEPS = [
   {k:'docs',    n:'Fase 1', t:'Upload e cadastro',        s:'Apólices e arquivos do cliente',    host:'fl-docs',    hosts:['fl-docs']},
@@ -3088,15 +3098,32 @@ function pvGotoSection(id){
 async function flowDocs(p){
   const host = document.getElementById('fl-docs'); if(!host) return;
   const [{ data: dcs }, { data: aps }] = await Promise.all([
-    sb.from('crm_documentos').select('id,nome_arquivo,categoria,path,created_at,enviado_por').eq('pessoa_id', p.id).order('created_at',{ascending:false}),
+    sb.from('crm_documentos').select('id,nome_arquivo,categoria,path,created_at,enviado_por,apolice_id').eq('pessoa_id', p.id).order('created_at',{ascending:false}),
     sb.from('crm_apolices').select('id,seguradora,tipo_seguro,data_emissao,data_vencimento,status,arquivo_apolice').eq('pessoa_id', p.id).order('data_vencimento',{ascending:true})]);
   const docs = dcs || [], rows = aps || [];
   host.innerHTML = `<div class="ql">Fase 1 · Upload e cadastro <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— apólices e arquivos de ${escapeHtml(p.nome.split(' ')[0])}, para o estudo</small></div>
     <div class="hint" style="margin-bottom:10px">Solte aqui todas as apólices e documentos do cliente <b>de uma vez</b>. O sistema lê só o básico (nome, CPF, telefone e nascimento) e mostra o resumo da leitura; os documentos ficam mantidos neste cadastro. Em seguida, complete os <b>Dados do cliente</b>; a <b>Fase 2</b> lê as coberturas de cada apólice. Cliente sem apólice? <a href="#" id="fl-pular">pule para o Diagnóstico (Fase 3)</a>.</div>
     <div class="dz" id="fl-dz">Arraste aqui as apólices e documentos (várias de uma vez) ou clique<input type="file" id="fl-file" accept=".pdf,image/*,.xlsx,.xls" multiple hidden></div>
-    ${docs.length?`<div class="ql" style="margin-top:12px">Documentos anexados (${docs.length})</div><div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Documento</th><th>Tipo</th><th>Enviado por</th><th>Data</th><th></th></tr></thead><tbody>${docs.map(d=>`<tr><td>${escapeHtml(d.nome_arquivo||'—')}</td><td>${escapeHtml(d.categoria||'—')}</td><td>${escapeHtml(d.enviado_por||'—')}</td><td>${fmtDate(d.created_at)}</td><td>${d.path?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(d.path)}">Abrir</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-top:10px">Nenhum documento anexado ainda.</div>'}
-    ${rows.length?`<div class="ql" style="margin-top:12px">Apólices registradas (${rows.length})</div><div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Seguradora</th><th>Produto</th><th>Emissão</th><th>Vigência até</th><th>Status</th><th>Documento</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${escapeHtml(a.seguradora||'—')}</td><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${fmtDate(a.data_emissao)||'—'}</td><td>${fmtDate(a.data_vencimento)||'—'}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td>${a.arquivo_apolice?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(a.arquivo_apolice)}">Abrir apólice</button>`:'<span style="color:var(--ink-faint)">sem arquivo</span>'}</td></tr>`).join('')}</tbody></table></div>`:''}`;
+    ${docs.length?`<div class="ql" style="margin-top:12px">Documentos anexados (${docs.length})</div><div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Documento</th><th>Tipo</th><th>Enviado por</th><th>Data</th><th></th></tr></thead><tbody>${docs.map(d=>`<tr><td>${escapeHtml(d.nome_arquivo||'—')}</td><td>${escapeHtml(d.categoria||'—')}</td><td>${escapeHtml(d.enviado_por||'—')}</td><td>${fmtDate(d.created_at)}</td><td style="white-space:nowrap">${d.path?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(d.path)}">Abrir</button> `:''}<button type="button" class="om-cancel" style="padding:4px 10px;font-size:12px;color:var(--red)" data-fl-deldoc="${d.id}" title="Excluir este documento do cadastro">Excluir</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-top:10px">Nenhum documento anexado ainda.</div>'}
+    ${rows.length?`<div class="ql" style="margin-top:12px">Apólices registradas (${rows.length})</div><div style="overflow-x:auto"><table class="ca-table"><thead><tr><th>Seguradora</th><th>Produto</th><th>Emissão</th><th>Vigência até</th><th>Status</th><th>Documento</th></tr></thead><tbody>${rows.map(a=>`<tr><td>${escapeHtml(a.seguradora||'—')}</td><td>${escapeHtml(a.tipo_seguro||'—')}</td><td>${fmtDate(a.data_emissao)||'—'}</td><td>${fmtDate(a.data_vencimento)||'—'}</td><td>${escapeHtml(caStatusLabel(caEfetivo(a)))}</td><td style="white-space:nowrap">${a.arquivo_apolice?`<button type="button" class="om-save" style="padding:4px 10px;font-size:12px" data-fl-doc="${escapeHtml(a.arquivo_apolice)}">Abrir apólice</button> `:'<span style="color:var(--ink-faint)">sem arquivo</span> '}<button type="button" class="om-cancel" style="padding:4px 10px;font-size:12px;color:var(--red)" data-fl-delapo="${a.id}" title="Excluir esta apólice do cadastro">Excluir</button></td></tr>`).join('')}</tbody></table></div>`:''}`;
   host.querySelectorAll('[data-fl-doc]').forEach(b=>b.addEventListener('click', async ()=>{ try{ window.open(await docsSignedUrl(b.dataset.flDoc),'_blank'); }catch(x){ showToast('Erro ao abrir documento: '+x.message); } }));
+  // excluir documento: solta o vínculo com a apólice, apaga o registro e o arquivo (mesma regra da aba Documentos do cadastro)
+  host.querySelectorAll('[data-fl-deldoc]').forEach(b=>b.addEventListener('click', async ()=>{
+    const d = docs.find(x=>String(x.id)===String(b.dataset.flDeldoc)); if(!d) return;
+    if(!confirm('Excluir o documento "'+(d.nome_arquivo||'')+'"? Esta ação não pode ser desfeita.')) return;
+    try{
+      if(d.apolice_id && d.path){ await sb.from('crm_apolices').update({arquivo_apolice:null}).eq('id', d.apolice_id).eq('arquivo_apolice', d.path); }
+      const { error } = await sb.from('crm_documentos').delete().eq('id', d.id); if(error) throw error;
+      if(d.path && !rows.some(a=>a.arquivo_apolice===d.path)) await sb.storage.from('crm-docs').remove([d.path]);
+      OP.dirty = true; showToast('Documento excluído'); flowDocs(p); flowStatusRefresh();
+    }catch(x){ showToast('Erro ao excluir: '+x.message); } }));
+  // excluir apólice registrada: mesma regra da Central de Apólices (apaga o registro; o arquivo continua nos documentos)
+  host.querySelectorAll('[data-fl-delapo]').forEach(b=>b.addEventListener('click', async ()=>{
+    const a = rows.find(x=>String(x.id)===String(b.dataset.flDelapo)); if(!a) return;
+    if(!confirm('Excluir a apólice '+(a.seguradora?('da '+a.seguradora+' '):'')+'do cadastro? Esta ação não pode ser desfeita.')) return;
+    try{ const { error } = await sb.from('crm_apolices').delete().eq('id', a.id); if(error) throw error;
+      OP.dirty = true; CA.loaded = false; showToast('Apólice excluída'); flowDocs(p); flowStatusRefresh();
+    }catch(x){ showToast('Erro ao excluir: '+x.message); } }));
   flowDados(p);
   const pu = host.querySelector('#fl-pular'); if(pu) pu.addEventListener('click', e=>{ e.preventDefault(); flowGo(3); });
   const dz = host.querySelector('#fl-dz'), inp = host.querySelector('#fl-file');
@@ -3531,6 +3558,7 @@ async function f5DownloadPdf(html, nome){
     pdf.save(nome);
   } finally { box.remove(); }
 }
+const F5_IR = {'pp-analise':'Ir para a Fase 2','pp-diag':'Ir para o Diagnóstico (Fase 3)','pp-fase3':'Ir para o Diagnóstico (Fase 3)','pp-fase4':'Ir para a Fase 4'};
 async function pvFase5(p){
   const host = document.getElementById('pp-fase5'); if(!host) return;
   const opt = {carro:100000, taxaCarro:4}; let modeloEsc = 'auto';
@@ -3543,7 +3571,7 @@ async function pvFase5(p){
       <div style="display:flex;gap:8px;flex-wrap:wrap">${card('luiz','Modelo não possui proteção (proposta)','Cliente sem apólice · proposta do zero · 5 páginas')}${card('fern','Modelo já possui proteção (comparativo/melhoria)','Cliente com apólice · comparativo e melhorias · 3 páginas')}</div>
       <div class="hint" style="margin-top:6px">${modeloEsc==='auto'?(X.hasPol?'Motivo da sugestão: há apólice lançada na Fase 2.':'Motivo da sugestão: nenhuma apólice lançada na Fase 2.'):'Escolhido por você. <a href="#" id="f5-auto">Voltar ao sugerido</a>'}</div>
       ${m==='luiz'?`<div class="fgrid" style="margin-top:8px;max-width:520px"><label class="fl"><span>Página "Proteger um bem ou uma vida?": valor do carro (R$)</span><input type="number" id="f5-carro" value="${opt.carro}"></label><label class="fl"><span>Taxa anual do seguro do carro (%)</span><input type="number" step="0.1" id="f5-taxa" value="${opt.taxaCarro}"></label></div>`:''}
-      <div style="margin-top:10px">${f.length?`<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px"><b>Faltam dados para esta apresentação ficar completa:</b><ul style="margin:4px 0 0 18px">${f.map((x,i)=>`<li>${escapeHtml(x.t)} <a href="#" data-goto="${x.go}">ir para a tela certa</a></li>`).join('')}</ul></div>`:'<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px">Todos os dados necessários estão preenchidos.</div>'}</div>
+      <div style="margin-top:10px">${f.length?`<div class="hint" id="f5-falta" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px"><b>Faltam dados para esta apresentação ficar completa:</b><ul style="margin:4px 0 0 18px">${f.map((x,i)=>`<li>${escapeHtml(x.t)} <a href="#" data-goto="${x.go}">${escapeHtml(F5_IR[x.go]||'ir para a tela certa')}</a></li>`).join('')}</ul></div>`:'<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px">Todos os dados necessários estão preenchidos.</div>'}</div>
       <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">${f5NomeCampo('f5-nome-pdf')}<button class="om-save" id="f5-baixar">Baixar PDF</button><button class="om-cancel" id="f5-gerar">Imprimir ou salvar como PDF</button><span id="f5-st" style="font-size:12px;color:var(--ink-faint)">"Baixar PDF" gera o arquivo direto. "Imprimir" abre a janela do navegador (A4 paisagem, sem margens).</span></div>`;
     host.querySelectorAll('[data-modelo]').forEach(b=>b.addEventListener('click', ()=>{ modeloEsc = b.dataset.modelo; draw(); }));
     const au = host.querySelector('#f5-auto'); if(au) au.addEventListener('click', e=>{ e.preventDefault(); modeloEsc = 'auto'; draw(); });
@@ -3551,12 +3579,16 @@ async function pvFase5(p){
     const ca = host.querySelector('#f5-carro'), ta = host.querySelector('#f5-taxa'); if(ca) ca.addEventListener('input', ()=>{ opt.carro = Number(ca.value)||0; }); if(ta) ta.addEventListener('input', ()=>{ opt.taxaCarro = Number(ta.value)||0; });
     const preparar = ()=>{
       const core = f.find(x=>x.core);
-      if(core){ showToast('Não dá para gerar ainda: '+core.t+'.'); pvGotoSection(core.go); return null; }
+      if(core){
+        const fa = host.querySelector('#f5-falta'), st0 = host.querySelector('#f5-st'), todas = f.filter(x=>x.core).map(x=>x.t);
+        if(st0){ st0.style.color = 'var(--red)'; st0.textContent = 'Ainda não dá para gerar o PDF. Falta: '+todas.join('; ')+'. Use os links da lista acima para completar.'; }
+        if(fa){ fa.scrollIntoView({behavior:'smooth', block:'center'}); fa.style.outline = '3px solid var(--red)'; setTimeout(()=>{ fa.style.outline = ''; }, 3000); }
+        showToast('Ainda não dá para gerar: '+core.t+'.'); return null; }
       if(f.length && !confirm('Faltam alguns dados (ex.: '+f[0].t+'). Gerar a apresentação mesmo assim?')) return null;
       return f5Deck(m, X, opt); };
     host.querySelector('#f5-gerar').addEventListener('click', ()=>{ const html = preparar(); if(!html) return; document.getElementById('print-report').innerHTML = html; setTimeout(()=>window.print(), 150); });
     host.querySelector('#f5-baixar').addEventListener('click', async ()=>{
-      const html = preparar(); if(!html) return; const st = host.querySelector('#f5-st'), btn = host.querySelector('#f5-baixar'); btn.disabled = true; st.textContent = 'Gerando o PDF…';
+      const html = preparar(); if(!html) return; const st = host.querySelector('#f5-st'), btn = host.querySelector('#f5-baixar'); btn.disabled = true; st.style.color = ''; st.textContent = 'Gerando o PDF…';
       try{ await f5DownloadPdf(html, f5NomeArq('f5-nome-pdf', 'Apresentacao_'+(X.cli.nome||'cliente').trim().replace(/[^\w]+/g,'_')+(m==='luiz'?'_Proposta':'_Comparativo')+'.pdf')); f5NomeLimpar('f5-nome-pdf'); st.textContent = 'PDF baixado.'; }
       catch(e){ st.textContent = 'Não consegui gerar o arquivo ('+(e.message||e)+'). Use "Imprimir ou salvar como PDF".'; }
       btn.disabled = false; });
@@ -3681,6 +3713,7 @@ async function pvFase4(p){
       if(btn) btn.disabled = true; const av = [], novas = []; let ok = 0;
       for(let k=0;k<arqs.length;k++){
         const file = arqs[k]; st.textContent = 'Lendo '+(k+1)+' de '+arqs.length+': '+file.name+'…';
+        iaAguarde(host, true, 'Lendo as cotações… aguarde ('+(k+1)+' de '+arqs.length+': '+file.name+'). Pode levar alguns minutos; não feche esta tela.');
         const mt = aiMedia(file); if(!mt){ av.push(file.name+': formato não suportado (use PDF, JPG, PNG ou WEBP).'); continue; }
         try{
           const { data, error } = await sb.functions.invoke('extrair-cotacao', { body: { file_base64: await proFileB64(file), media_type: mt, filename: file.name } });
@@ -3845,6 +3878,7 @@ async function pvAnalise(p){
       const feitas = [], falhas = []; let totalNovas = 0;
       for(let i=0;i<itens.length;i++){
         const it = itens[i]; st.textContent = 'Lendo '+(i+1)+' de '+itens.length+': '+it.name+'…';
+        iaAguarde(host, true, 'Lendo as apólices… aguarde ('+(i+1)+' de '+itens.length+': '+it.name+'). Pode levar alguns minutos; não feche esta tela.');
         try{
           const { data, error } = await sb.functions.invoke('extrair-apolice', { body: { file_base64: await it.b64(), media_type: it.mt, filename: it.name } });
           if(error || (data&&data.error)) throw new Error(data&&data.error ? data.error : await ruErr(error));
@@ -3872,16 +3906,16 @@ async function pvAnalise(p){
       await lerLote(itens.filter(i=>i.mt));
     });
     const anex = host.querySelector('#an-ia-anex'); if(anex) anex.addEventListener('click', async ()=>{
-      const st = host.querySelector('#an-ia-st'); st.textContent = 'Procurando as apólices anexadas…';
+      const st = host.querySelector('#an-ia-st'); st.textContent = 'Procurando as apólices anexadas…'; iaAguarde(host, true, 'Procurando as apólices anexadas… aguarde.');
       const [{ data: docs }, { data: aps }] = await Promise.all([ sb.from('crm_documentos').select('nome_arquivo,path,mime,categoria').eq('pessoa_id', p.id), sb.from('crm_apolices').select('arquivo_apolice').eq('pessoa_id', p.id) ]);
       const vistos = new Set(), todos = [];
       const add = (path, nome, mime)=>{ if(!path || vistos.has(path)) return; vistos.add(path); const nm = nome || String(path).split('/').pop(); const mt = aiMedia({name:nm, type:mime||''}); if(!mt) return;
         todos.push({name:nm, mt, path, b64: async ()=>{ const { data, error } = await sb.storage.from('crm-docs').download(path); if(error) throw error; return proFileB64(data); }}); };
       (docs||[]).filter(d=>d.categoria==='apolice' || /ap[oó]lice|certificado/i.test(d.nome_arquivo||'')).forEach(d=>add(d.path, d.nome_arquivo, d.mime));
       (aps||[]).forEach(a=>add(a.arquivo_apolice, null, null));
-      if(!todos.length){ st.textContent = 'Não há apólice anexada a este cliente. Anexe na Fase 1 ou escolha os arquivos.'; return; }
+      if(!todos.length){ iaAguarde(host, false); st.textContent = 'Não há apólice anexada a este cliente. Anexe na Fase 1 ou escolha os arquivos.'; return; }
       const lidos = new Set(rows.map(r=>r.arq).filter(Boolean)), pend = todos.filter(i=>!lidos.has(i.path));
-      if(!pend.length){ st.textContent = 'Todas as apólices anexadas ('+todos.length+') já foram lidas. Para ler de novo, apague as linhas ou escolha o arquivo.'; return; }
+      if(!pend.length){ iaAguarde(host, false); st.textContent = 'Todas as apólices anexadas ('+todos.length+') já foram lidas. Para ler de novo, apague as linhas ou escolha o arquivo.'; return; }
       await lerLote(pend);
     });
     const cf = host.querySelector('#an-conf'); if(cf) cf.addEventListener('click', async ()=>{ clearTimeout(t); if(await persist(true)){ msg(); pvApolices(p); pvFase3(p); pvFase4(p); showToast('Análise confirmada'); } });
@@ -9041,7 +9075,7 @@ async function sgMicToggle(){
   SG.audioBlob = null; SG.chunks = [];
   try{ const stream = await navigator.mediaDevices.getUserMedia({audio:true}); SG.media = new MediaRecorder(stream);
     SG.media.ondataavailable = e=>{ if(e.data.size) SG.chunks.push(e.data); };
-    SG.media.onstop = ()=>{ stream.getTracks().forEach(t=>t.stop()); SG.audioBlob = new Blob(SG.chunks,{type:SG.media.mimeType||'audio/webm'}); const p = document.getElementById('sg-audio-prev'); p.src = URL.createObjectURL(SG.audioBlob); p.hidden = false; };
+    SG.media.onstop = ()=>{ stream.getTracks().forEach(t=>t.stop()); SG.audioBlob = new Blob(SG.chunks,{type:SG.media.mimeType||'audio/webm'}); const p = document.getElementById('sg-audio-prev'); p.src = URL.createObjectURL(SG.audioBlob); document.getElementById('sg-audio-box').hidden = false; };
     SG.media.start(); }catch(e){ SG.media = null; }
   const rec = new SG_SR(); rec.lang = 'pt-BR'; rec.continuous = true; rec.interimResults = true; SG.rec = rec; let fin = '';
   rec.onresult = ev=>{ let interim = ''; for(let i=ev.resultIndex;i<ev.results.length;i++){ const t = ev.results[i][0].transcript; if(ev.results[i].isFinal) fin += t+' '; else interim += t; } ta.value = base + fin + interim; SG.voz = true; };
@@ -9049,6 +9083,14 @@ async function sgMicToggle(){
   rec.onend = ()=>{ if(SG.recording){ try{ rec.start(); }catch(e){} } };
   rec.start(); SG.recording = true; btn.textContent = 'Parar'; btn.classList.add('rec'); st.textContent = 'ouvindo... fale e depois clique em Parar';
 }
+// descarta a gravação (o texto ditado continua no campo e pode ser editado ou apagado)
+function sgDescartarAudio(){
+  if(SG.recording){ SG.recording = false; try{ SG.rec && SG.rec.stop(); }catch(e){} try{ SG.media && SG.media.state!=='inactive' && SG.media.stop(); }catch(e){} const b = document.getElementById('sg-mic'); if(b){ b.textContent = 'Gravar / ditar'; b.classList.remove('rec'); } const st = document.getElementById('sg-mic-st'); if(st) st.textContent = ''; }
+  SG.audioBlob = null; SG.chunks = []; SG.voz = false;
+  const p = document.getElementById('sg-audio-prev'); if(p){ try{ p.pause(); }catch(e){} p.removeAttribute('src'); }
+  const bx = document.getElementById('sg-audio-box'); if(bx) bx.hidden = true;
+}
+document.getElementById('sg-audio-del').addEventListener('click', ()=>{ sgDescartarAudio(); showToast('Áudio descartado. Você pode gravar de novo ou enviar só o texto.'); });
 document.getElementById('sg-mic').addEventListener('click', sgMicToggle);
 document.getElementById('sg-send').addEventListener('click', async ()=>{
   if(SG.recording) await sgMicToggle();
@@ -9064,7 +9106,7 @@ document.getElementById('sg-send').addEventListener('click', async ()=>{
     const { error } = await sb.from('crm_sugestoes').insert({ autor, texto, anexos, origem: (SG.voz||audio_path)?'voz':'texto', tipo:document.getElementById('sg-tipo').value, tela:document.getElementById('sg-tela').value||null,
       prioridade:document.getElementById('sg-prio').value, audio_path, historico:[{em:new Date().toISOString(), por:autor, de:'nova', para:'nova', nota:'Sugestão registrada'}] });
     if(error) throw error;
-    ta.value = ''; SG.files = []; sgRenderFiles(); SG.audioBlob = null; SG.voz = false; const p = document.getElementById('sg-audio-prev'); p.hidden = true; p.removeAttribute('src');
+    ta.value = ''; SG.files = []; sgRenderFiles(); sgDescartarAudio();
     showToast('Sugestão registrada — obrigado!'); renderSugestoes();
   }catch(e){ showToast('Erro: '+(e.message||e)); }
   btn.disabled = false; btn.textContent = 'Enviar sugestão';
