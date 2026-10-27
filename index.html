@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610271251">
+<meta name="app-build" content="202610271316">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -3110,26 +3110,40 @@ async function flowDocs(p){
 // Dados do cliente: o que o cadastro ainda não tem (gênero, nascimento, telefone...), logo depois da leitura dos documentos
 async function flowDados(p){
   const el = document.getElementById('fl-dados'); if(!el) return;
-  const { data } = await sb.from('crm_pessoas').select('sexo,data_nascimento,telefone,profissao,email,estado_civil').eq('id', p.id).maybeSingle();
-  const d = data || {}, falta = [['sexo','gênero'],['data_nascimento','data de nascimento'],['telefone','telefone']].filter(x=>!d[x[0]]).map(x=>x[1]);
-  const v = k=>escapeHtml(d[k]||'');
-  el.innerHTML = `<div class="ql">Dados do cliente <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— o que veio da leitura; complete o que faltou</small></div>
-    ${falta.length?`<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:6px 10px;margin-bottom:8px">Faltou: <b>${escapeHtml(falta.join(', '))}</b>.</div>`:'<div class="hint" style="margin-bottom:8px">Dados básicos completos.</div>'}
+  const { data } = await sb.from('crm_pessoas').select('nome,cpf,sexo,data_nascimento,telefone,profissao,email,estado_civil').eq('id', p.id).maybeSingle();
+  const d = data || {}, v = k=>escapeHtml(d[k]||'');
+  const SEXO_L = { M:'Masculino', F:'Feminino', O:'Outro' };
+  const resumoHtml = ()=>{ const idade = pvIdade({data_nascimento:d.data_nascimento});
+    const chip = (rot,val)=> val ? `<span class="tag"><b>${rot}:</b> ${escapeHtml(String(val))}</span>` : `<span class="tag" style="background:#fde4e4;color:#c23636">${rot}: faltando</span>`;
+    return chip('Nome',d.nome)+chip('CPF',d.cpf)+chip('Telefone',d.telefone)+chip('Gênero',SEXO_L[d.sexo])+chip('Nascimento',d.data_nascimento?fmtDate(d.data_nascimento)+(idade!=null?' · '+idade+' anos':''):'')+chip('Profissão',d.profissao); };
+  el.innerHTML = `<div class="ql">Cadastro do cliente · dados pessoais</div>
+    <div class="hint" style="margin-bottom:8px">Aqui ficam só os dados pessoais. Renda, patrimônio, família, ADN e saúde ficam juntos em uma única ficha, no diagnóstico (Fase 3), para a análise geral.</div>
+    <div id="fd-resumo" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">${resumoHtml()}</div>
+    <div class="ql">Dados pessoais <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— vêm do upload, do cadastro manual ou da carteira; complete o que faltar</small></div>
     <div class="fgrid">
-      <label class="fl"><span>Gênero</span><select id="fd-sexo"><option value="">—</option><option value="M"${d.sexo==='M'?' selected':''}>Masculino</option><option value="F"${d.sexo==='F'?' selected':''}>Feminino</option></select></label>
-      <label class="fl"><span>Data de nascimento</span><input type="date" id="fd-nasc" value="${v('data_nascimento')}"></label>
-      <label class="fl"><span>Telefone</span><input id="fd-tel" value="${v('telefone')}"></label>
-      <label class="fl"><span>E-mail</span><input id="fd-email" value="${v('email')}"></label>
-      <label class="fl"><span>Profissão</span><input id="fd-prof" value="${v('profissao')}"></label></div>
-    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-save" id="fd-go">Salvar e ir para a Fase 2 · Analisar documentos</button><span id="fd-st" class="hint" style="margin:0"></span></div>`;
-  el.querySelector('#fd-go').addEventListener('click', async ()=>{
+      <label class="fl"><span>Nome completo</span><input id="fd-nome" value="${v('nome')}"></label>
+      <label class="fl"><span>CPF (não sai nas apresentações)</span><input id="fd-cpf" value="${v('cpf')}" placeholder="000.000.000-00"></label>
+      <label class="fl"><span>Telefone (não sai nas apresentações)</span><input id="fd-tel" value="${v('telefone')}"></label>
+      <label class="fl"><span>Gênero (define Segurado ou Segurada)</span><select id="fd-sexo"><option value="">—</option><option value="M"${d.sexo==='M'?' selected':''}>Masculino</option><option value="F"${d.sexo==='F'?' selected':''}>Feminino</option><option value="O"${d.sexo==='O'?' selected':''}>Outro</option></select></label>
+      <label class="fl"><span>Data de nascimento (idade calculada)</span><input type="date" id="fd-nasc" value="${v('data_nascimento')}"></label>
+      <label class="fl"><span>Profissão</span><input id="fd-prof" value="${v('profissao')}"></label>
+      <label class="fl"><span>E-mail</span><input id="fd-email" value="${v('email')}"></label></div>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-save" id="fd-save">Salvar dados do cliente</button><button type="button" class="om-cancel" id="fd-f2">Analisar os documentos (Fase 2)</button><button type="button" class="om-cancel" id="fd-f3">Ir direto para o diagnóstico (Fase 3)</button><span id="fd-st" class="hint" style="margin:0"></span></div>`;
+  const salvar = async ()=>{
     const g = id=>el.querySelector('#'+id).value.trim(), st = el.querySelector('#fd-st');
-    const upd = { sexo:g('fd-sexo')||null, data_nascimento:g('fd-nasc')||null, telefone:g('fd-tel')||null, email:g('fd-email')||null, profissao:g('fd-prof')||null };
+    const nome = g('fd-nome'); if(!nome){ st.textContent = 'Informe o nome completo.'; return false; }
+    const cpfD = dOnly(g('fd-cpf')); if(cpfD && cpfD.length!==11){ st.textContent = 'O CPF precisa ter 11 números (ou deixe em branco).'; return false; }
+    const upd = { nome, cpf: cpfD ? fmtCPF(cpfD) : null, sexo:g('fd-sexo')||null, data_nascimento:g('fd-nasc')||null, telefone:g('fd-tel')||null, email:g('fd-email')||null, profissao:g('fd-prof')||null };
     st.textContent = 'Salvando…';
     const { error } = await sb.from('crm_pessoas').update(upd).eq('id', p.id);
-    if(error){ st.textContent = 'Erro: '+error.message; return; }
-    Object.assign(p, upd); try{ const o = OP.pessoas.find(x=>x.id===p.id); if(o) Object.assign(o, upd); }catch(e){}
-    st.textContent = 'Salvo ✓'; flowGo(2); });
+    if(error){ st.textContent = error.code==='23505' ? 'Esse CPF já está em outro cadastro.' : 'Erro: '+error.message; return false; }
+    Object.assign(p, upd); Object.assign(d, upd); try{ const o = OP.pessoas.find(x=>x.id===p.id); if(o) Object.assign(o, upd); OP.dirty = true; }catch(e){}
+    const who = document.querySelector('#flow .fl-who b'); if(who) who.textContent = nome;
+    el.querySelector('#fd-resumo').innerHTML = resumoHtml();
+    st.textContent = 'Salvo ✓'+(cpfD && !validCPF(cpfD) ? ' (atenção: os dígitos do CPF não conferem)' : ''); flowStatusRefresh(); return true; };
+  el.querySelector('#fd-save').addEventListener('click', salvar);
+  el.querySelector('#fd-f2').addEventListener('click', async ()=>{ if(await salvar()) flowGo(2); });
+  el.querySelector('#fd-f3').addEventListener('click', async ()=>{ if(await salvar()) flowGo(3); });
 }
 function flowRefresh(){
   if(!FLOW.open || !FLOW.p) return; const p = FLOW.p;
@@ -3605,23 +3619,27 @@ async function pvFase4(p){
   const draw = ()=>{
     host.innerHTML = `<style>.f4-t input[type=text],.f4-t input[type=number],.f4-t input[type=date],.f4-t select{width:100%;border:1px solid var(--border);border-radius:6px;padding:5px 6px;font:inherit}.f4-t input.unread{background:#eef0ff;border-color:#0018fc}.f4-t td{padding:3px 4px}</style>
       <div class="ql">Fase 4 · Cotações e plano <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— lance as cotações das seguradoras, marque em quais soluções entram e veja os totais</small></div>
-      <div class="hint" style="margin-bottom:8px">Escolha o PDF ou a foto — <b>ou vários de uma vez</b> (um por seguradora) — e use <b>Ler a cotação com IA</b>: com vários arquivos, o sistema lê todos e acrescenta cada cotação à tabela, sem substituir as anteriores (ou preencha as linhas à mão). Marque em <b>Sol. 1</b> (mais completa) e <b>Sol. 2</b> (a necessária). Se o cliente tem apólice, diga qual linha da Fase 2 cada cotação substitui.</div>
-      <details ${rows.length?'':'open'} style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:600">＋ Nova cotação</summary>
+      <div class="hint" style="margin-bottom:8px">As cotações lidas ficam na tabela abaixo, que você pode editar. Marque em <b>Sol. 1</b> (mais completa) e <b>Sol. 2</b> (a necessária) em quais soluções cada cotação entra. Se o cliente tem apólice, diga qual linha da Fase 2 cada cotação substitui. Os totais aparecem fixos embaixo.</div>
+      <div class="ql" style="margin-top:8px">Cotações · área de upload</div>
+      <div class="hint" style="margin-bottom:8px">Arraste aqui as cotações de todas as seguradoras (PDF, print ou foto), várias de uma vez. O sistema lê seguradora, produto, capital e prêmio e coloca na tabela abaixo; o que não for lido fica em laranja para você conferir e completar.</div>
+      <div class="dz" id="f4-dz">Arraste as cotações aqui, ou clique (PDF ou imagem)<input type="file" id="f4-file" accept=".pdf,image/*" multiple hidden></div>
+      <div id="f4-iast" class="hint" style="margin:6px 0 10px">Leitura automática de PDF e imagem (Excel ainda não: preencha à mão). Prêmio anual vira mensal (÷ 12). Confira sempre os valores.</div>
+      <details style="margin-bottom:10px"><summary style="cursor:pointer;font-weight:600">Preencher uma cotação à mão</summary>
         <div class="fgrid" style="margin-top:8px"><label class="fl"><span>Seguradora</span><input id="f4-seg" value="${escapeHtml(draft.seg)}"></label><label class="fl"><span>Prêmios do documento são</span><select id="f4-per"><option>Mensal</option><option>Anual</option></select></label><label class="fl"><span>Válida até</span><input type="date" id="f4-val"></label>
-        <label class="fl"><span>Arquivo(s) da cotação (ficam salvos no cadastro) — pode escolher vários de uma vez</span><input type="file" id="f4-file" accept=".pdf,image/*" multiple></label></div>
-        <div style="margin-top:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-save" id="f4-ia">Ler a cotação com IA</button><span id="f4-iast" class="hint" style="margin:0">Escolha o PDF ou a foto e clique: o sistema preenche seguradora, coberturas, capitais e prêmios mensais. Confira antes de adicionar.</span></div>
+        <label class="fl"><span>Arquivo da cotação (opcional, fica salvo no cadastro)</span><input type="file" id="f4-fileman" accept=".pdf,image/*"></label></div>
         <div style="overflow-x:auto;margin-top:8px"><table class="f4-t" style="min-width:880px;border-collapse:collapse"><thead><tr><th style="text-align:left;min-width:220px">Cobertura (como está escrita)</th><th style="text-align:left;min-width:190px">Categoria</th><th style="width:120px">Capital</th><th style="width:120px">Prêmio lido</th><th style="width:120px">Prazo</th><th style="text-align:left;min-width:160px">Observação</th><th style="width:34px"></th></tr></thead><tbody id="f4-dl"></tbody></table></div>
         <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><button class="om-cancel" id="f4-dadd">＋ Linha</button><button class="om-save" id="f4-dgo">Adicionar esta cotação à tabela</button></div><div id="f4-dav"></div></details>
       ${resumo?`<div class="hint" style="background:var(--green-soft);color:var(--green);border-radius:8px;padding:8px 10px;margin-bottom:8px"><b>${escapeHtml(resumo)}</b></div>`:''}
       ${avisos.length?`<div class="hint" style="background:var(--amber-soft);border-radius:8px;padding:8px 10px;margin-bottom:8px"><b>Pontos de atenção</b><ul style="margin:4px 0 0 18px">${avisos.map(a=>`<li>${escapeHtml(a)}</li>`).join('')}</ul></div>`:''}
+      <div class="ql" style="margin-top:12px">Cotações recebidas</div>
       <div style="margin-bottom:6px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button type="button" class="om-cancel" id="f4-org">↕ Organizar pela numeração</button><span class="hint" style="margin:0">Digite a posição de cada cobertura em <b>#</b> (é a ordem em que saem na apresentação) e tecle Enter ou clique aqui.</span></div>
       <div style="overflow-x:auto"><table class="f4-t" style="min-width:1500px;border-collapse:collapse"><thead><tr><th style="width:56px">#</th><th style="min-width:170px;text-align:left">Categoria</th><th style="width:110px">Seguradora</th><th style="min-width:170px">Cobertura (nome na proposta)</th><th style="width:130px">Detalhe do produto</th><th style="width:110px">Capital</th><th style="width:100px">Prêmio mensal</th><th style="width:100px">Prazo</th><th style="width:80px">UTI (R$/dia)</th><th style="min-width:180px">Descrição para o cliente</th><th style="min-width:160px">Melhoria / motivo</th><th style="width:50px">Sol. 1</th><th style="width:50px">Sol. 2</th><th style="width:90px">Substitui (# Fase 2)</th><th style="width:34px"></th></tr></thead><tbody>
       ${rows.length?f4Group(rows.map((r,i)=>`<tr data-i="${i}"><td><input type="number" min="1" step="1" data-f="ord" title="Posição na apresentação. Digite e tecle Enter (ou clique em Organizar pela numeração)" style="text-align:center" value="${Number(r.ord)>0?Number(r.ord):i+1}"></td><td><select data-f="cat">${ANL_CATS.map(c=>`<option ${c===r.cat?'selected':''}>${c}</option>`).join('')}</select></td><td><input type="text" data-f="seg" value="${escapeHtml(r.seg||'')}"></td><td><input type="text" data-f="cob" value="${escapeHtml(r.cob||'')}"></td><td><input type="text" data-f="sub" value="${escapeHtml(r.sub||'')}"></td>
         <td><input type="number" step="0.01" data-f="cap" class="${r.cap===''?'unread':''}" value="${r.cap}"></td><td><input type="number" step="0.01" data-f="prem" class="${r.prem===''?'unread':''}" value="${r.prem}"></td><td><input type="text" data-f="prazo" value="${escapeHtml(r.prazo||'')}"></td><td><input type="number" step="0.01" data-f="uti" value="${r.uti===''||r.uti==null?'':r.uti}"></td>
         <td><input type="text" data-f="nota" value="${escapeHtml(r.nota||'')}"></td><td><input type="text" data-f="motivo" value="${escapeHtml(r.motivo||'')}"></td><td style="text-align:center"><input type="checkbox" data-f="s1" ${r.s1?'checked':''}></td><td style="text-align:center"><input type="checkbox" data-f="s2" ${r.s2?'checked':''}></td>
-        <td><input type="text" data-f="subst" placeholder="ex.: 2,3" value="${escapeHtml(r.subst||'')}"></td><td><button type="button" class="om-cancel icon-btn" data-del="${i}" title="Remover">×</button></td></tr>`)):'<tr><td colspan="15" style="color:var(--ink-faint)">Nenhuma cotação ainda. Use "Nova cotação" acima.</td></tr>'}
+        <td><input type="text" data-f="subst" placeholder="ex.: 2,3" value="${escapeHtml(r.subst||'')}"></td><td><button type="button" class="om-cancel icon-btn" data-del="${i}" title="Remover">×</button></td></tr>`)):'<tr><td colspan="15" style="color:var(--ink-faint)">Nenhuma cotação ainda. Suba as cotações acima ou adicione uma linha.</td></tr>'}
       </tbody></table></div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><button class="om-cancel" id="f4-add">＋ Adicionar linha</button><button class="om-cancel" id="f4-clear" style="color:var(--red)">Limpar cotações</button><button class="om-save" id="f4-salvar">Salvar informações</button><button class="om-cancel" id="f4-prox">Ir para a Fase 5 · Apresentação</button>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end"><button class="om-cancel" id="f4-add">＋ Adicionar cotação</button><button class="om-cancel" id="f4-clear" style="color:var(--red)">Limpar todas as cotações</button><button class="om-save" id="f4-salvar">Salvar informações</button><button class="om-cancel" id="f4-prox">Ir para a Fase 5 · Apresentação</button>
         ${apol.length?`<label class="fl" style="min-width:260px"><span>Solução usada na proposta de substituição</span><select id="f4-sol"><option value="1" ${solSub===1?'selected':''}>Solução 1</option><option value="2" ${solSub===2?'selected':''}>Solução 2</option><option value="3" ${solSub===3?'selected':''}>As duas soluções (1 e 2)</option></select></label>`:''}</div>
       <div class="hint" style="margin-top:6px">O prêmio da diária inclui o adicional de UTI. Os totais somam todas as coberturas marcadas; diária e DIT contados × 30 dias (o valor de UTI não entra na soma).</div>
       <div id="f4-warn"></div>
@@ -3651,27 +3669,16 @@ async function pvFase4(p){
       dl.querySelectorAll('tr').forEach(tr=>{ const i = +tr.dataset.d; tr.querySelectorAll('[data-g]').forEach(el=>el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{ const g = el.dataset.g; let v = el.value; if(g==='cap'||g==='prem') v = v===''?'':Number(v); draft.linhas[i][g] = v; if(g==='cap'||g==='prem') el.classList.toggle('unread', v===''); if(g==='cob' && !draft.linhas[i].catManual){ const c = anlCatFromCob(v); if(c){ draft.linhas[i].cat = c; tr.querySelector('[data-g="cat"]').value = c; } } if(g==='cat') draft.linhas[i].catManual = true; })); });
       dl.querySelectorAll('[data-dd]').forEach(b=>b.addEventListener('click', ()=>{ draft.linhas.splice(+b.dataset.dd,1); if(!draft.linhas.length) draft.linhas.push({cob:'',cat:'Morte',cap:'',prem:'',prazo:'',nota:''}); drawDraft(); })); };
     drawDraft();
-    host.querySelector('#f4-ia').addEventListener('click', async ()=>{
-      const st = host.querySelector('#f4-iast'), btn = host.querySelector('#f4-ia'), arqs = [...host.querySelector('#f4-file').files], file = arqs[0];
-      if(!file){ st.textContent = 'Escolha primeiro o PDF da cotação.'; return; }
-      if(arqs.length>1){ await lerVarias(arqs, st, btn); return; }
-      const mt = aiMedia(file); if(!mt){ st.textContent = 'Formato não suportado para leitura (use PDF, JPG, PNG ou WEBP). Ou preencha as linhas à mão.'; return; }
-      btn.disabled = true; st.textContent = 'Lendo a cotação…';
-      try{
-        const { data, error } = await sb.functions.invoke('extrair-cotacao', { body: { file_base64: await proFileB64(file), media_type: mt, filename: file.name } });
-        if(error || (data&&data.error)) throw new Error(data&&data.error ? data.error : await ruErr(error));
-        const c = data.cotacao||{}; const itens = (c.itens||[]).filter(i=>i.cobertura);
-        if(!itens.length) throw new Error('Não encontrei coberturas neste PDF. Preencha à mão.');
-        host.querySelector('#f4-seg').value = c.seguradora||''; host.querySelector('#f4-per').value = 'Mensal';
-        draft.linhas = itens.map(i=>({cob:i.cobertura, cat:anlCatFromCob(i.cobertura)||'Morte', cap:i.capital==null?'':Number(i.capital), prem:i.premio_mensal==null?'':Number(i.premio_mensal), prazo:'', nota:i.capital_texto&&/dia/i.test(i.capital_texto)?i.capital_texto:''}));
-        drawDraft();
-        const so = c.total_mensal && !itens.some(i=>i.premio_mensal!=null);
-        st.innerHTML = 'Li '+itens.length+' cobertura(s) de <b>'+escapeHtml(c.seguradora||file.name)+'</b>'+(c.periodicidade_original&&c.periodicidade_original!=='mensal'?' (prêmio '+escapeHtml(c.periodicidade_original)+' convertido para mensal)':'')+'. '+(so?'A cotação traz só o prêmio total ('+fm(c.total_mensal)+'/mês): distribua por cobertura. ':'')+'Confira os campos (laranja = não lido), informe a validade e clique em "Adicionar esta cotação à tabela".';
-      }catch(err){ st.textContent = ''+(err.message||err); }
-      btn.disabled = false; });
+    const dz = host.querySelector('#f4-dz'), fin = host.querySelector('#f4-file'), stLer = host.querySelector('#f4-iast');
+    const enviarCot = fs=>{ fs = [...fs].filter(f=>f && f.name); if(fs.length) lerVarias(fs, stLer, null); };
+    dz.addEventListener('click', ()=>fin.click());
+    dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('over'); });
+    dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+    dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('over'); enviarCot(e.dataTransfer.files); });
+    fin.addEventListener('change', ()=>{ const fs = [...fin.files]; fin.value = ''; enviarCot(fs); });
     // vários arquivos de uma vez: lê cada um com a IA e acrescenta todas as cotações à tabela (nunca substitui as que já estão lá)
     async function lerVarias(arqs, st, btn){
-      btn.disabled = true; const av = [], novas = []; let ok = 0;
+      if(btn) btn.disabled = true; const av = [], novas = []; let ok = 0;
       for(let k=0;k<arqs.length;k++){
         const file = arqs[k]; st.textContent = 'Lendo '+(k+1)+' de '+arqs.length+': '+file.name+'…';
         const mt = aiMedia(file); if(!mt){ av.push(file.name+': formato não suportado (use PDF, JPG, PNG ou WEBP).'); continue; }
@@ -3695,7 +3702,7 @@ async function pvFase4(p){
     host.querySelector('#f4-dadd').addEventListener('click', ()=>{ draft.linhas.push({cob:'',cat:'Morte',cap:'',prem:'',prazo:'',nota:''}); drawDraft(); });
     host.querySelector('#f4-dgo').addEventListener('click', async ()=>{
       draft.seg = host.querySelector('#f4-seg').value.trim(); draft.period = host.querySelector('#f4-per').value; draft.validade = host.querySelector('#f4-val').value;
-      const file = host.querySelector('#f4-file').files[0]; const av = [];
+      const file = host.querySelector('#f4-fileman').files[0]; const av = [];
       const ls = draft.linhas.filter(l=>l.cob||l.cap!==''||l.prem!=='');
       if(!ls.length){ document.getElementById('f4-dav').innerHTML = '<div class="om-err">Preencha ao menos uma linha.</div>'; return; }
       if(draft.validade && new Date(draft.validade+'T23:59:00') < new Date()) av.push('Cotação vencida em '+fmtDate(draft.validade)+': refaça antes de apresentar.');
@@ -4047,6 +4054,33 @@ function pvDiagField(k, v, def){
   if(def[2]==='select') return `<label class="fl"><span>${def[1]}</span><select data-dg="${k}"><option value="">—</option>${def[3].map(o=>`<option ${val===o?'selected':''}>${o}</option>`).join('')}</select></label>`;
   return `<label class="fl"><span>${def[1]}</span><input data-dg="${k}" type="${def[2]==='number'?'number':'text'}" step="any" value="${escapeHtml(String(val))}"></label>`;
 }
+const famNomeKey = n => normNome(n).join(' ');
+// plano puro: o que inserir e o que atualizar em crm_familiares a partir do Diagnóstico (nunca apaga e nunca zera um dado que já existe)
+function famPlano(exist, conj, deps){
+  exist = exist || []; const ins = [], upd = [], usados = new Set();
+  const cj = conj || {}; if((cj.nome && cj.nome.trim()) || cj.nasc){
+    const e = exist.find(f=>f.parentesco==='conjuge');
+    if(e){ const row = {}; if(cj.nome && cj.nome.trim() && famNomeKey(cj.nome)!==famNomeKey(e.nome)) row.nome = cj.nome.trim(); if(cj.nasc && cj.nasc!==e.data_nascimento) row.data_nascimento = cj.nasc; if(Object.keys(row).length) upd.push({id:e.id, row}); }
+    else ins.push({ parentesco:'conjuge', nome:(cj.nome&&cj.nome.trim())||'Cônjuge', data_nascimento:cj.nasc||null, herdeiro:false }); }
+  (deps||[]).forEach((dp,i)=>{
+    if(!dp || (!(dp.nome && dp.nome.trim()) && !dp.data_nascimento)) return;
+    const nome = dp.nome ? dp.nome.trim() : '', k = famNomeKey(nome);
+    const filhos = exist.filter(f=>/^(filho|filha)$/.test(f.parentesco) && !usados.has(f.id));
+    const e = (k && filhos.find(f=>famNomeKey(f.nome)===k)) || (!k && dp.data_nascimento && filhos.find(f=>f.data_nascimento===dp.data_nascimento)) || null;
+    if(e){ usados.add(e.id); const row = {}; if(nome && famNomeKey(nome)!==famNomeKey(e.nome)) row.nome = nome; if(dp.data_nascimento && dp.data_nascimento!==e.data_nascimento) row.data_nascimento = dp.data_nascimento; if(Object.keys(row).length) upd.push({id:e.id, row}); }
+    else ins.push({ parentesco:'filho', nome:nome||('Filho '+(i+1)), data_nascimento:dp.data_nascimento||null, herdeiro:false });
+  });
+  return { ins, upd };
+}
+async function diagSyncFamilia(p, conj, deps){
+  try{
+    const { data, error } = await sb.from('crm_familiares').select('*').eq('pessoa_id', p.id); if(error) throw error;
+    const plano = famPlano(data||[], conj, deps);
+    if(plano.ins.length){ const r = await sb.from('crm_familiares').insert(plano.ins.map(x=>({...x, pessoa_id:p.id}))); if(r.error) throw r.error; }
+    for(const u of plano.upd){ const r = await sb.from('crm_familiares').update(u.row).eq('id', u.id); if(r.error) throw r.error; }
+    return { ok:true, novos:plano.ins.length, atualizados:plano.upd.length };
+  }catch(e){ return { ok:false, error:e }; }
+}
 const PD = { objetivos:[], deps:[] };
 function pdAdnAvancadoHtml(row){
   const deps = row.dependentes_detalhe||[]; const qtd = row.dependentes!=null ? row.dependentes : deps.length;
@@ -4125,6 +4159,11 @@ async function pvDiagnostico(p){
   const host = document.getElementById('pp-diag'); if(!host) return;
   const { data } = await sb.from('crm_diagnostico').select('*').eq('pessoa_id',p.id).order('created_at',{ascending:false}).limit(1);
   const row = (data||[])[0] || {};
+  const fams = ((await sb.from('crm_familiares').select('*').eq('pessoa_id', p.id)).data) || [];
+  const conj = fams.find(f=>f.parentesco==='conjuge') || null;
+  if(Array.isArray(row.dependentes_detalhe)) row.dependentes_detalhe = row.dependentes_detalhe.map(dp=>{
+    if(dp && !dp.data_nascimento && dp.nome){ const k = famNomeKey(dp.nome), m = fams.find(f=>/^(filho|filha)$/.test(f.parentesco) && famNomeKey(f.nome)===k); if(m && m.data_nascimento) return {...dp, data_nascimento:m.data_nascimento}; }
+    return dp; });
   const all = BLOCKS.find(b=>b.table==='crm_diagnostico').fields;
   const defOf = (name)=>{ const f = all.find(x=>x.name===name); return f ? [name, f.label, f.type, f.options] : [name, name, 'text']; };
   const essKeys = DIAG_ESSENCIAL.map(d=>d[0]);
@@ -4136,9 +4175,11 @@ async function pvDiagnostico(p){
     <div class="ql" style="margin-top:4px">Dados pessoais <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— vêm do cadastro; complete aqui o que faltar (salva junto com o diagnóstico)</small></div>
     <div class="fgrid" style="margin-bottom:10px">
       <label class="fl"><span>Estado civil</span><select id="dgp-estado_civil"><option value="">—</option>${['solteiro','casado','união estável','divorciado','viúvo'].map(o=>`<option ${p.estado_civil===o?'selected':''}>${o}</option>`).join('')}</select></label>
-      <label class="fl"><span>Gênero</span><select id="dgp-sexo"><option value="">—</option><option value="M" ${p.sexo==='M'?'selected':''}>Masculino</option><option value="F" ${p.sexo==='F'?'selected':''}>Feminino</option></select></label>
+      <label class="fl"><span>Gênero</span><select id="dgp-sexo"><option value="">—</option><option value="M" ${p.sexo==='M'?'selected':''}>Masculino</option><option value="F" ${p.sexo==='F'?'selected':''}>Feminino</option><option value="O" ${p.sexo==='O'?'selected':''}>Outro</option></select></label>
       ${fld('dgp-data_nascimento','Data de nascimento'+(idadeP!=null?' ('+idadeP+' anos)':''),p.data_nascimento,'date')}${fld('dgp-profissao','Profissão',p.profissao)}
+      ${fld('dgp-conjuge_nome','Nome do cônjuge',conj?conj.nome:'')}${fld('dgp-conjuge_nasc','Data de nascimento do cônjuge',conj&&conj.data_nascimento?conj.data_nascimento:'','date')}
     </div>
+    <div class="hint" style="margin:-4px 0 10px">A data de nascimento do cônjuge e a dos filhos (em dependentes, mais abaixo) entram em <b>Família e herdeiros</b> e geram o lembrete de aniversário.</div>
     <div class="fgrid">${DIAG_ESSENCIAL.map(d=>pvDiagField(d[0], row[d[0]], d)).join('')}</div>
     ${(()=>{ const solteiro = !p.estado_civil || p.estado_civil==='solteiro', semDep = !(Number(row.dependentes)>0); return `<div class="es-box" style="margin-top:12px"><div class="ql">Seguro de vida · capital manual <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— opcional</small></div>
       <label class="fl" style="max-width:340px"><span>Capital de seguro de vida, manual (R$, opcional)</span><input type="number" step="1000" min="0" data-dg="capital_vida_manual" value="${row.capital_vida_manual==null?'':row.capital_vida_manual}"></label>
@@ -4171,7 +4212,8 @@ async function pvDiagnostico(p){
     const res = row.id ? await sb.from('crm_diagnostico').update(payload).eq('id', row.id) : await sb.from('crm_diagnostico').insert({...payload, pessoa_id:p.id});
     if(res.error){ showToast('Erro: '+res.error.message); return; }
     const sync = await diagPushToADN(p.id, {...payload, ...pessoaUpd});
-    showToast(sync.ok ? 'Informações salvas (Diagnóstico)' : 'Informações salvas, mas falhou ao sincronizar com o Estudo: '+(sync.error?.message||'erro desconhecido'));
+    const fam = await diagSyncFamilia(p, { nome:pv('dgp-conjuge_nome'), nasc:pv('dgp-conjuge_nasc') }, payload.dependentes_detalhe);
+    showToast((sync.ok ? 'Informações salvas (Diagnóstico)' : 'Informações salvas, mas falhou ao sincronizar com o Estudo: '+(sync.error?.message||'erro desconhecido'))+(fam.ok ? (fam.novos||fam.atualizados ? ' · Família e herdeiros atualizada ('+(fam.novos+fam.atualizados)+' registro(s))' : '') : ' · não consegui atualizar Família e herdeiros: '+(fam.error?.message||'erro')));
     pvDiagnostico(p); pvFase3(p); pvFase5(p); });
 }
 
@@ -6418,7 +6460,7 @@ function redeChip(r){
 const FAM_PARENTESCO = [['conjuge','Cônjuge'],['filho','Filho'],['filha','Filha'],['mae','Mãe'],['pai','Pai'],['irmao','Irmão'],['irma','Irmã'],['outro','Outro familiar']];
 // sinalizadores de sexo e nascimento: mostram de onde veio o dado e o que falta (para conferir ou completar)
 function pvDadosChips(p){
-  const sx = p.sexo ? (p.sexo==='F'?'♀ Feminino':'♂ Masculino') : '';
+  const sx = p.sexo ? (p.sexo==='F'?'♀ Feminino':p.sexo==='O'?'Outro':'♂ Masculino') : '';
   const infer = p.sexo_origem==='inferido_nome';
   const chipSexo = p.sexo ? `<span class="tag" ${infer?'style="background:#fbeed9;color:#8a5406" title="O sistema deduziu pelo primeiro nome. Confira e corrija em Editar cadastro, se precisar."':''}>${sx}${infer?' · inferido pelo nome'+(p.sexo_confianca==='media'?' (confira)':''):''}</span>` : '<span class="tag" style="background:#fde4e4;color:#c23636" title="Nome ambíguo: informe o sexo em Editar cadastro.">sexo não identificado</span>';
   const orig = {cadastro_plantoes:' · do cadastro de plantões'}[p.nascimento_origem]||'';
@@ -8515,7 +8557,7 @@ function imcInfo(alturaCm, pesoKg){
 function adnDepRows(qtd, deps){
   deps = deps || []; let html = '';
   for(let i=0;i<qtd;i++){ const d = deps[i]||{};
-    html += `<div class="cv-row" style="gap:8px"><input class="adn-dep-nome" data-i="${i}" placeholder="Nome do dependente" value="${escapeHtml(d.nome||'')}" style="flex:1.4;min-width:0"><input class="adn-dep-idade" data-i="${i}" type="number" placeholder="Idade" value="${d.idade!=null?d.idade:''}" style="width:70px"><input class="adn-dep-custo" data-i="${i}" type="number" placeholder="Educação R$/mês" value="${d.custo_educacao!=null?d.custo_educacao:''}" style="width:140px"><input class="adn-dep-limite" data-i="${i}" type="number" placeholder="Até que idade (faculdade)" value="${d.idade_limite_educacao!=null?d.idade_limite_educacao:''}" style="width:150px"></div>`; }
+    html += `<div class="cv-row" style="gap:8px"><input class="adn-dep-nome" data-i="${i}" placeholder="Nome do dependente" value="${escapeHtml(d.nome||'')}" style="flex:1.4;min-width:0"><input class="adn-dep-idade" data-i="${i}" type="number" placeholder="Idade" value="${d.idade!=null?d.idade:''}" style="width:70px"><label style="font-size:11px;color:var(--ink-faint);display:flex;flex-direction:column">Nascimento<input class="adn-dep-nasc" data-i="${i}" type="date" title="Data de nascimento: gera o lembrete de aniversário" value="${escapeHtml(d.data_nascimento||'')}" style="width:140px"></label><input class="adn-dep-custo" data-i="${i}" type="number" placeholder="Educação R$/mês" value="${d.custo_educacao!=null?d.custo_educacao:''}" style="width:140px"><input class="adn-dep-limite" data-i="${i}" type="number" placeholder="Até que idade (faculdade)" value="${d.idade_limite_educacao!=null?d.idade_limite_educacao:''}" style="width:150px"></div>`; }
   return html;
 }
 function adnCollectDeps(box, qtd){
@@ -8523,10 +8565,16 @@ function adnCollectDeps(box, qtd){
   for(let i=0;i<qtd;i++){
     const nome = box.querySelector(`.adn-dep-nome[data-i="${i}"]`)?.value.trim() || '';
     const idadeEl = box.querySelector(`.adn-dep-idade[data-i="${i}"]`); const custoEl = box.querySelector(`.adn-dep-custo[data-i="${i}"]`); const limiteEl = box.querySelector(`.adn-dep-limite[data-i="${i}"]`);
-    out.push({ nome, idade: idadeEl && idadeEl.value!=='' ? Number(idadeEl.value) : null, custo_educacao: custoEl && custoEl.value!=='' ? Number(custoEl.value) : null, idade_limite_educacao: limiteEl && limiteEl.value!=='' ? Number(limiteEl.value) : null });
+    const nascEl = box.querySelector(`.adn-dep-nasc[data-i="${i}"]`);
+    out.push({ nome, data_nascimento: nascEl && nascEl.value ? nascEl.value : null, idade: idadeEl && idadeEl.value!=='' ? Number(idadeEl.value) : null, custo_educacao: custoEl && custoEl.value!=='' ? Number(custoEl.value) : null, idade_limite_educacao: limiteEl && limiteEl.value!=='' ? Number(limiteEl.value) : null });
   }
   return out;
 }
+document.addEventListener('change', e=>{
+  const t = e.target; if(!t || !t.classList || !t.classList.contains('adn-dep-nasc') || !t.value) return;
+  const row = t.closest('.cv-row'), idEl = row && row.querySelector('.adn-dep-idade'); if(!idEl) return;
+  const n = pvIdade({data_nascimento:t.value}); if(n!=null && n>=0) idEl.value = n;
+});
 function adnRenderDeps(){
   const box = document.getElementById('es-detail'); if(!box) return;
   const qtd = parseInt(document.getElementById('adn-dep-qtd').value,10)||0;
