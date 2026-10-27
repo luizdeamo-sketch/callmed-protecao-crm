@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610261621">
+<meta name="app-build" content="202610271059">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -370,6 +370,15 @@ window.ALIANCA = {
             </div>
             <div id="teams-eq-status" class="hint" style="margin:6px 0 0"></div>
           </div>
+        </div>
+        <div class="ics-box" id="link-box">
+          <b>Link fixo das reuniões (Teams)</b>
+          Cole o link da reunião recorrente do Teams. Toda reunião online nova (pela Agenda ou pela Prospecção) leva esse link, com o botão Entrar na reunião e o link nos lembretes por WhatsApp.
+          <div class="url-row">
+            <input id="rl-url" placeholder="https://teams.microsoft.com/l/meetup-join/...">
+            <button id="rl-save" type="button">Salvar</button>
+          </div>
+          <div id="rl-status" class="hint" style="margin:6px 0 0"></div>
         </div>
         <h4 style="font-size:.9rem; margin-bottom:10px;">Novo compromisso</h4>
         <form class="add-form" id="agenda-form" style="grid-template-columns:1fr;">
@@ -1803,7 +1812,7 @@ function vdProHtml(){
       </div>`;
     }
     const botoes = `${tel?`<a class="vp-wa" href="${tel}" target="_blank" rel="noopener" title="Abrir WhatsApp">WhatsApp</a>`:'<span class="vp-chip" title="Sem telefone válido">sem WhatsApp</span>'}`
-      + (aberto ? `<span class="vp-btns"><button class="om-cancel vd-btn" data-act="h-full" data-id="${x.id}">${VD.hFull[x.id]?'Histórico resumido':'Histórico completo'}</button>${x.pessoa_id?`<button class="om-cancel vd-btn" data-act="abrir" data-pid="${x.pessoa_id}">Abrir cadastro</button>`:''}<button class="om-cancel vd-btn" data-act="del-p" data-id="${x.id}" style="color:var(--red)">Excluir</button></span>` : '');
+      + (aberto ? `<span class="vp-btns"><button class="om-cancel vd-btn" data-act="h-full" data-id="${x.id}">${VD.hFull[x.id]?'Histórico resumido':'Histórico completo'}</button>${x.pessoa_id?`<button class="om-cancel vd-btn" data-act="abrir" data-pid="${x.pessoa_id}">Abrir cadastro</button><button class="om-cancel vd-btn" data-act="outra-nec" data-id="${x.id}" title="O cliente falou de outro produto (RC, Vida...): registra a demanda e avisa o especialista">🔎 Outra necessidade</button>`:''}<button class="om-cancel vd-btn" data-act="del-p" data-id="${x.id}" style="color:var(--red)">Excluir</button></span>` : '');
     return `<div class="vp-row${vdFechado(x)?' fechado':''}${reu?' reu':''}" data-id="${x.id}"><div class="vp-head"><a href="#" class="vp-nome" data-act="p-toggle" data-id="${x.id}">${aberto?'▾':'▸'} ${escapeHtml(x.nome||'(sem nome)')}</a>${chips}${botoes}</div><div class="vp-sub">${sub}</div>${det}</div>`; }).join('');
   const temFiltro = !!(f.st||f.org||f.por||f.de||f.ate||f.ret||f.estr||f.retsel||f.q);
   return `${cards}
@@ -2453,6 +2462,7 @@ window.addEventListener('beforeunload', e=>{ if(typeof vdRascunhos==='function' 
     else if(a==='h-edit'){ VD.hEdit = VD.hEdit||{}; VD.hEdit[id] = !VD.hEdit[id]; vdDraw(); }
     else if(a==='cli-abrir'){ vdAbrirConsultoria(t.dataset.pid); }
     else if(a==='reg-p'){ vdRegistrar(VD.pro.find(x=>x.id===id)); }
+    else if(a==='outra-nec'){ const r = VD.pro.find(x=>x.id===id); if(r){ try{ await ensurePessoas(); }catch(e){} demOutraNec(vdPessoaDe(r.pessoa_id), String((VD.draft||{})[id]||'').trim()); } }
     else if(a==='del-p'){ if(!confirm('Excluir este contato da prospecção?')) return; const { error } = await sb.from('crm_prospeccao').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; } VD.pro = VD.pro.filter(x=>x.id!==id); vdDraw(); }
     else if(a==='pdf-p') vdProPdf();
     else if(a==='csv-p') vdProCsv();
@@ -3130,10 +3140,11 @@ async function pvFluxo(p, step){
   let el = document.getElementById('flow'); if(!el){ el = document.createElement('div'); el.id = 'flow'; vc.appendChild(el); }
   FLOW.open = true; FLOW.p = p; FLOW.st = [];
   el.innerHTML = `<aside class="fl-side"><button type="button" class="om-cancel" id="fl-close">← Voltar ao cadastro</button>
-      <div class="fl-who"><b>${escapeHtml(p.nome)}</b><small>Fluxo de proteção · uma etapa por vez</small></div><div id="fl-steps"></div></aside>
+      <div class="fl-who"><b>${escapeHtml(p.nome)}</b><small>Fluxo de proteção · uma etapa por vez</small></div><button type="button" class="om-cancel" id="fl-outra" style="margin:0 0 10px" title="O cliente falou de outro produto (RC, Vida...)">🔎 Outra necessidade</button><div id="fl-steps"></div></aside>
     <div class="fl-main" id="fl-main"><div class="es-box" id="fl-docs"></div><div class="es-box" id="fl-dados"></div><div class="es-box" id="pp-analise"></div><div class="es-box" id="pp-diag"></div><div class="es-box" id="pp-fase3"></div><div class="es-box" id="pp-fase4"></div><div class="es-box" id="pp-fase5"></div><div class="fl-nav" id="fl-nav"></div></div>`;
   el.classList.add('open');
   el.querySelector('#fl-close').addEventListener('click', ()=>flowClose(true));
+  el.querySelector('#fl-outra').addEventListener('click', ()=>demOutraNec(p, ''));
   const main = el.querySelector('#fl-main'); const sched = ()=>{ clearTimeout(FLOW.t); FLOW.t = setTimeout(flowStatusRefresh, 1500); };
   main.addEventListener('click', sched); main.addEventListener('change', sched);
   let ini = step;
@@ -4233,7 +4244,7 @@ async function loadBlockData(block, personId){
 async function fetchMonthEvents(monthDate){
   const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
   const end = new Date(monthDate.getFullYear(), monthDate.getMonth()+1, 1);
-  const { data, error } = await sb.from('crm_agenda').select('id,titulo,tipo,data_inicio,data_fim,local,status,notas,pessoa_id,participantes,crm_pessoas(nome)')
+  const { data, error } = await sb.from('crm_agenda').select('id,titulo,tipo,data_inicio,data_fim,local,link_reuniao,status,notas,pessoa_id,participantes,crm_pessoas(nome)')
     .gte('data_inicio', start.toISOString()).lt('data_inicio', end.toISOString()).order('data_inicio');
   if(error){ showToast('Erro na agenda: ' + error.message); return []; }
   const tm = await agTeamsMonth(start, end);
@@ -5618,7 +5629,7 @@ async function pvDemandas(p){
   const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
   host.innerHTML = `<div class="ql">Demandas do cliente <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— ações e pedidos desta pessoa, com o andamento de cada um · ${abertas} em aberto</small></div>
     ${rows.length?`<div style="overflow-x:auto"><table class="ca-table" style="min-width:760px"><thead><tr><th>Produto</th><th>Ação</th><th>O que foi pedido</th><th>Status</th><th>Prazo</th><th>Responsável</th><th></th></tr></thead><tbody>${rows.map(d=>`<tr><td>${escapeHtml(d.produto)}</td><td>${escapeHtml(d.acao)}</td><td>${escapeHtml(d.descricao||'—')}</td><td><select data-dm-st="${d.id}" style="border:1px solid ${DEM_COR[d.status]||'var(--border)'};color:${DEM_COR[d.status]||'inherit'};border-radius:6px;padding:3px 6px;font-weight:600">${opt(DEM_STATUS,d.status)}</select></td><td>${d.prazo?fmtDate(d.prazo):'—'}</td><td>${escapeHtml(d.responsavel||'—')}</td><td style="white-space:nowrap">${vdRowBtns(d)}<a href="#" data-dm-del="${d.id}" title="Excluir demanda" style="color:var(--red)">${ICO.trash}</a></td></tr>`).join('')}</tbody></table></div>`:'<div class="hint">Nenhuma demanda registrada ainda. Registre o contato do mês ou um pedido do cliente.</div>'}
-    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="om-save" id="dm-new">＋ Nova demanda</button><button type="button" class="om-cancel" id="dm-contato" title="Registra, já concluído, o contato de acompanhamento deste cliente neste mês">✔ Contato de acompanhamento feito</button><span style="flex:1"></span><button type="button" class="om-save" id="vd-cli-v" title="Registra uma venda deste cliente na aba Vendas">Virou venda</button><button type="button" class="om-cancel" id="vd-cli-n" title="Registra que a venda deste cliente não aconteceu, com o motivo">Não virou venda</button></div>`;
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center"><button type="button" class="om-save" id="dm-new">＋ Nova demanda</button><button type="button" class="om-cancel" id="dm-outra" title="O cliente falou de outro produto (RC, Vida...): registra a demanda e avisa o especialista">🔎 Outra necessidade</button><button type="button" class="om-cancel" id="dm-contato" title="Registra, já concluído, o contato de acompanhamento deste cliente neste mês">✔ Contato de acompanhamento feito</button><span style="flex:1"></span><button type="button" class="om-save" id="vd-cli-v" title="Registra uma venda deste cliente na aba Vendas">Virou venda</button><button type="button" class="om-cancel" id="vd-cli-n" title="Registra que a venda deste cliente não aconteceu, com o motivo">Não virou venda</button></div>`;
   host.querySelectorAll('[data-dm-st]').forEach(sel=>sel.addEventListener('change', async ()=>{
     const st = sel.value;
     if(st==='Venda fechada' || st==='Não virou venda'){ const dd = rows.find(x=>x.id===sel.dataset.dmSt); if(dd){ if(st==='Venda fechada') vdVirouVendaDem(dd, p); else vdNaoVirouDem(dd, p); return; } }
@@ -5632,10 +5643,64 @@ async function pvDemandas(p){
     const { error: e2 } = await sb.from('crm_demandas').insert({pessoa_id:p.id, produto:'Geral', acao:'Contato de acompanhamento', descricao:null, status:'Concluída', concluida_em:new Date().toISOString(), responsavel:curUserName()||null, criado_por:curUserName()||null});
     if(e2){ showToast('Erro: '+e2.message); return; } showToast('Contato de acompanhamento registrado'); pvDemandas(p); });
   host.querySelector('#dm-new').addEventListener('click', ()=>demDialog(p));
+  host.querySelector('#dm-outra').addEventListener('click', ()=>demOutraNec(p, ''));
   host.querySelectorAll('[data-vd-v]').forEach(b=>b.addEventListener('click', ()=>{ const dd = rows.find(x=>x.id===b.dataset.vdV); if(dd) vdVirouVendaDem(dd, p); }));
   host.querySelectorAll('[data-vd-n]').forEach(b=>b.addEventListener('click', ()=>{ const dd = rows.find(x=>x.id===b.dataset.vdN); if(dd) vdNaoVirouDem(dd, p); }));
   host.querySelector('#vd-cli-v').addEventListener('click', ()=>vdVendaPessoa(p));
   host.querySelector('#vd-cli-n').addEventListener('click', ()=>vdNaoVendaPessoa(p));
+}
+const DEM_GUIA = {
+  'RC (Responsabilidade Civil)': ['Especialidade e onde atua (hospital, plantões, consultório)','Já tem RC? Seguradora, limite e vencimento','Atua como pessoa física ou PJ','Já teve processo ou notificação','Prazo para decidir'],
+  'Seguro de Vida': ['Idade, estado civil e dependentes','Renda mensal e quanto precisa para manter o padrão de vida','Já tem seguro de vida ou vida em grupo? Valores e vencimento','Maior preocupação (morte, afastamento, doença grave)','Prazo para decidir'],
+  'Seguro Saúde': ['Plano atual, valor e quem está no plano','Dependentes e região de atendimento','O que quer melhorar ou reduzir','Prazo para decidir'],
+  'Consórcio': ['Objetivo (imóvel, veículo, investimento)','Valor da carta e prazo desejado','Parcela que cabe no mês','Prazo para decidir'],
+  'Geral': ['O que o cliente pediu','Prazo para decidir'] };
+const demGuiaPerguntas = prod => DEM_GUIA[prod] || DEM_GUIA['Geral'];
+const demGuiaTexto = prod => demGuiaPerguntas(prod).map(q=>q+': ').join(String.fromCharCode(10));
+function demMsgEspecialista(o){
+  const NL = String.fromCharCode(10), esp = String(o.esp||'').trim();
+  return 'Olá'+(esp?', '+esp:'')+'! '+(o.por||'A equipe')+' identificou uma necessidade de '+o.produto+' para '+o.cliente+'.'+NL+NL+'O que foi levantado:'+NL+(String(o.resumo||'').trim()||'(sem detalhes ainda)')+NL+NL+'Pode nos ajudar?';
+}
+async function demEspecialistas(){ try{ const { data } = await sb.from('crm_config').select('valor').eq('chave','especialistas').maybeSingle(); return data && data.valor ? JSON.parse(data.valor) : {}; }catch(e){ return {}; } }
+async function demOutraNec(p, prefill){
+  if(!p){ showToast('Abra a ficha do cliente para registrar a outra necessidade.'); return; }
+  const esps = await demEspecialistas();
+  const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
+  const prodIni = 'RC (Responsabilidade Civil)';
+  const box = dlgOpen(`<div class="om-title"><div><h3>Outra necessidade — ${escapeHtml(p.nome)}</h3><div class="om-sub">O cliente falou de outro produto? Registre aqui: vira uma demanda ligada a ele, com o que foi levantado, e você pode avisar o especialista.</div></div><button data-close>✕</button></div>
+    <div class="dlg-body"><div class="fgrid">
+      <label class="fl"><span>Produto</span><select id="on-prod">${opt(DEM_PRODUTOS,prodIni)}</select></label>
+      <label class="fl"><span>Ação</span><select id="on-acao">${opt(DEM_ACOES,'Cotar')}</select></label>
+      <label class="fl"><span>Prazo (opcional)</span><input type="date" id="on-prazo"></label>
+      <label class="fl"><span>Responsável pela demanda</span><input id="on-resp" value="${escapeHtml(curUserName()||'')}"></label>
+      <label class="fl"><span>Especialista (nome)</span><input id="on-esp" placeholder="ex.: especialista em RC"></label>
+      <label class="fl"><span>WhatsApp do especialista (opcional)</span><input id="on-tel" placeholder="(11) 90000-0000"></label></div>
+      <div class="hint" id="on-guia" style="margin-top:8px"></div>
+      <label class="fl" style="margin-top:8px"><span>O que foi levantado <a href="#" id="on-roteiro" style="font-weight:400;text-transform:none">usar as perguntas como roteiro</a></span><textarea id="on-desc" rows="6" style="border:1px solid var(--border);border-radius:6px;padding:8px;font-family:inherit;font-size:13px;text-transform:none">${escapeHtml(prefill||'')}</textarea></label>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12.5px"><input type="checkbox" id="on-lembrar" checked> Lembrar este especialista para este produto</label>
+      <label style="display:flex;gap:6px;align-items:center;margin-top:4px;font-size:12.5px"><input type="checkbox" id="on-wa" checked> Abrir o WhatsApp com o resumo para o especialista (você confere e envia)</label>
+      <div class="om-err" id="on-err"></div></div>
+    <div class="om-foot"><span style="flex:1"></span><button class="om-cancel" data-close>Cancelar</button><button class="om-save" id="on-save">Registrar a demanda</button></div>`);
+  const g = id=>box.querySelector('#'+id).value.trim();
+  const aplicaProduto = ()=>{ const prod = g('on-prod'), e = esps[prod] || {};
+    box.querySelector('#on-guia').innerHTML = '<b>Perguntas para levantar:</b> '+demGuiaPerguntas(prod).map(escapeHtml).join(' · ');
+    box.querySelector('#on-esp').value = e.nome || ''; box.querySelector('#on-tel').value = e.telefone || ''; };
+  box.querySelector('#on-prod').addEventListener('change', aplicaProduto); aplicaProduto();
+  box.querySelector('#on-roteiro').addEventListener('click', ev=>{ ev.preventDefault(); const ta = box.querySelector('#on-desc'); const atual = ta.value.trim(); ta.value = (atual ? atual+String.fromCharCode(10)+String.fromCharCode(10) : '') + demGuiaTexto(g('on-prod')); ta.focus(); });
+  box.querySelector('#on-save').addEventListener('click', async ()=>{
+    const prod = g('on-prod'), desc = g('on-desc'), esp = g('on-esp'), tel = g('on-tel'), err = box.querySelector('#on-err');
+    if(!desc){ err.textContent = 'Escreva o que o cliente falou ou o que você levantou.'; return; }
+    const wa = box.querySelector('#on-wa').checked && tel ? waLink(tel) : null;
+    if(box.querySelector('#on-wa').checked && tel && !wa){ err.textContent = 'O WhatsApp do especialista parece inválido. Confira o número ou desmarque o aviso.'; return; }
+    const btn = box.querySelector('#on-save'); btn.disabled = true;
+    if(wa) window.open(wa+'?text='+encodeURIComponent(demMsgEspecialista({ esp, cliente:p.nome, produto:prod, resumo:desc, por:curUserName()||'' })), '_blank', 'noopener');   // abre antes de esperar, para o navegador não bloquear
+    const por = curUserName()||null, agora = new Date().toISOString();
+    const { error } = await sb.from('crm_demandas').insert({ pessoa_id:p.id, produto:prod, acao:g('on-acao'), descricao:desc, quem_pediu:'Cliente (outra necessidade)', para_quem:esp||null, status:'Pendente', prazo:g('on-prazo')||null, responsavel:esp||g('on-resp')||null, criado_por:por, dados:{ origem:'outra_necessidade', especialista_telefone: tel||null } });
+    if(error){ err.textContent = 'Erro: '+error.message; btn.disabled = false; return; }
+    try{ await sb.from('crm_atividades').insert({ pessoa_id:p.id, tipo:'outro', data_hora:agora, resumo:'Outra necessidade identificada · '+prod+(esp?' · especialista: '+esp:'')+String.fromCharCode(10)+desc, resultado:'Demonstrou interesse', responsavel:por }); }catch(e){}
+    if(box.querySelector('#on-lembrar').checked && (esp || tel)){ esps[prod] = { nome:esp, telefone:tel }; try{ await sb.from('crm_config').upsert({ chave:'especialistas', valor:JSON.stringify(esps), atualizado_em:agora }, { onConflict:'chave' }); }catch(e){} }
+    OP.dirty = true; dlgClose(); showToast('Demanda de '+prod+' registrada'+(wa?' e WhatsApp aberto para o especialista':'')+'.');
+    if(document.getElementById('pv-dem')) pvDemandas(p); });
 }
 function demDialog(p){
   const opt = (arr,sel)=>arr.map(o=>`<option${o===sel?' selected':''}>${escapeHtml(o)}</option>`).join('');
@@ -6770,6 +6835,7 @@ async function agTeamsLoadCfg(){
   AG_TEAMS.loaded = true;
   try{ const { data } = await sb.from('crm_config').select('valor').eq('chave','teams_ics:'+(window._userEmail||'')).maybeSingle(); AG_TEAMS.url = data && data.valor || null; }catch(e){}
   const inp = document.getElementById('teams-url'); if(inp && AG_TEAMS.url) inp.value = AG_TEAMS.url;
+  agRlLoad();
   try{ const { data: m } = await sb.rpc('crm_is_master'); window._isMaster = m===true; }catch(e){}
   const eqb = document.getElementById('teams-eq-box'); if(eqb) eqb.style.display = window._isMaster ? '' : 'none';
   if(window._isMaster){ try{ const { data } = await sb.from('crm_config').select('valor').eq('chave','teams_ics:equipe').maybeSingle(); AG_TEAMS.eqUrl = data && data.valor || null; const ei = document.getElementById('teams-eq-url'); if(ei && AG_TEAMS.eqUrl) ei.value = AG_TEAMS.eqUrl; }catch(e){} }
@@ -6817,6 +6883,20 @@ document.getElementById('teams-eq-save').addEventListener('click', async ()=>{
   AG_TEAMS.eqUrl = v||null; AG_TEAMS.at = 0; st.textContent = v ? 'Salvo ✓ Lendo o calendário…' : 'Calendário da equipe removido.';
   await agTeamsFetch(true); renderCalendar(); if(v) st.textContent = 'Salvo ✓ '+AG_TEAMS.events.length+' evento(s) no total.';
 });
+async function agRlLoad(){
+  try{ const { data } = await sb.from('crm_config').select('valor').eq('chave','reuniao_link_padrao').maybeSingle(); const i = document.getElementById('rl-url'); if(i && data && data.valor) i.value = data.valor; }catch(e){}
+}
+document.getElementById('rl-save').addEventListener('click', async ()=>{
+  const v = document.getElementById('rl-url').value.trim(), st = document.getElementById('rl-status');
+  if(v && !/^https:\/\//i.test(v)){ st.textContent = 'Cole o link completo da reunião (começa com https://).'; return; }
+  st.textContent = 'Salvando…';
+  const { error } = await sb.from('crm_config').upsert({ chave:'reuniao_link_padrao', valor: v||null, atualizado_em:new Date().toISOString() }, { onConflict:'chave' });
+  if(error){ st.textContent = 'Erro: '+error.message; return; }
+  if(!v){ st.textContent = 'Link fixo removido. As reuniões novas ficam sem link.'; return; }
+  const { data: n, error: e2 } = await sb.from('crm_agenda').update({ link_reuniao:v, updated_at:new Date().toISOString() }).is('link_reuniao', null).eq('tipo','reuniao_online').eq('status','agendado').gte('data_inicio', new Date().toISOString()).select('id');
+  st.textContent = e2 ? 'Link salvo, mas não consegui aplicar às reuniões já marcadas: '+e2.message : 'Salvo ✓ Aplicado também a '+((n||[]).length)+' reunião(ões) já marcada(s) sem link.';
+  renderCalendar();
+});
 function agIcs(ev){
   const z = d => new Date(d).toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
   const ini = new Date(ev.data_inicio), fim = ev.data_fim ? new Date(ev.data_fim) : new Date(ini.getTime()+3600000);
@@ -6857,11 +6937,12 @@ async function agEdit(id){
     const { error } = await sb.from('crm_agenda').delete().eq('id', id); if(error){ showToast('Erro: '+error.message); return; }
     dlgClose(); showToast('Compromisso apagado'); renderCalendar(); });
 }
+const agLinkReuniao = ev => { const l = ev.link_reuniao || (/^https?:\/\//i.test(ev.local||'') ? ev.local : ''); return /^https?:\/\//i.test(l||'') ? l : ''; };
 function renderDayEvents(events, date){
   const el = document.getElementById('day-events');
   el.innerHTML = `<h4>${date.toLocaleDateString('pt-BR',{weekday:'long', day:'2-digit', month:'long'})}${events.length?`<small>· ${events.length} compromisso${events.length>1?'s':''}</small>`:''}</h4>` +
     (events.length===0 ? '<div class="no-rec">Nenhum compromisso neste dia.</div>' :
-      '<div class="dv-lista">'+events.map(ev=> ev.teams ? `<div class="evt-card" style="border-left:3px solid #5059c9"><div class="t">${escapeHtml(ev.titulo)} <span style="float:right;font-size:11px;color:#5059c9;font-weight:700">Teams</span></div><div class="m">${ev.dia_inteiro?'Dia inteiro':fmtDateTime(ev.data_inicio)}${ev.local&&!/^https?:/i.test(ev.local)?agLocalHtml(ev.local):''}${ev.teams_link?`<br><a class="tm-go" href="${escapeHtml(ev.teams_link)}" target="_blank" rel="noopener">▶ Entrar na reunião (Teams)</a>`:''}</div></div>` : `<div class="evt-card"><div class="t">${escapeHtml(ev.titulo)} <a href="#" data-agedit="${ev.id}" title="Editar ou apagar" style="float:right;font-size:12px">editar</a></div><div class="m">${fmtDateTime(ev.data_inicio)}${ev.crm_pessoas?.nome?(' · '+escapeHtml(ev.crm_pessoas.nome)):''}${agLocalHtml(ev.local)}${(ev.participantes||[]).length?'<br>'+escapeHtml(ev.participantes.join(', ')):''}</div></div>`).join('')+'</div>');
+      '<div class="dv-lista">'+events.map(ev=> ev.teams ? `<div class="evt-card" style="border-left:3px solid #5059c9"><div class="t">${escapeHtml(ev.titulo)} <span style="float:right;font-size:11px;color:#5059c9;font-weight:700">Teams</span></div><div class="m">${ev.dia_inteiro?'Dia inteiro':fmtDateTime(ev.data_inicio)}${ev.local&&!/^https?:/i.test(ev.local)?agLocalHtml(ev.local):''}${ev.teams_link?`<br><a class="tm-go" href="${escapeHtml(ev.teams_link)}" target="_blank" rel="noopener">▶ Entrar na reunião (Teams)</a>`:''}</div></div>` : `<div class="evt-card"><div class="t">${escapeHtml(ev.titulo)} <a href="#" data-agedit="${ev.id}" title="Editar ou apagar" style="float:right;font-size:12px">editar</a></div><div class="m">${fmtDateTime(ev.data_inicio)}${ev.crm_pessoas?.nome?(' · '+escapeHtml(ev.crm_pessoas.nome)):''}${agLocalHtml(ev.local)}${(ev.participantes||[]).length?'<br>'+escapeHtml(ev.participantes.join(', ')):''}${agLinkReuniao(ev)?`<br><a class="tm-go" href="${escapeHtml(agLinkReuniao(ev))}" target="_blank" rel="noopener">▶ Entrar na reunião</a>`:''}</div></div>`).join('')+'</div>');
   el.querySelectorAll('[data-agedit]').forEach(a=>a.addEventListener('click', e=>{ e.preventDefault(); agEdit(a.dataset.agedit); }));
 }
 
