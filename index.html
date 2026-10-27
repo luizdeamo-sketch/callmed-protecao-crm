@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#00125e">
-<meta name="app-build" content="202610271059">
+<meta name="app-build" content="202610271251">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="CallMed CRM">
 <title>CallMed CRM Aliança</title>
@@ -1569,7 +1569,7 @@ function vdIniHtml(){
     <div class="vi-fases">${FLOW_STEPS.map((x,i)=>`<div class="vi-f"><b>${i+1}</b><div><strong>${escapeHtml(flLabel(x))}</strong><small>${escapeHtml(x.s)}</small></div></div>`).join('')}</div>
     <div class="vi-grid">
       <div class="es-box"><div class="ql">Cliente novo <small style="text-transform:none;font-family:inherit;color:var(--ink-faint)">— Fase 1 · Upload e cadastro</small></div>
-        <div class="dz" id="vi-dz" data-act="ini-dz" style="margin-top:8px">Arraste aqui as apólices e documentos do cliente (PDF) ou clique. O sistema lê o básico e cria o cadastro.<input type="file" id="vi-file" accept=".pdf,application/pdf" multiple hidden></div>
+        <div class="dz" id="vi-dz" data-act="ini-dz" style="margin-top:8px">Arraste aqui as apólices e documentos do cliente (PDF) ou clique. O sistema lê o básico, mostra o resumo para você conferir e abre o fluxo do cliente.<input type="file" id="vi-file" accept=".pdf,application/pdf,image/*" multiple hidden></div>
         <div class="hint" style="margin:8px 0">Ou crie o cadastro manualmente: só o nome é obrigatório.</div>
         <div class="vp-grid"><label>Nome completo<input id="vi-nome" placeholder="Nome"></label><label>CPF<input id="vi-cpf" placeholder="000.000.000-00"></label><label>Telefone<input id="vi-tel" placeholder="(11) 90000-0000"></label><label>Data de nascimento<input id="vi-nasc" type="date"></label><label>Perfil<select id="vi-tipo">${tipoOptions('medico')}</select></label></div>
         <div style="margin-top:10px"><button class="om-save" data-act="ini-novo">Criar cadastro e iniciar o fluxo</button></div></div>
@@ -1608,8 +1608,8 @@ async function vdIniAbrir(){
 (function(){ const host = document.getElementById('vd-body'); if(!host) return;
   host.addEventListener('dragover', e=>{ const z = e.target.closest && e.target.closest('#vi-dz'); if(z){ e.preventDefault(); z.classList.add('over'); } });
   host.addEventListener('dragleave', e=>{ const z = e.target.closest && e.target.closest('#vi-dz'); if(z) z.classList.remove('over'); });
-  host.addEventListener('drop', e=>{ const z = e.target.closest && e.target.closest('#vi-dz'); if(!z) return; e.preventDefault(); z.classList.remove('over'); const fs = [...e.dataTransfer.files].filter(f=>/\.pdf$/i.test(f.name)); if(fs.length){ showToast('Lendo '+fs.length+' documento(s)…'); caEnqueue(fs); } else showToast('Envie arquivos PDF.'); });
-  host.addEventListener('change', e=>{ if(e.target.id!=='vi-file') return; const fs = [...e.target.files]; e.target.value = ''; if(fs.length){ showToast('Lendo '+fs.length+' documento(s)…'); caEnqueue(fs); } });
+  host.addEventListener('drop', e=>{ const z = e.target.closest && e.target.closest('#vi-dz'); if(!z) return; e.preventDefault(); z.classList.remove('over'); const fs = [...e.dataTransfer.files].filter(f=>/\.(pdf|png|jpe?g|webp)$/i.test(f.name)); if(fs.length){ caFase1(fs, null, {abrirFluxo:true}); } else showToast('Envie arquivos PDF ou imagem.'); });
+  host.addEventListener('change', e=>{ if(e.target.id!=='vi-file') return; const fs = [...e.target.files]; e.target.value = ''; if(fs.length) caFase1(fs, null, {abrirFluxo:true}); });
 })();
 // ---------- Prospecção ----------
 const VD_ST_PRO = ['Novo','Em contato','Respondeu','Agendou reunião','Desmarcou reunião','Reunião realizada','Retornar','Cotação em andamento','Apresentei cotação','Virou cliente','Sem contato','Sem interesse'];
@@ -2237,11 +2237,11 @@ async function vdCliBuild(an, ct, es){
   for(let i=0;i<ids.length;i+=150){ const { data } = await sb.from('crm_pessoas').select('id,nome,cpf').in('id', ids.slice(i,i+150)); (data||[]).forEach(p=>nomes.set(p.id,p)); }
   VD.cli = ids.map(id=>Object.assign(m.get(id), {nome:(nomes.get(id)||{}).nome||'(sem nome)', cpf:(nomes.get(id)||{}).cpf||''})).filter(r=>nomes.has(r.pid));
 }
-async function vdAbrirConsultoria(pid){
+async function vdAbrirConsultoria(pid, step, lerAuto){
   try{
     goToPersonView(pid, 'protecao');
     for(let i=0;i<50;i++){ if(typeof PV!=='undefined' && PV.person && String(PV.person.id)===String(pid)) break; await new Promise(r=>setTimeout(r,100)); }
-    if(typeof PV!=='undefined' && PV.person && String(PV.person.id)===String(pid)) pvFluxo(PV.person); else showToast('Não consegui abrir a consultoria deste cliente.');
+    if(typeof PV!=='undefined' && PV.person && String(PV.person.id)===String(pid)){ await pvFluxo(PV.person, step); if(lerAuto) FLOW.autoLer = true; } else showToast('Não consegui abrir a consultoria deste cliente.');
   }catch(e){ showToast('Erro: '+(e.message||e)); }
 }
 function vdCliStatus(r){
@@ -2554,7 +2554,7 @@ document.querySelectorAll('.nav-btn').forEach(btn=>{
   });
 });
 function goToPersonView(personId, tab){
-  if(FLOW.open){ if(FLOW.p && String(FLOW.p.id)===String(personId)){ const veioDoUpload = tab==='protecao' && FLOW.step===0; flowRefresh(); if(veioDoUpload){ FLOW.autoLer = true; flowGo(2); } return; } flowClose(); }
+  if(FLOW.open){ if(FLOW.p && String(FLOW.p.id)===String(personId)){ const veioDoUpload = tab==='protecao' && FLOW.step===0; flowRefresh(); if(veioDoUpload){ FLOW.autoLer = true; flowGo(1); } return; } flowClose(); }
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   const opBtn = document.querySelector('.nav-btn[data-view="operacao"]');
   opBtn.classList.add('active');
@@ -7864,7 +7864,7 @@ async function fase1Read(file){
   const pessoas = (f.multiplas && f.multiplas.length>1) ? f.multiplas.map(c=>({nome:c.nome||'', cpf:c.cpf||''})) : [{nome:f.nome||'', cpf:f.cpf||'', telefone:f.telefone||'', nasc:f.data_nascimento||''}];
   return {file, tipo, pessoas, erro, multi:pessoas.length>1, viaIA, resumo};
 }
-async function caFase1(files, fixed){
+async function caFase1(files, fixed, opts){
   files = files.filter(f=>f && f.name); if(!files.length) return;
   const box = dlgOpen(`<div class="om-title"><div><h3>Lendo ${files.length} documento(s)…</h3><div class="om-sub" id="f1-prog">Extraindo nome, CPF e o tipo de cada documento.</div></div></div><div class="dlg-body"><div class="op-more">Aguarde…</div></div>`, true);
   await ensurePessoas();
@@ -7966,7 +7966,7 @@ async function caFase1(files, fixed){
       }
       OP.pessoas.sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR')); OP.dirty = true; CA.loaded = false;
       dlgClose(); showToast(`${nDocs} documento(s) anexado(s) · ${nCad} cadastro(s) novo(s)${falhas?` · ${falhas} com erro`:''}`);
-      if(ativos.length===1 && ultimo) goToPersonView(ultimo, 'protecao'); else if(fixed && FLOW.open) flowRefresh(); else renderCentral(true);
+      if(ativos.length===1 && ultimo){ if(opts && opts.abrirFluxo && !fixed) vdAbrirConsultoria(ultimo, 1, true); else goToPersonView(ultimo,'protecao'); } else if(fixed && FLOW.open) flowRefresh(); else renderCentral(true);
     }catch(e){ err.textContent = 'Erro ao salvar: '+(e.message||e)+' (parte pode já ter sido gravada — confira o cadastro).'; btn.disabled = false; btn.textContent = 'Salvar e anexar'; }
   });
 }
